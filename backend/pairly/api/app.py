@@ -28,6 +28,7 @@ from pairly.api.schemas import (
     GiftItemOut,
     GiftsResponse,
     GiftTransition,
+    MilestoneOut,
     MoodEntryOut,
     MoodResponse,
     MoodSet,
@@ -400,13 +401,13 @@ def create_app() -> FastAPI:
                 question_id=question_id,
                 body=body,
             )
-            from sqlalchemy import select, func
+            from sqlalchemy import func, select
+
             from pairly.db.models import QOTDAnswer
-            from pairly.repositories import milestones as ms_repo
             n = int((await session.execute(
                 select(func.count(QOTDAnswer.id)).where(QOTDAnswer.pair_id == pair_id)
             )).scalar_one())
-            new_ms = await ms_repo.check_qotd(session, pair_id=pair_id, count=n)
+            new_ms = await milestones.check_qotd(session, pair_id=pair_id, count=n)
             await session.commit()
         except AnswerTooLongError as exc:
             raise HTTPException(
