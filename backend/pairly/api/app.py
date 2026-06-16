@@ -319,6 +319,11 @@ def create_app() -> FastAPI:
             await session.commit()
         except InvalidMoodError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        from pairly.bot.notify import notify_mood_set
+
+        await notify_mood_set(
+            session, pair_id=pair_id, actor_id=auth.user.id, mood=entry.mood
+        )
         return _to_mood_out(entry)
 
     @app.delete("/api/mood")
@@ -413,6 +418,9 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, detail=f"answer too long: {exc}"
             ) from exc
+        from pairly.bot.notify import notify_qotd_answered
+
+        await notify_qotd_answered(session, pair_id=pair_id, actor_id=auth.user.id)
         # After answering, the caller has cleared the reveal gate — recompute the
         # partner's state for THIS caller and return the client's flat shape so the
         # UI can spread it straight into its QOTDState.
@@ -461,13 +469,17 @@ def create_app() -> FastAPI:
             gesture=payload.gesture,
             description=payload.description,
         )
-        from pairly.repositories import milestones as ms_repo
         active = [
             g for g in await gifts.list_gifts(session, pair_id=pair_id, user_id=auth.user.id)
             if g.status.value not in ("declined", "archived")
         ]
-        new_ms = await ms_repo.check_gift(session, pair_id=pair_id, count=len(active))
+        new_ms = await milestones.check_gift(session, pair_id=pair_id, count=len(active))
         await session.commit()
+        from pairly.bot.notify import notify_gift_received
+
+        await notify_gift_received(
+            session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
+        )
         out = _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
         out["newMilestones"] = [
             MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
@@ -493,6 +505,13 @@ def create_app() -> FastAPI:
             await session.commit()
         except GiftStateError as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        # When a gift is marked done, the receiver learns it actually happened.
+        if item.status == GiftStatus.REDEEMED:
+            from pairly.bot.notify import notify_gift_redeemed
+
+            await notify_gift_redeemed(
+                session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
+            )
         return _to_gift_out(item, auth.user.id)
 
     return app

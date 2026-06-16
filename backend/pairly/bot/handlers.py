@@ -291,6 +291,13 @@ async def on_forward(message: Message, state: FSMContext) -> None:
             )
             return
 
+        # Poke the partner that the shared list grew (best-effort; silent if blocked).
+        from pairly.bot.notify import notify_wishlist_added
+
+        await notify_wishlist_added(
+            session, pair_id=pair.id, actor_id=user.id, title=title
+        )
+
     await message.answer(f"Готово — добавил в вишлист: «{html.escape(title)}»")
 
 
@@ -316,6 +323,11 @@ async def on_title_reply(message: Message, state: FSMContext) -> None:
             await session.rollback()
             await message.answer("В бесплатной версии — 10 пунктов вишлиста.")
             return
+        from pairly.bot.notify import notify_wishlist_added
+
+        await notify_wishlist_added(
+            session, pair_id=pair_id, actor_id=user_id, title=title
+        )
     await message.answer(f"Готово — добавил в вишлист: «{html.escape(title)}»")
 
 
