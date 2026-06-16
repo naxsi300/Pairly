@@ -4,6 +4,7 @@ import { endpoints, useApi, type GiftsResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import type { GiftItem, GiftStatus } from "../types";
 import { giftStatusLabel } from "../lib/format";
+import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
@@ -44,12 +45,18 @@ export function Gifts() {
   async function send(gesture: string, description?: string | null) {
     setBusy(true);
     try {
-      const item = await endpoints.sendGift({ gesture, description: description ?? null });
+      const item = (await endpoints.sendGift({
+        gesture,
+        description: description ?? null,
+      })) as GiftItem & { newMilestones?: { kind: string; value: number }[] };
       setData((prev) => ({
         ...(prev ?? ({} as GiftsResponse)),
         items: [item, ...(prev?.items ?? [])],
       }));
       haptic("success");
+      for (const m of item.newMilestones ?? []) {
+        emitMilestone({ kind: m.kind, value: m.value });
+      }
     } catch {
       refetch();
     } finally {

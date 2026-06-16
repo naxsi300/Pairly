@@ -4,6 +4,7 @@ import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
 import { countdownDisplay, countdownEmoji } from "../lib/format";
+import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
@@ -48,17 +49,20 @@ export function Countdowns() {
     setDateErr(false);
     setBusy(true);
     try {
-      const item = await endpoints.addCountdown({
+      const item = (await endpoints.addCountdown({
         label: label.trim(),
         targetDate: target,
         emoji: emoji.trim() || null,
-      });
+      })) as Countdown & { newMilestones?: { kind: string; value: number }[] };
       setData((prev) => [item, ...(prev ?? [])]);
       setAdding(false);
       setLabel("");
       setDate("");
       setEmoji("");
       haptic("success");
+      for (const m of item.newMilestones ?? []) {
+        emitMilestone({ kind: m.kind, value: m.value });
+      }
     } catch {
       refetch();
     } finally {

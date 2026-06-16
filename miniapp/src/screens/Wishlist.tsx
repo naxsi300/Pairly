@@ -4,6 +4,7 @@ import { ApiError, endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type WishlistItem } from "../types";
 import { wishlistCategoryLabel, wishlistStatusLabel } from "../lib/format";
+import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
@@ -28,17 +29,21 @@ export function Wishlist() {
     if (!title.trim()) return;
     setBusy(true);
     try {
+      // The API response includes newMilestones (if any) — show a soft toast.
       const item = await endpoints.addWishlist({
         title: title.trim(),
         address: address.trim() || null,
         category: category || null,
-      });
+      }) as WishlistItem & { newMilestones?: { kind: string; value: number }[] };
       setData((prev) => [item, ...(prev ?? [])]);
       setAdding(false);
       setTitle("");
       setAddress("");
       setCategory("");
       haptic("success");
+      for (const m of item.newMilestones ?? []) {
+        emitMilestone({ kind: m.kind, value: m.value });
+      }
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) {
         // limit hit on the backend — surface the warm banner via a no-op refetch

@@ -8,6 +8,8 @@ import { Countdowns } from "./screens/Countdowns";
 import { Mood } from "./screens/Mood";
 import { QuestionOfTheDay } from "./screens/QuestionOfTheDay";
 import { Gifts } from "./screens/Gifts";
+import { MilestoneToast, type MilestoneEvent } from "./components/Toast";
+import { useMilestoneToast } from "./lib/milestoneBus";
 
 type Tab = "wishlist" | "bucket" | "countdowns" | "mood" | "qotd" | "gifts";
 
@@ -25,6 +27,7 @@ initTwa();
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("wishlist");
+  const [milestone, dismissMilestone] = useMilestoneToast();
 
   return (
     <div className="flex min-h-full flex-col">
@@ -32,6 +35,13 @@ export default function App() {
         <div className="bg-amber-500/10 px-4 py-1 text-center text-xs text-amber-600">
           demo-режим: показаны примеры данных
         </div>
+      ) : null}
+
+      {milestone ? (
+        <MilestoneToast
+          events={[milestone] as MilestoneEvent[]}
+          onDismiss={dismissMilestone}
+        />
       ) : null}
 
       <main className="flex-1">
