@@ -8,6 +8,7 @@ gate on shared features.
 from __future__ import annotations
 
 import html
+import time
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, StateFilter
@@ -22,6 +23,38 @@ from pairly.repositories.pairs import InviteError
 from pairly.repositories.wishlist import WishlistLimitError
 
 router = Router(name="pairly-main")
+
+
+# --- Album de-duplication -----------------------------------------------------
+# Telegram delivers a media album (several photos) as N separate updates sharing
+# one `media_group_id`, but only the FIRST carries the caption. Without this guard,
+# every caption-less photo in the album would trigger a separate "Как это назвать?"
+# prompt (and corrupt the FSM state). We remember each group id for a short window
+# and ignore every photo after the first in its group.
+# In-memory + per-process: fine for a single bot process (the deploy model).
+_SEEN_ALBUM_TTL = 300  # seconds; albums arrive within seconds, keep margin.
+_seen_albums: dict[str, float] = {}
+
+
+def _is_album_followup(message: Message) -> bool:
+    """True if this message is NOT the first photo of its album.
+
+    Returns False for non-album messages (no media_group_id) and for the first
+    photo of an album. Side effect: records the group id so later photos in the
+    same group return True.
+    """
+    mgid = message.media_group_id
+    if not mgid:
+        return False
+    now = time.monotonic()
+    # Opportunistic GC of expired entries (tiny map, cheap).
+    expired = [k for k, t in _seen_albums.items() if now - t > _SEEN_ALBUM_TTL]
+    for k in expired:
+        _seen_albums.pop(k, None)
+    if mgid in _seen_albums:
+        return True  # we already saw this album -> ignore (follow-up photo)
+    _seen_albums[mgid] = now
+    return False
 
 
 # --- FSM for the "no text -> ask for a title" inline flow ---------------------
@@ -201,7 +234,16 @@ async def cmd_list(message: Message) -> None:
 @router.message(F.forward_origin)
 async def on_forward(message: Message, state: FSMContext) -> None:
     """The core capture loop: a forwarded post becomes a wishlist item."""
+    # An album arrives as several updates; only handle the first photo per group.
+    # Later photos (no caption of their own) would otherwise each ask for a title.
+    if _is_album_followup(message):
+        return
+
     text = message.text or message.caption or ""
+    # A photo album without any caption: give it a sensible default title instead
+    # of prompting — the album is one logical item, not a title-less void.
+    if not text.strip() and message.media_group_id and (message.photo or message.video):
+        text = "Альбом"  # localized default; the user can rename in the Mini App.
 
     async with SessionLocal() as session:
         user = await users.get_or_create_user(
