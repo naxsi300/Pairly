@@ -44,17 +44,44 @@ body {
   font-family: var(--tg-font, "Roboto"), system-ui, -apple-system, "Segoe UI",
     sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Use Telegram-provided safe insets when present, else env(). */
   padding-top: var(--tg-safe-area-inset-top, env(safe-area-inset-top));
 }
 
 /* App scroll area sits between the top safe inset and the bottom tab bar. */
 .app-scroll {
-  /* Bottom tab bar height + bottom safe inset. */
   padding-bottom: calc(64px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)));
 }
 
 /* Minimal, theme-respecting scrollbars. */
 * {
   scrollbar-width: thin;
+}
+
+/* Card surface — soft shadow, Telegram-native radii. */
+.card-soft {
+  background: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 60%, transparent);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.card-soft:active {
+  transform: scale(0.99);
+}
+
+/* Primary action button — soft "press" feedback. */
+.btn-press {
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.btn-press:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+/* Soft top-bar (for the tab bar / future top sheets) */
+.top-blur {
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: color-mix(in srgb, var(--tg-theme-bg-color) 80%, transparent);
 }

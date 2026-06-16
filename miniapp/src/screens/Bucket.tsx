@@ -49,9 +49,19 @@ export function Bucket() {
     );
     haptic("success");
     try {
-      // Bucket has no dedicated done endpoint in the stub; mirror mark-done pattern
-      // by relying on the repository via a future endpoint. For now optimistic only.
-      void item;
+      await endpoints.setBucketStatus(item.id, "done");
+    } catch {
+      refetch();
+    }
+  }
+
+  async function undo(item: BucketItem) {
+    setData((prev) =>
+      (prev ?? []).map((b) => (b.id === item.id ? { ...b, status: "dreaming" } : b)),
+    );
+    haptic("light");
+    try {
+      await endpoints.setBucketStatus(item.id, "dreaming");
     } catch {
       refetch();
     }
@@ -102,13 +112,18 @@ export function Bucket() {
                 <p className="text-[15px] font-medium text-tg-text">{item.title}</p>
                 {item.note ? <p className="mt-1 text-sm text-tg-hint">{item.note}</p> : null}
                 <p className="mt-1 text-xs text-tg-hint">{bucketStatusLabel(item.status)}</p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   {item.status !== "done" ? (
                     <Button variant="secondary" onClick={() => markDone(item)}>
                       Сбылось 🌌
                     </Button>
                   ) : (
-                    <span className="self-center text-sm text-tg-hint">🌌 сбылось</span>
+                    <>
+                      <span className="self-center text-sm text-tg-hint">🌌 сбылось</span>
+                      <Button variant="ghost" onClick={() => undo(item)}>
+                        ↶ Мечтать
+                      </Button>
+                    </>
                   )}
                   <Button variant="danger" onClick={() => remove(item)}>
                     🗑 {COPY.common.delete}

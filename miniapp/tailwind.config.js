@@ -28,6 +28,29 @@ export default {
       },
       borderRadius: {
         xl2: "1.25rem",
+        xl3: "1.5rem",
+      },
+      boxShadow: {
+        soft: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04)",
+        glow: "0 4px 24px rgba(0,0,0,0.06)",
+      },
+      transitionDuration: {
+        300: "300ms",
+      },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "pop": {
+          "0%": { transform: "scale(0.92)" },
+          "60%": { transform: "scale(1.04)" },
+          "100%": { transform: "scale(1)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 280ms ease-out",
+        pop: "pop 320ms ease-out",
       },
     },
   },

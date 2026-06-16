@@ -101,3 +101,12 @@ Notes: requires `/setdomain` in @BotFather pointing at the same domain as `PAIRL
 **17. Forwarded-post handler fired 3x for the same message.**
 Decision: drop the legacy `forward_from` / `forward_from_chat` OR conditions; use only `F.forward_origin` (the current Telegram API). The legacy fields are sometimes populated redundantly, causing the handler to be entered multiple times for a single forwarded message.
 Alternative: dedupe by `forward_origin.date_unix` — rejected, the simpler filter fix removes the cause.
+
+---
+
+## 2026-06-16 — API field-mismatch fix
+
+**18. The Mini App sent camelCase (targetDate, answer), the API expected snake_case (target_date, body).**
+Decision: Pydantic schemas in `pairly/api/schemas.py` with `Field(alias=...)` for inputs + `populate_by_name=True`, plus `validation_alias` for fields whose python name is snake_case but the wire form is camelCase. Output is always camelCase via `serialization_alias`.
+Alternative: change the client to snake_case — rejected, would break JS conventions across the whole Mini App.
+✅ **CLOSED 2026-06-16:** all POST/POST-status endpoints now accept either casing on the way in, serialize camelCase on the way out. 9 new Pydantic-only tests in `test_api_schema.py`. Live smoke on VPS: `POST /api/countdowns` with `{label, targetDate}` returns 401 (auth) — not 500 (validation) — confirming the schema accepts the wire shape.

@@ -59,6 +59,16 @@ export function Wishlist() {
     }
   }
 
+  async function undo(item: WishlistItem) {
+    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "open" } : w)));
+    haptic("light");
+    try {
+      await endpoints.setWishlistStatus(item.id, "open");
+    } catch {
+      refetch();
+    }
+  }
+
   async function remove(item: WishlistItem) {
     setData((prev) => (prev ?? []).filter((w) => w.id !== item.id));
     haptic("light");
@@ -114,13 +124,18 @@ export function Wishlist() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   {item.status !== "done" ? (
                     <Button variant="secondary" onClick={() => markDone(item)}>
                       ✅ Сделано
                     </Button>
                   ) : (
-                    <span className="self-center text-sm text-tg-hint">✅ сделано</span>
+                    <>
+                      <span className="self-center text-sm text-tg-hint">✅ сделано</span>
+                      <Button variant="ghost" onClick={() => undo(item)}>
+                        ↶ Отменить
+                      </Button>
+                    </>
                   )}
                   <Button variant="danger" onClick={() => remove(item)}>
                     🗑 {COPY.common.delete}

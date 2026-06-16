@@ -45,7 +45,7 @@ export default function App() {
 
       {/* Bottom tab bar — single-page nav (open-decisions.md #1). */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-black/5 bg-tg-bg/95 backdrop-blur"
+        className="fixed inset-x-0 bottom-0 z-40 top-blur"
         style={{
           paddingBottom: "var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom))",
         }}

@@ -109,11 +109,22 @@ export const endpoints = {
     request<WishlistItem>("/api/wishlist", { method: "POST", body: b }),
   markDone: (item_id: string) =>
     request<WishlistItem>("/api/mark-done", { method: "POST", body: { item_id } }),
+  /** Set explicit status. body.status is one of "open"|"planned"|"done"|"archived". */
+  setWishlistStatus: (id: string, status: string) =>
+    request<WishlistItem>(`/api/wishlist/${id}/status`, {
+      method: "POST",
+      body: { status },
+    }),
   deleteWishlist: (id: string) => request<{ ok: true }>(`/api/wishlist/${id}`, { method: "DELETE" }),
 
   listBucket: () => request<BucketItem[]>("/api/bucket"),
   addBucket: (b: { title: string; note?: string | null; category?: string | null }) =>
     request<BucketItem>("/api/bucket", { method: "POST", body: b }),
+  setBucketStatus: (id: string, status: string) =>
+    request<BucketItem>(`/api/bucket/${id}/status`, {
+      method: "POST",
+      body: { status },
+    }),
   deleteBucket: (id: string) => request<{ ok: true }>(`/api/bucket/${id}`, { method: "DELETE" }),
 
   listCountdowns: () => request<Countdown[]>("/api/countdowns"),
@@ -122,9 +133,9 @@ export const endpoints = {
     targetDate: string;
     emoji?: string | null;
     recurrence?: Countdown["recurrence"];
-  }) => request<Countdown>("/api/countdown", { method: "POST", body: b }),
+  }) => request<Countdown>("/api/countdowns", { method: "POST", body: b }),
   deleteCountdown: (id: string) =>
-    request<{ ok: true }>(`/api/countdown/${id}`, { method: "DELETE" }),
+    request<{ ok: true }>(`/api/countdowns/${id}`, { method: "DELETE" }),
 
   getMood: () => request<MoodResponse>("/api/mood"),
   setMood: (b: { mood: string; note?: string | null }) =>
@@ -136,9 +147,13 @@ export const endpoints = {
 
   listGifts: () => request<GiftsResponse>("/api/gifts"),
   sendGift: (b: { gesture: string; description?: string | null }) =>
-    request<GiftItem>("/api/gift", { method: "POST", body: b }),
-  actOnGift: (id: string, action: "accept" | "decline" | "redeem" | "complete") =>
-    request<GiftItem>(`/api/gift/${id}/${action}`, { method: "POST", body: {} }),
+    request<GiftItem>("/api/gifts", { method: "POST", body: b }),
+  /** Transition a gift. status is one of "claimed"|"declined"|"redeemed"|"complete"|"archived". */
+  actOnGift: (id: string, status: string) =>
+    request<GiftItem>(`/api/gifts/${id}/transition`, {
+      method: "POST",
+      body: { status },
+    }),
 };
 
 // ---------------------------------------------------------------------------
