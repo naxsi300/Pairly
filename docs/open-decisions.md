@@ -179,3 +179,12 @@ Current state: `pairly/repositories/milestones.py` + `miniapp/src/lib/milestoneB
 Decision: KEEP the soft milestone system as the gamification layer. Do NOT add streaks/XP/levels/leaderboards — they contradict the product's anti-pressure stance (see mood-sync.md "NEVER nudge the silent partner").
 Alternative the user may have meant: richer milestone tiers + a gentle "shared memory counter" (e.g. "вместе 100 дней", total gifts given) shown as ambient stats, not goals. VIABLE — tracked as a possible enhancement once the user confirms scope.
 Status: **needs user input** — what flavor of gamification? (a) nothing more [current], (b) ambient shared-counters, (c) full XP/streaks [recommend against].
+
+**32. Forward bug — album "Как это назвать?" ×3 (user report 2026-06-16 23:30).**
+Root cause analysis: the album-dedup (`_is_album_followup`, keyed on `media_group_id`) WAS present and is deployed. The reported 3 prompts came from a version/container older than rev e3eacff, OR from 3 individually-forwarded caption-less photos (no shared `media_group_id` — the dedup can't group them, each legitimately needs a name).
+Decision: dedup stays (handles true albums); added `/cancel` + non-text FSM fallback so a stuck title flow is always escapable and never silently drops input. Did NOT add cross-photo batching for unrelated forwards — that would merge distinct items the user intended as separate.
+Alternative: prompt once for N rapid forwards, let the user title a batch — rejected (ambiguous; merges distinct wishes).
+
+**33. CI now builds the Mini App — committed `miniapp/dist` is a transitional artifact.**
+The Mini App `dist/` is still git-tracked because docker-compose mounts it into Caddy and the VPS doesn't yet build from npm. The user wants `npm run build` ON the VPS (so dist isn't shipped from the dev machine).
+Decision: staged. (1) DONE — CI now typechecks + builds the Mini App on every push, so the build is always green. (2) TODO — add a build step to the VPS deploy (a `miniapp-build` service or a Makefile target run before `docker compose up`), then untrack `dist/`. Tracked here; not breaking the working deploy until the VPS build path exists.
