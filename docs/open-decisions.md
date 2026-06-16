@@ -133,3 +133,33 @@ Decision: client now maps `Action` (accept/decline/redeem/complete) → `GiftSta
 Decision: changed `on:` to `workflow_dispatch` (never auto-triggers) and replaced the "stub" job with a no-op `notify` job that just prints a message. The workflow now never "fails" in the email sense. To re-enable: provision VPS secrets, uncomment the deploy job.
 Alternative: delete the file — rejected, leaves a "missing workflow" gap that's harder to fix later.
 ✅ **All 4 reported issues closed.**
+
+---
+
+## 2026-06-16 — Wire-format root cause + bot experience overhaul
+
+**24. Mood/QOTD save "did nothing" — root cause was a CASCADING wire-format mismatch, not the save buttons.**
+`_CamelModel` had NO `alias_generator`, so every `response_model=` route serialized snake_case (`set_at`, `mine`, `partner_name`). The client read camelCase (`self`, `partnerName`, `setAt`). Mood was structured `mine/partner` (client: `self/partner`); QOTD was nested `{mine:{body}}` (client: flat `{myAnswer, partnerAnswered, partnerAnswer}`). Mock data matched the client, so the UI was NEVER tested against the real backend — the bug only surfaced in production.
+Decision: ONE `to_camel` `alias_generator` on `_CamelModel` fixes ALL casing at once; restructure Mood (`mine`→`self`) and QOTD (nested→flat) to the client's shape; add `partner_has_answered()` non-leaking check for `partnerAnswered`; populate `partnerName` on mood/qotd/gifts. 6 new contract tests in `test_wire_format.py`.
+Alternative: change the client to the server's shapes — rejected (the client is the product surface; also would have hidden the deeper casing bug). PROOF: live signed requests on VPS now return `{self:{mood}, partnerName}` / `{myAnswer, partnerAnswered}` / `{targetDate}`.
+
+**25. Forwarded albums spammed "Как это назвать?" ×(N−1).**
+A Telegram album arrives as N updates sharing one `media_group_id`, only the first carrying the caption. Each caption-less photo entered the FSM-title flow (and clobbered state).
+Decision: in-memory `media_group_id` dedup (300s TTL set) — first photo per group is handled, the rest ignored. A caption-less album gets default title "Альбом" instead of prompting.
+Alternative: Redis-based album aggregator — rejected (premature for a single bot process; the map is tiny).
+
+**26. Partner notifications: API and Bot are separate processes — how does the API send a Telegram message?**
+The API (uvicorn) has no handle to the Bot running in the bot process. Options: (a) inter-process queue/Redis pubsub, (b) the API builds its own `Bot(token)` and calls `send_message` directly.
+Decision: (b). `Bot` is cheap to construct (stateless HTTP client), so `pairly/bot/notify.py` lazily builds one per process. Avoids Redis/queue infra for MVP. Risk: per-process cooldown state (a pair hitting both processes could double-fire on mood/qotd) — accepted because gifts/wishlist (the always-notify path) are single-process, and mood/qotd are cooldown-soft.
+Alternative: Redis pubsub where the API publishes and the bot consumes — rejected for MVP infra cost; revisit if we add a second API worker.
+
+**27. Notification spam vs intimacy — which actions notify, and how often.**
+Decision: gifts (received/redeemed) + wishlist additions ALWAYS notify (rare, relationship-core); mood (30-min cooldown) and qotd (60-min cooldown) are soft-gated (they repeat). Never notify the actor about their own action. Silent if the partner blocked the bot. `notify_*` NEVER raises (best-effort — a delivery failure can't abort the business operation).
+Alternative: notify on everything, no cooldown — rejected (kills intimacy); notify on nothing but a daily digest — rejected (misses the "they're thinking of you" moment that's the whole point).
+
+**28. Bot had no "/" command menu and no menu button.**
+Decision: `pairly/bot/menu.py` registers the command list (start/pair/list/app/help, Russian descriptions) + a chat-menu button that opens the Mini App directly, on Dispatcher startup (works in polling AND webhook). `/help` and `/list` reformatted with feature emojis + counts; `/list` caps at 15 with a teaser.
+Alternative: a custom ReplyKeyboard — rejected (clutters the chat; the Mini App is the rich UI).
+
+**29. `pair_start_kb` and `wishlist_category_kb` are defined but unused.**
+Decision: left in place (no harm), flagged here. `pair_start_kb` was superseded by the `/pair` deep-link text; `wishlist_category_kb` (category override on forward) was never wired. To close: either wire category buttons into the forward flow, or delete. DEFERRED — not blocking.

@@ -10,8 +10,10 @@ venv/
 !.env.prod.example
 
 # Node / Mini App
+# NOTE: miniapp/dist is intentionally tracked for now — docker-compose mounts it
+# into Caddy, and the VPS doesn't yet build it from npm (tracked in open-decisions).
+# Once `npm run build` runs on the VPS, untrack it here.
 node_modules/
-miniapp/.vite/
 miniapp/.vite/
 *.local
 

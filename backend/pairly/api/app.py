@@ -41,6 +41,7 @@ from pairly.api.schemas import (
     WishlistStatusUpdate,
 )
 from pairly.auth import AuthContext, current_auth
+from pairly.config import get_settings
 from pairly.db.base import get_session
 from pairly.db.models import GiftStatus
 from pairly.repositories import bucket, countdowns, gifts, milestones, mood, qotd, wishlist
@@ -75,6 +76,16 @@ async def _partner_display_name(
 
 
 def create_app() -> FastAPI:
+    # Boot guard: dev-auth (PAIRLY_DEV_AUTH=1) is a full unauthenticated impersonation
+    # of any user via X-Dev-User-Id — it MUST NOT be reachable on a public bind.
+    # Fail fast at import rather than serving an open bypass to the internet.
+    settings = get_settings()
+    if settings.dev_auth and settings.api_host not in ("127.0.0.1", "localhost", "::1"):
+        raise RuntimeError(
+            "PAIRLY_DEV_AUTH=1 refuses to run on a public bind "
+            f"(api_host={settings.api_host!r}). Set PAIRLY_DEV_AUTH=0 or bind loopback."
+        )
+
     app = FastAPI(title="Pairly Mini App API", version="0.1.0")
 
     app.add_exception_handler(PairAccessError, _forbidden)
@@ -319,11 +330,7 @@ def create_app() -> FastAPI:
             await session.commit()
         except InvalidMoodError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-        from pairly.bot.notify import notify_mood_set
-
-        await notify_mood_set(
-            session, pair_id=pair_id, actor_id=auth.user.id, mood=entry.mood
-        )
+        # NOTE: no mood notification — docs/copy/mood-sync.md forbids it (ambient only).
         return _to_mood_out(entry)
 
     @app.delete("/api/mood")
@@ -418,15 +425,22 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, detail=f"answer too long: {exc}"
             ) from exc
-        from pairly.bot.notify import notify_qotd_answered
-
-        await notify_qotd_answered(session, pair_id=pair_id, actor_id=auth.user.id)
         # After answering, the caller has cleared the reveal gate — recompute the
         # partner's state for THIS caller and return the client's flat shape so the
         # UI can spread it straight into its QOTDState.
         p_answered = await qotd.partner_has_answered(
             session, pair_id=pair_id, user_id=auth.user.id, question_id=question_id
         )
+        # Notification beat: if BOTH have now answered, send the mutual reveal line
+        # (meta-only — never the body). Otherwise a soft single ping (cooldown-gated).
+        if p_answered:
+            from pairly.bot.notify import notify_qotd_mutual
+
+            await notify_qotd_mutual(session, pair_id=pair_id, actor_id=auth.user.id)
+        else:
+            from pairly.bot.notify import notify_qotd_answered
+
+            await notify_qotd_answered(session, pair_id=pair_id, actor_id=auth.user.id)
         partner_obj = await qotd.partner_answer(
             session, pair_id=pair_id, user_id=auth.user.id, question_id=question_id
         )
@@ -505,11 +519,25 @@ def create_app() -> FastAPI:
             await session.commit()
         except GiftStateError as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-        # When a gift is marked done, the receiver learns it actually happened.
+        # Tell the giver when the receiver accepts/declines, and the receiver when
+        # the giver marks it done. actor_id is who acted; _partner() resolves to the
+        # other side. Always-notify (gifts are rare, relationship-core).
         if item.status == GiftStatus.REDEEMED:
             from pairly.bot.notify import notify_gift_redeemed
 
             await notify_gift_redeemed(
+                session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
+            )
+        elif item.status == GiftStatus.CLAIMED:
+            from pairly.bot.notify import notify_gift_accepted
+
+            await notify_gift_accepted(
+                session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
+            )
+        elif item.status == GiftStatus.DECLINED:
+            from pairly.bot.notify import notify_gift_declined
+
+            await notify_gift_declined(
                 session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
             )
         return _to_gift_out(item, auth.user.id)

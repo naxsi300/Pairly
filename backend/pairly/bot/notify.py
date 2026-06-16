@@ -31,13 +31,15 @@ log = logging.getLogger("pairly.notify")
 
 # Per (pair_id, action) last-notify timestamp. In-memory, per-process. A pair that
 # hits the API process and the bot process could in theory double-fire, but the
-# cooldown only soft-gates the repeat-prone actions (mood/qotd); gifts/wishlist
-# always notify, and those are single-process anyway (gifts via API, wishlist via
-# either). Good enough for MVP — a Redis gate is a later refinement.
+# cooldown only soft-gates the repeat-prone actions (qotd); gifts/wishlist always
+# notify, and those are single-process anyway (gifts via API, wishlist via either).
+# Good enough for MVP — a Redis gate is a later refinement.
 _cooldowns: dict[tuple[str, str], float] = {}
 
 # Soft cooldown for the high-frequency actions so we never become a nag.
-_COOLDOLD_SEC = {"mood": 30 * 60, "qotd": 60 * 60}  # 30 min / 60 min
+# NOTE: mood is INTENTIONALLY ABSENT — docs/copy/mood-sync.md forbids any mood
+# push ("NEVER send an alert when partner's mood changes. Ambient only.").
+_COOLDOLD_SEC = {"qotd": 60 * 60}  # 60 min
 
 _bot: Bot | None = None
 
@@ -145,6 +147,50 @@ async def notify_gift_redeemed(
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
 
 
+async def notify_gift_accepted(
+    session: AsyncSession, *, pair_id: str, actor_id: str, gesture: str
+) -> None:
+    """Receiver accepted the gift — tell the giver. actor_id is the RECEIVER,
+    so _partner() resolves to the giver. Always notifies (rare, relationship-core).
+    """
+    actor = await session.get(User, actor_id)
+    if actor is None:
+        return
+    name = _actor_label(actor)
+    lines = [
+        f"{name} принял(а) твой подарок «{gesture}» 🥰",
+        f"{name} с радостью принял(а) «{gesture}» 💛",
+    ]
+    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+
+
+async def notify_gift_declined(
+    session: AsyncSession, *, pair_id: str, actor_id: str, gesture: str
+) -> None:
+    """Receiver declined — tell the giver, warmly (no guilt). actor_id is the RECEIVER."""
+    actor = await session.get(User, actor_id)
+    if actor is None:
+        return
+    name = _actor_label(actor)
+    lines = [
+        f"{name} пропустил(а) «{gesture}». Это нормально — может, в другой раз.",
+        f"{name} пока не готов(а) к «{gesture}» — ничего страшного 🌱",
+    ]
+    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+
+
+async def notify_qotd_mutual(session: AsyncSession, *, pair_id: str, actor_id: str) -> None:
+    """Both answered today's question — the mutual reveal beat. Meta-only: never the
+    answer body (the deep-link opens the Mini App where the gated reveal happens).
+    """
+    lines = [
+        "Вы оба ответили на вопрос дня — откройте, чтобы увидеть 💬",
+        "Ваши ответы готовы друг для друга ✨ открывайте",
+        "Получилось у обоих — загляните в вопрос дня 💛",
+    ]
+    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+
+
 async def notify_wishlist_added(
     session: AsyncSession, *, pair_id: str, actor_id: str, title: str
 ) -> None:
@@ -160,21 +206,9 @@ async def notify_wishlist_added(
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
 
 
-async def notify_mood_set(
-    session: AsyncSession, *, pair_id: str, actor_id: str, mood: str
-) -> None:
-    """Partner updated their mood. Cooldown-gated (mood changes often)."""
-    if not _past_cooldown(pair_id, "mood"):
-        return
-    actor = await session.get(User, actor_id)
-    if actor is None:
-        return
-    name = _actor_label(actor)
-    lines = [
-        f"{name} поделился(ась) настроением: {mood} 🌤",
-        f"У {name} сейчас: {mood}",
-    ]
-    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+# NOTE: there is NO notify_mood_set. Mood is ambient-only by hard contract —
+# docs/copy/mood-sync.md: "NEVER send an alert when partner's mood changes."
+# A mood push manufactures "why didn't they tell me they were down" pressure.
 
 
 async def notify_qotd_answered(
