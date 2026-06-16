@@ -259,10 +259,33 @@ class AdminAuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
 
 
+class PairMilestone(Base):
+    """Soft milestone reached by a pair — never a counter, never a streak.
+
+    A milestone is just a fact "this pair reached the threshold once". The Mini App
+    shows a celebratory toast on the first time it observes each (kind, value) pair
+    for this pair; further reaches of the same milestone are silent.
+
+    Anti-pressure: we do NOT count over time, do NOT show a progress bar, and do NOT
+    notify a partner — that would manufacture guilt for the slower one.
+    """
+
+    __tablename__ = "pair_milestones"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    pair_id: Mapped[str] = mapped_column(ForeignKey("pairs.id", ondelete="CASCADE"), index=True)
+    # e.g. "wishlist_count", "qotd_count", "gift_count"
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    # The threshold value that was crossed (e.g. 5, 10, 3).
+    value: Mapped[int] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 # Expose the aggregate count helper column type for migrations parity.
 __all__ = [
     "AdminAuditLog",
     "Base",
+    "PairMilestone",
     "BucketItem",
     "BucketStatus",
     "Countdown",

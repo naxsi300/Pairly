@@ -179,6 +179,21 @@ class GiftItemOut(_CamelModel):
     created_at: datetime | None = None
 
 
+class MilestoneOut(_CamelModel):
+    """A soft milestone the pair has just reached (e.g. 5 wishlist items).
+    The Mini App may show a one-shot celebratory toast; it MUST NOT persist this
+    to a visible history or compare counts across pairs."""
+
+    kind: str  # "wishlist_count" | "countdown_count" | "qotd_count" | "gift_count"
+    value: int  # threshold crossed (e.g. 5)
+
+
+class WishlistCreateOut(WishlistItemOut):
+    """WishlistCreate response: item + any newly-crossed milestones for a toast."""
+
+    new_milestones: list[MilestoneOut] = []
+
+
 class GiftsResponse(_CamelModel):
     items: list[GiftItemOut] = []
     partner_name: str | None = None

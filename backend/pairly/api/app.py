@@ -42,7 +42,7 @@ from pairly.api.schemas import (
 from pairly.auth import AuthContext, current_auth
 from pairly.db.base import get_session
 from pairly.db.models import GiftStatus
-from pairly.repositories import bucket, countdowns, gifts, mood, qotd, wishlist
+from pairly.repositories import bucket, countdowns, gifts, milestones, mood, qotd, wishlist
 from pairly.repositories.base import NotPairedError, PairAccessError
 from pairly.repositories.bucket import BucketLimitError
 from pairly.repositories.countdowns import CountdownLimitError
@@ -80,12 +80,12 @@ def create_app() -> FastAPI:
         items = await wishlist.list_items(session, pair_id=pair_id, user_id=auth.user.id)
         return [WishlistItemOut.model_validate(i) for i in items]
 
-    @app.post("/api/wishlist", response_model=WishlistItemOut)
+    @app.post("/api/wishlist")
     async def post_wishlist(
         payload: WishlistCreate,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> WishlistItemOut:
+    ) -> dict:
         pair_id = _require_pair(auth)
         try:
             item = await wishlist.create_item(
@@ -97,10 +97,20 @@ def create_app() -> FastAPI:
                 category=payload.category,
                 notes=payload.notes,
             )
+            from pairly.repositories import milestones as ms_repo
+            new_ms = await ms_repo.check_wishlist(
+                session,
+                pair_id=pair_id,
+                count=await wishlist.count_open(session, pair_id),
+            )
             await session.commit()
         except WishlistLimitError as exc:
             raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, detail=str(exc)) from exc
-        return WishlistItemOut.model_validate(item)
+        out = WishlistItemOut.model_validate(item).model_dump(by_alias=True)
+        out["newMilestones"] = [
+            MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
+        ]
+        return out
 
     @app.post("/api/mark-done", response_model=WishlistItemOut)
     async def mark_done(
@@ -211,12 +221,12 @@ def create_app() -> FastAPI:
         items = await countdowns.list_items(session, pair_id=pair_id, user_id=auth.user.id)
         return [_to_countdown_out(i) for i in items]
 
-    @app.post("/api/countdowns", response_model=CountdownOut)
+    @app.post("/api/countdowns")
     async def post_countdowns(
         payload: CountdownCreate,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> CountdownOut:
+    ) -> dict:
         pair_id = _require_pair(auth)
         try:
             item = await countdowns.create_item(
@@ -228,10 +238,20 @@ def create_app() -> FastAPI:
                 emoji=payload.emoji,
                 recurrence=payload.recurrence,
             )
+            from pairly.repositories import milestones as ms_repo
+            new_ms = await ms_repo.check_countdown(
+                session,
+                pair_id=pair_id,
+                count=await countdowns.count_items(session, pair_id),
+            )
             await session.commit()
         except CountdownLimitError as exc:
             raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, detail=str(exc)) from exc
-        return _to_countdown_out(item)
+        out = _to_countdown_out(item).model_dump(by_alias=True)
+        out["newMilestones"] = [
+            MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
+        ]
+        return out
 
     @app.delete("/api/countdowns/{item_id}")
     async def delete_countdowns(
@@ -351,12 +371,23 @@ def create_app() -> FastAPI:
                 question_id=question_id,
                 body=body,
             )
+            from sqlalchemy import select, func
+            from pairly.db.models import QOTDAnswer
+            from pairly.repositories import milestones as ms_repo
+            n = int((await session.execute(
+                select(func.count(QOTDAnswer.id)).where(QOTDAnswer.pair_id == pair_id)
+            )).scalar_one())
+            new_ms = await ms_repo.check_qotd(session, pair_id=pair_id, count=n)
             await session.commit()
         except AnswerTooLongError as exc:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, detail=f"answer too long: {exc}"
             ) from exc
-        return _to_answer_out(answer)
+        out = _to_answer_out(answer).model_dump(by_alias=True)
+        out["newMilestones"] = [
+            MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
+        ]
+        return out
 
     # --- gifts ---
     @app.get("/api/gifts", response_model=GiftsResponse)
@@ -370,12 +401,12 @@ def create_app() -> FastAPI:
             items=[_to_gift_out(i, auth.user.id) for i in items],
         )
 
-    @app.post("/api/gifts", response_model=GiftItemOut)
+    @app.post("/api/gifts")
     async def post_gifts(
         payload: GiftCreate,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> GiftItemOut:
+    ) -> dict:
         pair_id = _require_pair(auth)
         item = await gifts.create_gift(
             session,
@@ -384,8 +415,18 @@ def create_app() -> FastAPI:
             gesture=payload.gesture,
             description=payload.description,
         )
+        from pairly.repositories import milestones as ms_repo
+        active = [
+            g for g in await gifts.list_gifts(session, pair_id=pair_id, user_id=auth.user.id)
+            if g.status.value not in ("declined", "archived")
+        ]
+        new_ms = await ms_repo.check_gift(session, pair_id=pair_id, count=len(active))
         await session.commit()
-        return _to_gift_out(item, auth.user.id)
+        out = _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
+        out["newMilestones"] = [
+            MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
+        ]
+        return out
 
     @app.post("/api/gifts/{gift_id}/transition", response_model=GiftItemOut)
     async def gift_transition(
