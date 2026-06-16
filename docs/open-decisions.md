@@ -110,3 +110,26 @@ Alternative: dedupe by `forward_origin.date_unix` — rejected, the simpler filt
 Decision: Pydantic schemas in `pairly/api/schemas.py` with `Field(alias=...)` for inputs + `populate_by_name=True`, plus `validation_alias` for fields whose python name is snake_case but the wire form is camelCase. Output is always camelCase via `serialization_alias`.
 Alternative: change the client to snake_case — rejected, would break JS conventions across the whole Mini App.
 ✅ **CLOSED 2026-06-16:** all POST/POST-status endpoints now accept either casing on the way in, serialize camelCase on the way out. 9 new Pydantic-only tests in `test_api_schema.py`. Live smoke on VPS: `POST /api/countdowns` with `{label, targetDate}` returns 401 (auth) — not 500 (validation) — confirming the schema accepts the wire shape.
+
+---
+
+## 2026-06-16 — Hotfix round 2 (4 user-reported issues)
+
+**19. CountdownOut serialized as `target_date` (snake) — client read `targetDate` → NaN.**
+Decision: `target_date: datetime | None = Field(default=None, serialization_alias="targetDate")`. Output JSON has `targetDate`. Verified live: `serialized: {'targetDate': datetime(2026,12,12,0,0), ...}`.
+Alternative: change client to read `target_date` — rejected, breaks JS convention across whole Mini App.
+
+**20. WishlistStatusUpdate required `status`, but `/api/mark-done` client sends only `{item_id}`. → 422, optimistic update reverted.**
+Decision: `status: str = Field(default="done", ...)`. The `/api/mark-done` endpoint treats absent status as "mark done". The RESTful `/wishlist/{id}/status` still requires status explicitly.
+Alternative: two separate schemas for the two routes — rejected, adds code for no real benefit (mark-done is just sugar).
+
+**21. GiftItemOut had `i_am_giver: bool` only — client used `direction: "me"|"them"`.**
+Decision: compute both in `_to_gift_out`. `direction` and `i_am_giver` now both serialized.
+
+**22. actOnGift on client sent `body: {action}` but server expected `body: {status}` (and action was the URL param). After my refactor of the URL, client still passed the wrong field.**
+Decision: client now maps `Action` (accept/decline/redeem/complete) → `GiftStatus` (claimed/declined/redeemed/complete) before calling the endpoint with `{status}`. Helper in `act()` does the mapping.
+
+**23. cd.yml was failing email notifications every push.**
+Decision: changed `on:` to `workflow_dispatch` (never auto-triggers) and replaced the "stub" job with a no-op `notify` job that just prints a message. The workflow now never "fails" in the email sense. To re-enable: provision VPS secrets, uncomment the deploy job.
+Alternative: delete the file — rejected, leaves a "missing workflow" gap that's harder to fix later.
+✅ **All 4 reported issues closed.**
