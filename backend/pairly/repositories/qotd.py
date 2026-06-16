@@ -126,3 +126,32 @@ async def partner_answer(
             QOTDAnswer.question_id == question_id,
         )
     )
+
+
+async def partner_has_answered(
+    session: AsyncSession, *, pair_id: str, user_id: str, question_id: str
+) -> bool:
+    """Whether the partner has answered today's question — WITHOUT leaking the body.
+
+    Unlike partner_answer(), this never returns the body, so it is safe to expose
+    regardless of the reveal gate. The UI uses it to show "waiting for partner" vs
+    "partner answered". Note: a caller who hasn't answered yet still gets a truthful
+    yes/no here — but only the *fact* of answering, never the *content*. The content
+    remains gated behind partner_answer().
+    """
+    await _require_membership(session, pair_id, user_id)
+    from pairly.repositories.base import pair_members
+
+    members = await pair_members(session, pair_id)
+    partner_ids = [m.id for m in members if m.id != user_id]
+    if not partner_ids:
+        return False
+    partner_id = partner_ids[0]
+    found = await session.scalar(
+        select(QOTDAnswer.id).where(
+            QOTDAnswer.pair_id == pair_id,
+            QOTDAnswer.user_id == partner_id,
+            QOTDAnswer.question_id == question_id,
+        )
+    )
+    return found is not None

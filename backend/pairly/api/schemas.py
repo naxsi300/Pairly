@@ -12,12 +12,25 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
+
+
+def _to_camel(name: str) -> str:
+    """snake_case -> camelCase (e.g. set_at -> setAt, partner_name -> partnerName)."""
+    return to_camel(name)
 
 
 class _CamelModel(BaseModel):
-    """Base: accept both casings, serialize as camelCase."""
+    """Base: accept both casings (populate_by_name), serialize as camelCase.
+
+    The `alias_generator` makes EVERY field emit camelCase on output via
+    `model_dump(by_alias=True)` AND when FastAPI serializes a `response_model=`
+    (FastAPI honours the alias generator automatically for response models).
+    On input, `populate_by_name=True` lets both snake_case and camelCase keys in.
+    """
 
     model_config = ConfigDict(
+        alias_generator=_to_camel,
         populate_by_name=True,
         from_attributes=True,
         str_strip_whitespace=True,
@@ -119,7 +132,8 @@ class MoodEntryOut(_CamelModel):
 
 
 class MoodResponse(_CamelModel):
-    mine: MoodEntryOut | None = None
+    # Client shape (miniapp/src/sdk/api.ts + screens/Mood.tsx): `self`/`partner`.
+    self_entry: MoodEntryOut | None = Field(default=None, alias="self")
     partner: MoodEntryOut | None = None
     partner_name: str | None = None
 
@@ -138,9 +152,18 @@ class QOTDAnswerOut(_CamelModel):
 
 
 class QOTDResponse(_CamelModel):
+    """Client shape (miniapp/src/types.ts QOTDState): flat, not nested.
+
+    myAnswer/partnerAnswer are plain strings (or null). partnerAnswered is a bool
+    the UI gates on. The reveal-gate invariant is STILL enforced server-side in the
+    repository (partner_answer returns None until the caller has answered) — this
+    schema just flattens the result for the client.
+    """
+
     question: QOTDQuestionOut | None = None
-    mine: QOTDAnswerOut | None = None
-    partner: QOTDAnswerOut | None = None
+    my_answer: str | None = None
+    partner_answered: bool = False
+    partner_answer: str | None = None
     partner_name: str | None = None
 
 

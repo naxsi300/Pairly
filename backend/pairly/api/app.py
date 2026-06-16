@@ -59,6 +59,20 @@ def _require_pair(auth: AuthContext) -> str:
     return auth.user.pair_id
 
 
+async def _partner_display_name(
+    session: AsyncSession, *, pair_id: str, viewer_id: str
+) -> str | None:
+    """The OTHER member's display name (or tg handle) for UI labels like partnerName."""
+    from pairly.repositories.base import pair_members
+
+    for m in await pair_members(session, pair_id):
+        if m.id != viewer_id:
+            if m.display_name:
+                return m.display_name
+            return f"@{m.tg_username}" if m.tg_username else None
+    return None
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Pairly Mini App API", version="0.1.0")
 
@@ -279,8 +293,11 @@ def create_app() -> FastAPI:
         moods = await mood.current_moods(session, pair_id=pair_id, user_id=auth.user.id)
         partner = next((v for k, v in moods.items() if k != auth.user.id), None)
         return MoodResponse(
-            mine=_to_mood_out(moods.get(auth.user.id)),
+            **{"self": _to_mood_out(moods.get(auth.user.id))},
             partner=_to_mood_out(partner),
+            partner_name=await _partner_display_name(
+                session, pair_id=pair_id, viewer_id=auth.user.id
+            ),
         )
 
     @app.post("/api/mood", response_model=MoodEntryOut)
@@ -319,36 +336,48 @@ def create_app() -> FastAPI:
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
     ) -> QOTDResponse:
-        """Returns today's question + the reveal-gated view.
+        """Today's question + the reveal-gated view, in the client's flat shape.
 
-        `mine` is present if the caller answered; `partner` is present ONLY if the caller
-        answered (the hard gate). The client must never show `partner` without `mine`.
-        Unpaired users get 412 (no question, no pair).
+        my_answer is present if the caller answered. partner_answer is present ONLY if
+        the caller answered (hard gate, enforced in qotd.partner_answer). partner_answered
+        is a separate bool so the UI can say "waiting for partner" even when the body is
+        gated. Unpaired users get 412.
         """
         pair_id = _require_pair(auth)
         question = await qotd.todays_question(session)
         if question is None:
-            return QOTDResponse(question=None, mine=None, partner=None)
+            return QOTDResponse(question=None)
         mine = await qotd.my_answer(
             session, pair_id=pair_id, user_id=auth.user.id, question_id=question.id
         )
         partner = await qotd.partner_answer(
             session, pair_id=pair_id, user_id=auth.user.id, question_id=question.id
         )
+        # Did the partner answer at all (independent of the reveal gate)? We can only
+        # know this honestly if we look directly — but we must NOT leak the body unless
+        # the caller answered. partner_answer already enforces that, so here we derive
+        # partner_answered from a non-leaking check.
+        partner_answered = await qotd.partner_has_answered(
+            session, pair_id=pair_id, user_id=auth.user.id, question_id=question.id
+        )
         return QOTDResponse(
             question=QOTDQuestionOut(
                 id=question.id, text=question.text, category=question.category
             ),
-            mine=_to_answer_out(mine),
-            partner=_to_answer_out(partner),
+            my_answer=mine.body if mine else None,
+            partner_answered=partner_answered,
+            partner_answer=partner.body if partner else None,
+            partner_name=await _partner_display_name(
+                session, pair_id=pair_id, viewer_id=auth.user.id
+            ),
         )
 
-    @app.post("/api/qotd/answer", response_model=QOTDAnswerOut)
+    @app.post("/api/qotd/answer")
     async def post_qotd(
         payload: QOTDAnswerIn,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> QOTDAnswerOut:
+    ):
         pair_id = _require_pair(auth)
         # Accept both {answer: "..."} and {body: "..."} from the client.
         body = (payload.answer or payload.body or "").strip()
@@ -383,7 +412,20 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, detail=f"answer too long: {exc}"
             ) from exc
-        out = _to_answer_out(answer).model_dump(by_alias=True)
+        # After answering, the caller has cleared the reveal gate — recompute the
+        # partner's state for THIS caller and return the client's flat shape so the
+        # UI can spread it straight into its QOTDState.
+        p_answered = await qotd.partner_has_answered(
+            session, pair_id=pair_id, user_id=auth.user.id, question_id=question_id
+        )
+        partner_obj = await qotd.partner_answer(
+            session, pair_id=pair_id, user_id=auth.user.id, question_id=question_id
+        )
+        out = {
+            "myAnswer": answer.body,
+            "partnerAnswered": p_answered,
+            "partnerAnswer": partner_obj.body if partner_obj else None,
+        }
         out["newMilestones"] = [
             MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
         ]
@@ -399,6 +441,9 @@ def create_app() -> FastAPI:
         items = await gifts.list_gifts(session, pair_id=pair_id, user_id=auth.user.id)
         return GiftsResponse(
             items=[_to_gift_out(i, auth.user.id) for i in items],
+            partner_name=await _partner_display_name(
+                session, pair_id=pair_id, viewer_id=auth.user.id
+            ),
         )
 
     @app.post("/api/gifts")
