@@ -35,9 +35,13 @@ class WishlistCreate(_CamelModel):
 
 
 class WishlistStatusUpdate(_CamelModel):
-    """Body for /api/wishlist/{id}/status. POST /api/mark-done uses item_id instead."""
+    """Body for /api/wishlist/{id}/status. POST /api/mark-done uses item_id instead.
 
-    status: str = Field(pattern="^(open|planned|done|archived)$")
+    `status` defaults to "done" — the `/api/mark-done` endpoint treats absence
+    of status as "mark this as done" (item_id is the identifier).
+    """
+
+    status: str = Field(default="done", pattern="^(open|planned|done|archived)$")
     item_id: str | None = None  # only for /api/mark-done
 
 
@@ -87,7 +91,9 @@ class CountdownOut(_CamelModel):
     id: str
     label: str
     emoji: str | None = None
-    target_date: datetime | None = None
+    # Serialized as `targetDate` to match the Mini App client (which already
+    # accepts both casings on input via the matching CountdownCreate alias).
+    target_date: datetime | None = Field(default=None, serialization_alias="targetDate")
     recurrence: str | None = None
 
 
