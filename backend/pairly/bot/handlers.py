@@ -102,12 +102,15 @@ async def cmd_start(message: Message, command: CommandObject) -> None:
 
         await session.commit()
 
+    from pairly.bot.keyboards import webapp_open_kb_or_pair
+
     await message.answer(
         "Привет! Это Pairly — общий уголок для вас двоих.\n\n"
         "Перешлите сюда пост из любого канала или чата — и он станет пунктом в общем "
         "вишлисте. Ещё можно дарить друг другу «действия», считать дни до важных дат "
         "и отвечать на вопрос дня.\n\n"
-        "Чтобы начать, объединитесь в пару: /pair"
+        "Чтобы начать, объединитесь в пару: /pair",
+        reply_markup=webapp_open_kb_or_pair(),
     )
 
 
@@ -163,12 +166,18 @@ async def cmd_help(message: Message) -> None:
     from pairly.bot.keyboards import webapp_open_kb
     kb = webapp_open_kb()
     await message.answer(
-        "Pairly — что умеет:\n\n"
-        "• Перешлите пост → он станет пунктом вишлиста\n"
-        "• /pair — объединиться в пару\n"
-        "• /list — посмотреть вишлист\n"
-        "• /app — открыть мини-приложение\n"
-        "• /help — эта подсказка",
+        "<b>Pairly</b> — общий уголок для вас двоих\n\n"
+        "📥 <b>Вишлист</b> — перешлите сюда любой пост, и он станет пунктом общего "
+        "списка.\n"
+        "💝 <b>Действия и подарки</b> — дарите друг другу небольшие «действия».\n"
+        "🗓 <b>Отсчёты</b> — считайте дни до важных дат.\n"
+        "🌤 <b>Настроение</b> — покажите партнёру, как у вас дела.\n"
+        "💬 <b>Вопрос дня</b> — отвечайте по очереди.\n\n"
+        "<i>Команды:</i>\n"
+        "/pair — объединиться в пару\n"
+        "/list — мой вишлист\n"
+        "/app — открыть Pairly\n"
+        "/help — эта подсказка",
         reply_markup=kb,
     )
 
@@ -219,10 +228,19 @@ async def cmd_list(message: Message) -> None:
         )
         return
 
-    lines = []
-    for it in items:
+    # Render: header + numbered list with status mark + category emoji.
+    _CAT_EMOJI = {"eat": "🍽", "do": "🎉", "stay": "🛌", "watch": "🎬", "buy": "🛍"}
+    done = sum(1 for it in items if it.status.value == "done")
+    lines = [f"🗒 <b>Ваш вишлист</b> — {done}/{len(items)} сделано", ""]
+    shown = items[:15]
+    for i, it in enumerate(shown, 1):
         mark = "✅" if it.status.value == "done" else "☐"
-        lines.append(f"{mark} {html.escape(it.title)}")
+        cat = _CAT_EMOJI.get(it.category or "", "")
+        prefix = f"{cat} " if cat else ""
+        lines.append(f"{i}. {mark} {prefix}{html.escape(it.title)}")
+    rest = len(items) - len(shown)
+    if rest > 0:
+        lines.append(f"\n…и ещё {rest} — все в приложении 👇")
     from pairly.bot.keyboards import webapp_open_kb
 
     await message.answer("\n".join(lines), reply_markup=webapp_open_kb())

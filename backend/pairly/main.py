@@ -20,6 +20,7 @@ from aiohttp import web
 
 from pairly.bot import admin_router
 from pairly.bot import router as main_router
+from pairly.bot.menu import setup_menu
 from pairly.config import get_settings
 from pairly.db.base import init_db
 
@@ -33,7 +34,15 @@ def build_dispatcher() -> Dispatcher:
     # "объединитесь в пару" to a legitimate admin).
     dp.include_router(admin_router)
     dp.include_router(main_router)
+
+    # Register the "/" command menu + Mini App menu button on startup. Works for
+    # both polling and webhook (Dispatcher emits startup in both modes).
+    dp.startup.register(_on_startup)
     return dp
+
+
+async def _on_startup(bot: Bot, **_kwargs) -> None:
+    await setup_menu(bot)
 
 
 async def _run_polling(bot: Bot, dp: Dispatcher) -> None:

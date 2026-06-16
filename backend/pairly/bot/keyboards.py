@@ -30,6 +30,20 @@ def webapp_open_kb() -> InlineKeyboardMarkup | None:
     return kb.as_markup()
 
 
+def webapp_open_kb_or_pair() -> InlineKeyboardMarkup:
+    """Primary CTA: open the Mini App if configured, else invite-to-pair fallback.
+
+    Always returns a keyboard (never None) so it's safe to attach to any answer.
+    """
+    webapp = webapp_open_kb()
+    if webapp is not None:
+        return webapp
+    # No webapp configured (dev) — fall back to a pair-up hint button.
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Объединиться в пару", callback_data="hint:pair")
+    return kb.as_markup()
+
+
 def wishlist_category_kb() -> InlineKeyboardMarkup:
     """Category override buttons (default is guessed; user can fix)."""
     kb = InlineKeyboardBuilder()
