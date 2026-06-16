@@ -1,6 +1,6 @@
 # Pairly Caddyfile for docker-compose deploy.
 #
-# Replace `your-domain.example.com` with your real domain (then point its DNS A
+# Replace `pairly.mnepo.fyi` with your real domain (then point its DNS A
 # record at the VPS). Caddy will issue and renew Let's Encrypt certificates
 # automatically.
 #
@@ -10,7 +10,7 @@
 #   https://<domain>/telegram-webhook -> aiogram webhook (service: bot:8080)
 #   /.well-known/telegram-bot-app.json -> manifest for @BotFather /setdomain check
 
-your-domain.example.com {
+pairly.mnepo.fyi {
     encode zstd gzip
 
     # Manifest for @BotFather /setdomain. Telegram pings this on register.
