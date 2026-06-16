@@ -1,52 +1,29 @@
-name: CD (stubbed)
+name: CD (disabled)
 
-# Continuous deployment on tag. INTENTIONALLY COMMENTED OUT — real CD needs:
-#   - a provisioned VPS reachable over SSH
-#   - SSH private key + known host in repo secrets (DEPLOY_SSH_KEY, DEPLOY_HOST, DEPLOY_USER)
-#   - /etc/pairly/pairly.env already populated on the host with real secrets
+# Continuous deployment on tag. Disabled until VPS, deploy key, and secrets are wired.
+# Until then this workflow is a no-op so it doesn't show up as "failing" in email
+# notifications. To re-enable:
+#   1. Provision VPS reachable via SSH
+#   2. Add repo secrets DEPLOY_SSH_KEY / DEPLOY_HOST / DEPLOY_USER
+#   3. Replace the `on:` block below and uncomment the `deploy:` job
 #
-# When ready: uncomment the `on:` trigger below, fill in the secrets, and the job
-# will SSH into the VPS and re-run install.sh (which is idempotent).
-#
-# Recommended secrets (Settings -> Secrets and variables -> Actions):
-#   DEPLOY_SSH_KEY   ed25519 private key authorized on the VPS
-#   DEPLOY_HOST      VPS hostname or IP
-#   DEPLOY_USER      user with passwordless sudo (or root)
-#   REPO_URL         git URL the VPS can clone (https or deploy-key'd ssh)
-#
-# on:
-#   push:
-#     tags: ['v*']
+# When ready, this workflow will SSH into the VPS on every `v*` tag push and
+# re-run deploy/scripts/install.sh (idempotent).
+
+on: workflow_dispatch  # never auto-triggers
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
+  notify:
     runs-on: ubuntu-latest
-    # Only run on the main repo, not forks.
-    if: github.repository == 'PAIRLY/pairly'
     steps:
-      - uses: actions/checkout@v4
-
-      # TODO: when enabling, add an S3-compatible artifact upload of the Mini App
-      # build (miniapp/dist) so install.sh can rsync it into /var/www/pairly.
-
-      - name: Deploy over SSH
-        # TODO: uncomment the whole block below once secrets exist.
-        # uses: appleboy/ssh-action@v1
-        # with:
-        #   host: ${{ secrets.DEPLOY_HOST }}
-        #   username: ${{ secrets.DEPLOY_USER }}
-        #   key: ${{ secrets.DEPLOY_SSH_KEY }}
-        #   script: |
-        #     set -euo pipefail
-        #     sudo bash /opt/pairly/deploy/scripts/install.sh
-        #     # Rebuild + publish the Mini App if changed:
-        #     # cd /opt/pairly/miniapp && npm ci && npm run build && \
-        #     #   sudo rsync -a --delete dist/ /var/www/pairly/
-        #     sudo systemctl restart pairly-bot pairly-api
-        #     sudo systemctl reload caddy
+      - name: CD is currently disabled
         run: |
-          echo "CD is stubbed. See .github/workflows/cd.yml for the TODO block and required secrets."
-          exit 0
+          echo "CD workflow is disabled until VPS deploy secrets are configured."
+          echo "See .github/workflows/cd.yml header for activation steps."

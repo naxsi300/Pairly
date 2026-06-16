@@ -64,15 +64,16 @@ export function Gifts() {
       redeem: "redeemed",
       complete: "complete",
     };
+    const targetStatus = nextStatus[action];
     setData((prev) => ({
       ...(prev ?? ({} as GiftsResponse)),
       items: (prev?.items ?? []).map((g) =>
-        g.id === item.id ? { ...g, status: nextStatus[action] } : g,
+        g.id === item.id ? { ...g, status: targetStatus } : g,
       ),
     }));
     haptic(action === "decline" ? "light" : "success");
     try {
-      await endpoints.actOnGift(item.id, action);
+      await endpoints.actOnGift(item.id, targetStatus);
     } catch {
       refetch();
     }

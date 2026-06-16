@@ -165,6 +165,10 @@ class GiftItemOut(_CamelModel):
     gesture: str
     description: str | None = None
     status: str
+    # The Mini App client uses `direction: "me"|"them"`. We compute it from
+    # i_am_giver (the auth user is the giver) and i_am_giver is exposed too
+    # for clients that prefer a boolean.
+    direction: str | None = None
     i_am_giver: bool = False
     created_at: datetime | None = None
 

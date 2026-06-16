@@ -462,6 +462,7 @@ def _to_gift_out(item, viewer_id: str) -> GiftItemOut:
         gesture=item.gesture,
         description=item.description,
         status=item.status.value,
+        direction="me" if item.giver_id == viewer_id else "them",
         i_am_giver=item.giver_id == viewer_id,
         created_at=item.created_at,
     )
