@@ -163,3 +163,19 @@ Alternative: a custom ReplyKeyboard — rejected (clutters the chat; the Mini Ap
 
 **29. `pair_start_kb` and `wishlist_category_kb` are defined but unused.**
 Decision: left in place (no harm), flagged here. `pair_start_kb` was superseded by the `/pair` deep-link text; `wishlist_category_kb` (category override on forward) was never wired. To close: either wire category buttons into the forward flow, or delete. DEFERRED — not blocking.
+
+---
+
+## 2026-06-16 — Material3 + gamification (user request, OPEN)
+
+**30. "Мы переходили на Material3" — no Material3 migration is in the codebase.**
+The Mini App is styled with Tailwind + Telegram CSS variables (var(--tg-theme-*)), following the user's device light/dark scheme. The recent "visual refresh" commits (cb2b43f, 482e886) are a Telegram-native SOFT design (rounded cards, soft shadows, fade/pop keyframes), NOT Material Design 3.
+Decision: do NOT bolt on a Material3 component library (md3/Material Web) — it would (a) fight the Telegram theme vars (M3 brings its own tonal color system), (b) add ~heavy bundle weight to a 6-screen app, (c) visually clash with the native Telegram UI the Mini App lives inside. The Telegram-native approach is the better fit for a Telegram Mini App.
+Alternative (if the user really wants M3): adopt only M3 *principles* (tonal elevation, FAB, ripple) via Tailwind, not a lib. DEFERRED — needs user confirmation since the request conflicts with the established design direction.
+Status: **needs user input** — is "Material3" a hard requirement or a loose descriptor for "make it look modern"?
+
+**31. Gamification — there is a SOFT milestone system, no XP/streaks/leaderboards.**
+Current state: `pairly/repositories/milestones.py` + `miniapp/src/lib/milestoneBus.ts` emit soft one-time toasts (5 wishlist / 5-10 countdowns / 7 qotd / 3-10 gifts). This is deliberately gentle — Pairly is an intimacy product, not a game; competitive mechanics (streaks, scores, "you're behind your partner") were previously rejected as pressure-inducing.
+Decision: KEEP the soft milestone system as the gamification layer. Do NOT add streaks/XP/levels/leaderboards — they contradict the product's anti-pressure stance (see mood-sync.md "NEVER nudge the silent partner").
+Alternative the user may have meant: richer milestone tiers + a gentle "shared memory counter" (e.g. "вместе 100 дней", total gifts given) shown as ambient stats, not goals. VIABLE — tracked as a possible enhancement once the user confirms scope.
+Status: **needs user input** — what flavor of gamification? (a) nothing more [current], (b) ambient shared-counters, (c) full XP/streaks [recommend against].

@@ -349,6 +349,27 @@ async def on_title_reply(message: Message, state: FSMContext) -> None:
     await message.answer(f"Готово — добавил в вишлист: «{html.escape(title)}»")
 
 
+@router.message(StateFilter(WishTitle.waiting_for_title))
+async def on_non_text_in_title_state(message: Message) -> None:
+    """Sticker/photo/voice while we expected a title: re-prompt, don't drop silently.
+
+    Keeps the FSM in the title state so the user can still type the name next.
+    """
+    await message.answer(
+        "Нужно название текстом — пришлите заголовок, или /cancel чтобы отменить."
+    )
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext) -> None:
+    """Escape any in-progress flow (e.g. waiting-for-title). Safe to call anytime."""
+    if await state.get_state() is None:
+        await message.answer("Нечего отменять 🙂")
+        return
+    await state.clear()
+    await message.answer("Отменил.")
+
+
 # --- helpers ------------------------------------------------------------------
 
 
