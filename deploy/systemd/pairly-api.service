@@ -1,0 +1,43 @@
+# systemd unit for the Pairly Mini App API (FastAPI / uvicorn).
+# Install: /etc/systemd/system/pairly-api.service  then `systemctl daemon-reload`.
+#
+# Separate process from the bot (independent restart/failure domains).
+# Caddy reverse-proxies /api/* -> 127.0.0.1:8000 (see deploy/caddy/Caddyfile).
+[Unit]
+Description=Pairly Mini App API (uvicorn)
+Documentation=https://github.com/PAIRLY/pairly/blob/main/docs/runbook.md
+After=network-online.target
+Wants=network-online.target
+# Optional: bring the DB and bot up first where possible.
+# After=pairly-bot.service
+
+[Service]
+Type=simple
+User=pairly
+Group=pairly
+
+WorkingDirectory=/opt/pairly
+EnvironmentFile=/etc/pairly/pairly.env
+
+# Bind to loopback only: Caddy is the only intended frontend.
+ExecStart=/opt/pairly/.venv/bin/uvicorn pairly.api.app:app --host 127.0.0.1 --port 8000
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pairly /var/log/pairly
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pairly-api
+
+[Install]
+WantedBy=multi-user.target

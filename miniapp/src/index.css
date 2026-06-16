@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Telegram theme variables are injected by the WebApp host. We provide sensible
+ * fallbacks so the UI still renders in a plain browser (dev / preview).
+ * The --tg-theme-* names are the canonical Telegram WebApp variables.
+ */
+:root {
+  --tg-theme-bg-color: #ffffff;
+  --tg-theme-text-color: #1c1c1e;
+  --tg-theme-hint-color: #8a8a8e;
+  --tg-theme-link-color: #007aff;
+  --tg-theme-button-color: #007aff;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #f2f2f7;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tg-theme-bg-color: #1c1c1e;
+    --tg-theme-text-color: #ffffff;
+    --tg-theme-hint-color: #98989f;
+    --tg-theme-link-color: #0a84ff;
+    --tg-theme-button-color: #0a84ff;
+    --tg-theme-button-text-color: #ffffff;
+    --tg-theme-secondary-bg-color: #2c2c2e;
+    color-scheme: dark;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--tg-theme-bg-color);
+  color: var(--tg-theme-text-color);
+  font-family: var(--tg-font, "Roboto"), system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Use Telegram-provided safe insets when present, else env(). */
+  padding-top: var(--tg-safe-area-inset-top, env(safe-area-inset-top));
+}
+
+/* App scroll area sits between the top safe inset and the bottom tab bar. */
+.app-scroll {
+  /* Bottom tab bar height + bottom safe inset. */
+  padding-bottom: calc(64px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)));
+}
+
+/* Minimal, theme-respecting scrollbars. */
+* {
+  scrollbar-width: thin;
+}

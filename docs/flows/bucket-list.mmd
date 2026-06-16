@@ -1,0 +1,70 @@
+%% Bucket list
+%% Source of truth: docs/user-stories/bucket-list.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> AddBucket : /bucket or add button
+
+    AddBucket --> UnpairedGate
+    state UnpairedGate {
+        [*] --> has_pair?
+        has_pair? --> unpaired_msg : no pair →\n"pair up first" + /pair link\n(nothing stored)
+    }
+    UnpairedGate --> [*] : unpaired_msg
+
+    UnpairedGate --> CollectInput : has pair
+    state CollectInput {
+        [*] --> ask_title : title (required)
+        ask_title --> ask_note : optional note
+        ask_note --> ask_category : optional category
+        ask_category --> save : NO date by design\n(open-ended dreams)
+    }
+
+    CollectInput --> LimitCheck
+    state LimitCheck {
+        [*] --> under_limit?
+        under_limit? --> at_limit : free tier >= 5 bucket items\n(OWN budget — NOT shared with wishlist)
+        under_limit? --> ok : under 5
+    }
+
+    LimitCheck --> Created : ok
+    LimitCheck --> LimitHit : at_limit
+    state LimitHit {
+        [*] --> choose : warm: acknowledged, NOT dropped\nupgrade OR delete-old\n(dreams ≠ errands)
+        choose --> [*] : delete old → retry
+        choose --> [*] : upgrade to Pro (unlimited)
+    }
+
+    Created --> Dreaming
+    state Dreaming {
+        [*] --> dreaming
+        dreaming --> [*] : either partner edit / hard delete
+    }
+
+    Dreaming --> Planning : gets a concrete date/plan
+    state Planning {
+        [*] --> planning
+        planning --> offer_promote : one-tap promote to wishlist\n(offer, don't force)
+        offer_promote --> cross_link : creates wishlist entry,\nleaves bucket item as "planning"\n(back-reference, not move)
+        planning --> [*] : edit / delete
+    }
+
+    Planning --> Done : mark complete
+    Dreaming --> Done : mark complete (no proof required)
+    state Done {
+        [*] --> moment : "you did it! 🌌"\nfor BOTH partners
+        moment --> done_section : chronological, NOT ranked
+    }
+
+    note right of Created
+        Distinct from wishlist (own tab).
+        Rule of thumb surfaced in onboarding:
+        "this month?" → wishlist;
+        "this year or beyond" → bucket.
+    end note
+
+    note right of Done
+        Last-write-wins on concurrent edits
+        for MVP. List belongs to the COUPLE,
+        not split by owner.
+    end note

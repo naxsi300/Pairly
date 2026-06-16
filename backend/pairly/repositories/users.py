@@ -1,0 +1,36 @@
+"""User repository — get-or-create on first contact."""
+
+from __future__ import annotations
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from pairly.db.models import User
+
+
+async def get_or_create_user(
+    session: AsyncSession,
+    tg_id: int,
+    *,
+    tg_username: str | None = None,
+    display_name: str | None = None,
+) -> User:
+    """Return the existing user for tg_id, or create one on first contact."""
+    user = await session.scalar(select(User).where(User.tg_id == tg_id))
+    if user is not None:
+        # Keep display fields fresh on each contact.
+        if tg_username is not None:
+            user.tg_username = tg_username
+        if display_name is not None:
+            user.display_name = display_name
+        await session.flush()
+        return user
+
+    user = User(
+        tg_id=tg_id,
+        tg_username=tg_username,
+        display_name=display_name,
+    )
+    session.add(user)
+    await session.flush()
+    return user

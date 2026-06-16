@@ -1,0 +1,49 @@
+# Pairly Caddyfile — auto-HTTPS, reverse-proxy /api/*, serve the Mini App.
+#
+# Install: /etc/caddy/Caddyfile  (replace the existing one, then `systemctl reload caddy`).
+#
+# TODO(operator): replace `app.example.com` with your real domain. DNS for that
+# domain must point at this VPS so Caddy can obtain/renew the Let's Encrypt cert.
+#
+# Layout assumed:
+#   /var/www/pairly        -> built Mini App (miniapp/dist), owned readable by caddy
+#   127.0.0.1:8000         -> pairly-api.service (uvicorn)
+
+app.example.com {
+	encode zstd gzip
+
+	# API: FastAPI on uvicorn. Strip /api prefix? No — the app is mounted at /api/*.
+	# Keep the path so the router matches. Proxy headers so the app sees real client info.
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Also expose the bare /api (without trailing path) to the upstream root router.
+	handle /api {
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	# Static Mini App (PWA shell). SPA fallback so client routes resolve to index.html.
+	root * /var/www/pairly
+	try_files {path} /index.html
+	file_server
+
+	# Reasonable security headers; Mini App is a PWA served to Telegram clients.
+	header {
+		# Strict-Transport-Security is added automatically by Caddy on HTTPS.
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy geolocation=(), microphone=(), camera=()
+		# CSP: allow Telegram WebApp inline scripts/styles + self. Tighten after audit.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org"
+	}
+
+	# Quiet access log per site (optional). Comment out if noisy.
+	log {
+		output file /var/log/caddy/pairly-access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+		format console
+	}
+}

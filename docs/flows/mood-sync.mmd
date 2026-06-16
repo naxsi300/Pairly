@@ -1,0 +1,56 @@
+%% Mood sync
+%% Source of truth: docs/user-stories/mood-sync.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> SetMood : /mood or home view tap
+
+    SetMood --> UnpairedGate
+    state UnpairedGate {
+        [*] --> has_pair?
+        has_pair? --> unpaired_msg : no pair →\n"pair up first" + /pair link\n(no mood stored)
+    }
+    UnpairedGate --> [*] : unpaired_msg
+
+    UnpairedGate --> PickMood : has pair
+    state PickMood {
+        [*] --> choose_5
+        choose_5 --> сияю : 😊 сияю
+        choose_5 --> хорошо : 🙂 хорошо
+        choose_5 --> ровно : 😐 ровно
+        choose_5 --> так себе : 🙁 так себе
+        choose_5 --> паршиво : 😢 паршиво
+        сияю --> optional_note
+        хорошо --> optional_note
+        ровно --> optional_note
+        так себе --> optional_note
+        паршиво --> optional_note
+        optional_note --> save : optional note ≤60 chars\n(or skip)
+    }
+
+    PickMood --> MoodSet : save
+    state MoodSet {
+        [*] --> latest_only
+        latest_only --> visible_partner : partner sees CURRENT mood only\non shared home (ambient)
+        latest_only --> [*] : NO notification sent on change\n(not an alert; no pressure)
+    }
+
+    MoodSet --> Fade : 24h pass & unchanged
+    state Fade {
+        [*] --> no_mood : fades to "no mood set"\n(NOT stale persistence —\nthe key anti-anxiety guard)
+    }
+
+    MoodSet --> [*] : setter changes mood\n(instant update)
+    MoodSet --> [*] : setter clears mood → "no mood set"
+
+    note right of MoodSet
+        LATEST mood only. No history graph,
+        no trend, no score, no streak.
+        If one partner updates often and the
+        other never: do NOTHING. Never nudge
+        the silent one.
+        No special copy when both set same
+        mood (prevents gamification).
+        Low/rough mood: plain copy, never
+        auto-triggered support pop-up.
+    end note

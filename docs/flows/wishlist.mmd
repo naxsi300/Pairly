@@ -1,0 +1,69 @@
+%% Wishlist — forward a post → parsed → shared list
+%% Source of truth: docs/user-stories/wishlist.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> ForwardReceived : user forwards any message\n(channel / DM / group)
+
+    ForwardReceived --> UnpairedGate : check pair_id
+
+    state UnpairedGate {
+        [*] --> has_pair?
+        has_pair? --> unpaired_msg : no pair →\n"pair up first" + /pair link\n(NOTHING stored)
+    }
+    UnpairedGate --> [*] : unpaired_msg
+
+    UnpairedGate --> DedupeCheck : has pair
+    DedupeCheck --> [*] : exact message_id already saved\n→ "you already saved this"\n(no duplicate)
+
+    DedupeCheck --> LimitCheck : new forward
+    state LimitCheck {
+        [*] --> under_limit?
+        under_limit? --> at_limit : free tier >= 10 items
+        under_limit? --> ok : under 10
+    }
+
+    LimitCheck --> Parse : ok
+    LimitCheck --> LimitHit : at_limit
+    state LimitHit {
+        [*] --> acknowledge
+        acknowledge --> choose : warm: forward acknowledged,\nNOT dropped\nchoose: upgrade OR delete-old
+        choose --> [*] : delete old item\n→ retry Parse
+        choose --> [*] : upgrade to Pro
+    }
+
+    state Parse {
+        [*] --> extract
+        extract --> has_text?
+        has_text? --> ask_title : no parseable text\n(photo, no caption)
+        has_text? --> guess : has text\n→ title / address / date / category
+        guess --> category_low?
+        category_low? --> default_do : low confidence → "do"
+        category_low? --> keep : confident → keep
+        ask_title --> store_title : user replies inline\n→ title; rest optional
+    }
+
+    Parse --> ItemCreated : item stored (pair-scoped)\nowned by forwarder, visible to both
+    state ItemCreated {
+        [*] --> open
+        open --> planned : either partner\nplans it (date/plan set)
+        open --> done : either partner marks done
+        planned --> done : either partner marks done
+        done --> archived : archive
+        open --> archived : archive
+        archived --> [*] : hard delete\n(no tombstone)
+        open --> [*] : hard delete
+        [*] --> open : both partners can edit\n(title/address/date/category/notes)
+    }
+
+    ItemCreated --> [*] : confirmation to forwarder
+
+    note right of Parse
+        Parse = snapshot at forward-time.
+        Later edits to the source post
+        do NOT update our copy.
+    end note
+
+    note right of ItemCreated
+        Listing: Mini App (primary) + /list\n(text fallback).\nSort: most recent first;\nfilter by category & status.
+    end note

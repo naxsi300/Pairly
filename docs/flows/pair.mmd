@@ -1,0 +1,54 @@
+%% /pair — linking two users into a pair
+%% Source of truth: docs/user-stories/pair.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> Unpaired : /start
+
+    state Unpaired {
+        [*] --> idle
+        idle --> token_sent : /pair (fresh)\n→ create token (single-use, 7d)
+        token_sent --> token_sent : /pair again\n(resent / same link)
+    }
+
+    Unpaired --> PendingJoin : partner opens\nt.me/pairlybot?start=pair_TKN
+    state PendingJoin {
+        [*] --> validate_token
+        validate_token --> self_reject : token owner == opener\n("can't pair with yourself")
+        validate_token --> expired_reject : token expired (>7d)\nor already consumed
+        validate_token --> already_paired_reject : opener is\nalready in a pair
+        validate_token --> join_ok : token valid\n& opener free
+    }
+
+    PendingJoin --> Unpaired : self_reject /\nexpired_reject\n(friendly msg,\nregenerate hint)
+    PendingJoin --> Unpaired : already_paired_reject\n("unpair first" + wipe note)
+    PendingJoin --> Paired : join_ok\n(both users confirmed\nnaming the other)
+
+    state Paired {
+        [*] --> active
+        active --> active : use shared features\n(wishlist, gifts, QOTD,\ncountdowns, mood, bucket)
+        active --> re_pair_block : /pair while paired\n→ show partner name\n+ /unpair hint\n(NO new token)
+    }
+
+    Paired --> ConfirmUnpair : /unpair (either member)
+    state ConfirmUnpair {
+        [*] --> ask_confirm
+        ask_confirm --> ask_confirm : show destructive copy\n(hard-deletes BOTH sides)
+        ask_confirm --> cancelled : cancel
+        ask_confirm --> wiping : confirm\n(2-button confirm)
+    }
+
+    ConfirmUnpair --> Paired : cancelled
+    ConfirmUnpair --> Wiping : wiping
+    state Wiping {
+        [*] --> hard_delete
+        hard_delete --> hard_delete : delete ALL pair-scoped rows\n(wishlist, gifts, QOTD,\ncountdowns, mood, bucket)\nremove pair record\nzero retained rows
+        hard_delete --> [*]
+    }
+    Wiping --> Unpaired : both users → unpaired\n(can /pair again,\nno leftover data)
+
+    note right of Paired
+        Invite link is the only entry to a pair.
+        Re-pairing after /unpair starts fresh
+        (old data gone by design).
+    end note

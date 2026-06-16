@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Node / Mini App
+node_modules/
+miniapp/dist/
+miniapp/.vite/
+*.local
+
+# Databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Coverage / test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+playwright-report/

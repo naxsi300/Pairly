@@ -1,0 +1,44 @@
+# systemd unit for the Pairly Telegram bot (aiogram polling).
+# Install: /etc/systemd/system/pairly-bot.service  then `systemctl daemon-reload`.
+#
+# Runs as a dedicated unprivileged `pairly` user. Secrets come from
+# /etc/pairly/pairly.env (chmod 600, owner pairly). See deploy/scripts/install.sh.
+[Unit]
+Description=Pairly Telegram bot (aiogram polling)
+Documentation=https://github.com/PAIRLY/pairly/blob/main/docs/runbook.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pairly
+Group=pairly
+
+# Repo + venv. Created by install.sh.
+WorkingDirectory=/opt/pairly
+EnvironmentFile=/etc/pairly/pairly.env
+
+# The package is installed into the venv by `uv sync`, so `pairly.*` imports resolve.
+ExecStart=/opt/pairly/.venv/bin/python -m pairly.main
+
+Restart=on-failure
+RestartSec=5s
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/pairly /var/log/pairly
+# SQLite DB lives under WorkingDirectory by default.
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+
+# Journald captures stdout/stderr; also tag for readability.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pairly-bot
+
+[Install]
+WantedBy=multi-user.target

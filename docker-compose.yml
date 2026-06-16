@@ -1,0 +1,76 @@
+# Pairly — production docker-compose stack.
+#
+# Usage:
+#   1. Copy .env.prod.example to .env.prod and fill in (especially your domain).
+#   2. Build the Mini App: `cd miniapp && npm install && npm run build` — this
+#      produces miniapp/dist which we mount into Caddy.
+#   3. `docker compose --env-file .env.prod up -d`
+#
+# The init service runs migrations + QOTD seed once and exits; bring it up first.
+# It binds the same SQLite volume so other services see the migrated DB.
+
+services:
+  init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pairly:latest
+    command: ["init"]
+    env_file: .env.prod
+    volumes:
+      - pairly-data:/data
+    restart: "no"
+
+  api:
+    image: pairly:latest
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["api"]
+    env_file: .env.prod
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - pairly-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  bot:
+    image: pairly:latest
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["bot"]
+    env_file: .env.prod
+    # bot listens on PAIRLY_WEBHOOK_PORT (8080) for /telegram-webhook
+    # only reachable from the Caddy network (not published to host).
+    expose:
+      - "8080"
+    volumes:
+      - pairly-data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - api
+      - bot
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/caddy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
+      - ./miniapp/dist:/srv/miniapp:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  pairly-data:    # SQLite DB lives here for the default SQLite deploy.
+  caddy_data:     # Let's Encrypt certs and ACME account.
+  caddy_config:   # Caddy's runtime config cache.

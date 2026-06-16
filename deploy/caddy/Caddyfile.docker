@@ -1,0 +1,63 @@
+# Pairly Caddyfile for docker-compose deploy.
+#
+# Replace `your-domain.example.com` with your real domain (then point its DNS A
+# record at the VPS). Caddy will issue and renew Let's Encrypt certificates
+# automatically.
+#
+# Layout:
+#   https://<domain>/             -> static Mini App (mounted at /srv/miniapp)
+#   https://<domain>/api/*        -> FastAPI (service: api:8000)
+#   https://<domain>/telegram-webhook -> aiogram webhook (service: bot:8080)
+#   /.well-known/telegram-bot-app.json -> manifest for @BotFather /setdomain check
+
+your-domain.example.com {
+    encode zstd gzip
+
+    # Manifest for @BotFather /setdomain. Telegram pings this on register.
+    @tgappfile path /.well-known/telegram-bot-app.json
+    handle @tgappfile {
+        header Content-Type application/json
+        respond `{"short_name":"Pairly","start_url":"/","icon":"icon-192.png","display":"standalone"}` 200
+    }
+
+    @api path /api/*
+    handle @api {
+        reverse_proxy api:8000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto https
+            transport http {
+                dial_timeout 5s
+                response_header_timeout 30s
+            }
+        }
+    }
+
+    @webhook path /telegram-webhook
+    handle @webhook {
+        reverse_proxy bot:8080 {
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # Mini App static (built by `npm run build` in miniapp/).
+    handle {
+        root * /srv/miniapp
+        try_files {path} /index.html
+        file_server
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# Health endpoint on plain HTTP for uptime monitors.
+:80 {
+    handle /health {
+        respond "ok" 200
+    }
+    respond "not found" 404
+}

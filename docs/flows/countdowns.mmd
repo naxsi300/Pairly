@@ -1,0 +1,73 @@
+%% Countdowns
+%% Source of truth: docs/user-stories/countdowns.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> CreateCountdown : /countdown or add button
+
+    CreateCountdown --> UnpairedGate
+    state UnpairedGate {
+        [*] --> has_pair?
+        has_pair? --> unpaired_msg : no pair →\n"pair up first" + /pair link
+    }
+    UnpairedGate --> [*] : unpaired_msg
+
+    UnpairedGate --> CollectInput : has pair
+    state CollectInput {
+        [*] --> ask_label
+        ask_label --> ask_date : label (required)
+        ask_date --> ask_emoji : target date (required)\nresolve to instant via creator's TZ
+        ask_emoji --> recurring?
+        ask_emoji --> validate : optional emoji
+    }
+    CollectInput --> PastDateCheck : date provided
+
+    state PastDateCheck {
+        [*] --> is_past?
+        is_past? --> allow_past : past date ALLOWED\n("met on…") → shows "X days ago"
+        is_past? --> future : future date
+    }
+
+    PastDateCheck --> LimitCheck
+    state LimitCheck {
+        [*] --> under_limit?
+        under_limit? --> at_limit : free tier >= 10 countdowns
+        under_limit? --> ok : under 10
+    }
+
+    LimitCheck --> Created : ok
+    LimitCheck --> LimitHit : at_limit
+    state LimitHit {
+        [*] --> choose : warm: acknowledged, NOT dropped\nupgrade OR delete-old
+        choose --> [*] : delete old → retry
+        choose --> [*] : upgrade to Pro
+    }
+
+    Created --> Active
+    state Active {
+        [*] --> counting
+        counting --> final48 : within 48h → show hours
+        counting --> [*] : either partner edit / hard delete
+        final48 --> [*] : either partner edit / hard delete
+        recurring --> auto_roll : recurring (annual /\nfirst-Saturday) → day-after passes,\nauto-roll to next occurrence
+    }
+
+    Active --> OnTheDay : target instant reached\n(creator's TZ)
+    state OnTheDay {
+        [*] --> single_nudge : ONE warm message to BOTH:\n"today's the day: 🎂 anniversary"\n(NO multi-day nag chain,\nNO "don't forget")
+    }
+
+    OnTheDay --> Passed
+    state Passed {
+        [*] --> days_ago : "X days ago", stays visible
+        days_ago --> [*] : archive / delete
+    }
+    OnTheDay --> Active : recurring → auto-roll
+
+    note right of Active
+        Store resolved instant, not floating
+        date, so "today" boundary is
+        unambiguous across TZs.
+        Duplicate labels allowed.
+        Feb 29 non-leap → rolls to Feb 28.
+    end note

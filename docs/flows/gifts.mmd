@@ -1,0 +1,59 @@
+%% Gift an action — catalog + redemption
+%% Source of truth: docs/user-stories/gifts.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> StartGift : /gift or gift button
+    StartGift --> UnpairedGate
+
+    state UnpairedGate {
+        [*] --> has_pair?
+        has_pair? --> unpaired_msg : no pair →\n"pair up first" + /pair link
+    }
+    UnpairedGate --> [*] : unpaired_msg
+
+    UnpairedGate --> PickGesture : has pair
+    state PickGesture {
+        [*] --> choose_source
+        choose_source --> catalog : pick from built-in catalog\n(~12 default gestures,\nshared per pair)
+        choose_source --> custom_text : free-form gesture\n("I owe you one lazy Sunday")
+        catalog --> selected
+        custom_text --> selected
+    }
+
+    PickGesture --> Sent : send to partner
+    state Sent {
+        [*] --> received
+    }
+    Sent --> [*] : sender sees "sent" confirmation
+
+    received --> received_view : recipient inbox\n(sees who it's from + gesture)
+
+    received_view --> claimed : recipient accepts
+    received_view --> declined : recipient declines\n(sender notified gently:\n"passed on this one")
+    received_view --> received_view : unclaimed, day<14
+
+    received_view --> auto_archive : unclaimed 14 days\n→ gentle nudge to recipient\n("no rush, want to let this go?")\nNO guilt copy
+
+    claimed --> redeemed : giver marks done
+    claimed --> claimed : waiting on giver
+    redeemed --> complete : either partner marks complete\n(must have happened;\nblocked if never claimed)
+
+    complete --> good_deeds_view : chronological "good deeds"\n(NO score / streak / leaderboard)
+    declined --> [*] : closed, warm
+    auto_archive --> [*] : archived
+
+    note right of Sent
+        No nag reminders to the giver.
+        No "you haven't redeemed."
+        Same gift sent twice = two entries.
+        Free tier: UNLIMITED gifts (core loop).
+        Pro = custom gestures only.
+    end note
+
+    note right of complete
+        Full gift ledger visible to both
+        partners. No hidden/private gifts.
+        Marking complete without claiming
+        = blocked by state machine.
+    end note

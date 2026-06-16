@@ -1,0 +1,26 @@
+# Pairly API daily smoke check (cron/systemd-timer variant).
+#
+# This mirrors e2e/scripts/smoke.sh for environments that prefer a config-driven
+# health check (e.g. a generic http-check sidecar or a monitoring agent that reads
+# YAML). The shell script is the canonical runner; this file documents the same
+# contract for ops.
+#
+# Contract: GET <url>/api/health must return HTTP 200 with body {"status":"ok"}.
+# Non-200 or a missing/incorrect body -> alert (page the on-call at the configured
+# severity). Only ONE endpoint is checked by design: /api/health is the liveness
+# surface the Mini App depends on.
+
+check:
+  name: pairly-api-health
+  type: http
+  url: https://pairly.example.com/api/health  # override per environment
+  method: GET
+  timeout_seconds: 10
+  expect:
+    status: 200
+    body_contains: '"status":"ok"'
+  interval: daily
+  on_failure:
+    severity: warn
+    retry_after_seconds: 60
+    retry_count: 3

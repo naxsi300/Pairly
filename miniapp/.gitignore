@@ -1,0 +1,26 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Vite
+.vite
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# PWA generated (dev sw)
+dev-dist

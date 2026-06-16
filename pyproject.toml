@@ -1,0 +1,60 @@
+[project]
+name = "pairly"
+version = "0.1.0"
+description = "Pairly — Telegram bot + Mini App for couples (backend)"
+readme = "backend/README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Pairly" }]
+license = { text = "Proprietary" }
+dependencies = [
+    # Bot
+    "aiogram>=3.7,<4.0",
+    # DB
+    "sqlalchemy[asyncio]>=2.0.30,<3.0",
+    "aiosqlite>=0.20",
+    "asyncpg>=0.29",
+    "alembic>=1.13.2,<2.0",
+    # API
+    "fastapi>=0.111,<0.116",
+    "uvicorn[standard]>=0.30",
+    # Config
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    # Utilities
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",  # for FastAPI TestClient async
+    "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend/pairly"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["backend/pairly/migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # line length handled by formatter; keep readable over strict
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/*" = ["B017"]
+# FastAPI's idiom is Depends()/Header()/Query() in argument defaults.
+"backend/pairly/api/*" = ["B008"]
+"backend/pairly/auth/*" = ["B008"]

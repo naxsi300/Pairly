@@ -1,0 +1,60 @@
+%% Question of the day (QOTD)
+%% Source of truth: docs/user-stories/question-of-the-day.md
+stateDiagram-v2
+    direction TB
+
+    [*] --> DailyTick : scheduler (per-user 12:00 local TZ)
+
+    DailyTick --> UnpairedGate
+    state UnpairedGate {
+        [*] --> has_pair?
+        has_pair? --> unpaired_msg : no pair →\n"pair up first" + /pair link\n(no question stored)
+    }
+    UnpairedGate --> [*] : unpaired_msg
+
+    UnpairedGate --> MuteCheck : has pair
+    state MuteCheck {
+        [*] --> muted_self?
+        muted_self? --> skip_prompt : user muted QOTD for self\n(partner UNAFFECTED)
+        muted_self? --> post_prompt : not muted
+    }
+
+    MuteCheck --> [*] : skip_prompt (no morning message)
+    MuteCheck --> PostPrompt : post_prompt
+
+    state PostPrompt {
+        [*] --> send_question : pick from bank,\nshown to both as "unanswered"
+    }
+
+    PostPrompt --> AwaitingAnswer
+
+    state AwaitingAnswer {
+        [*] --> unanswered
+        unanswered --> self_answered : this partner posts reply\n(free-text ≤280 chars,\noptional emoji)
+        self_answered --> self_answered : sees ONLY own answer\n(partner's hidden behind reveal gate)
+    }
+
+    AwaitingAnswer --> RevealGate : any partner opens today's QOTD
+    state RevealGate {
+        [*] --> i_answered?
+        i_answered? --> waiting_msg : I have NOT answered\n→ see ONLY: "waiting for you\nto answer first"\n(HARD: never let partner peek)
+        i_answered? --> check_partner : I HAVE answered
+        check_partner --> both_visible : partner also answered\n→ both answers shown
+        check_partner --> only_mine : partner not answered\n→ only my answer shown
+    }
+
+    RevealGate --> AwaitingAnswer : waiting_msg / only_mine
+
+    AwaitingAnswer --> PastQuestions : 7 days pass\n→ auto-archive (still readable,\nno longer pinned)
+    AwaitingAnswer --> PastQuestions : day ends, never answered\n→ quietly rolls in\n(NO nag, NO streak break,\nNO guilt copy)
+
+    AwaitingAnswer --> [*] : same-day edit allowed until\npartner opens; then locked
+
+    note right of RevealGate
+        HARD INVARIANT: never let a partner
+        read the other's answer before
+        posting their own. Breaking this
+        poisons the feature.
+        Reveal is independent of who
+        answered first; TZ gaps fine.
+    end note
