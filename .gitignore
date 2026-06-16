@@ -11,7 +11,7 @@ venv/
 
 # Node / Mini App
 node_modules/
-miniapp/dist/
+miniapp/.vite/
 miniapp/.vite/
 *.local
 
