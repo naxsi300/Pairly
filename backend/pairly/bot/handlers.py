@@ -415,7 +415,7 @@ async def cb_unpair_confirm(call: CallbackQuery) -> None:
     async with SessionLocal() as session:
         user = await users.resolve_user_by_tg(session, call.from_user.id)
         if user is None:
-            await call.answer()
+            await call.answer("Сначала откройте /start")
             return
         try:
             pair = await base.get_user_pair(session, user.id)

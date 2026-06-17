@@ -47,8 +47,6 @@ export default function App() {
 
       <StatsCard />
 
-      <StatsCard />
-
       <main className="flex-1">
         {tab === "wishlist" ? <Wishlist /> : null}
         {tab === "bucket" ? <Bucket /> : null}

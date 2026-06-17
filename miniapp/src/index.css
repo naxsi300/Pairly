@@ -166,9 +166,10 @@ body::before {
   opacity: 0.85;
 }
 
-/* Tab bar glass — strong saturate + blur for the navigation surface. */
+/* Tab bar glass — prominent saturate + blur with subtle top edge. */
 .top-blur {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background: color-mix(in srgb, var(--tg-theme-bg-color) 82%, transparent);
+  background: color-mix(in srgb, var(--tg-theme-bg-color) 72%, transparent);
+  border-top: 0.5px solid color-mix(in srgb, var(--tg-theme-hint-color) 18%, transparent);
 }

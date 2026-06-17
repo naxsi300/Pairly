@@ -24,8 +24,10 @@ docker compose --env-file .env.prod build init
 
 echo "==> restart services"
 docker compose --env-file .env.prod up -d --force-recreate api bot
-# Caddy serves miniapp/dist via a read-only bind mount; restart to drop any cache.
-docker compose --env-file .env.prod restart caddy
+# Caddy serves miniapp/dist via a read-only bind mount — new files are visible
+# immediately, no restart needed (and a restart causes a brief TLS-reload outage).
+# `up -d` is a no-op for caddy unless its config changed.
+docker compose --env-file .env.prod up -d caddy
 
 echo "==> health"
 sleep 3

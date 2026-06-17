@@ -34,3 +34,10 @@ async def get_or_create_user(
     session.add(user)
     await session.flush()
     return user
+
+
+async def resolve_user_by_tg(
+    session: AsyncSession, tg_id: int
+) -> User | None:
+    """Look up a user by Telegram ID — no side effects, no creation."""
+    return await session.scalar(select(User).where(User.tg_id == tg_id))
