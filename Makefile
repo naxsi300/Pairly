@@ -1,4 +1,4 @@
-.PHONY: install test lint bot api migrate seed clean backup deploy e2e e2e-playwright e2e-bot
+.PHONY: install test lint bot api migrate seed clean backup deploy deploy-pull e2e e2e-playwright e2e-bot
 
 install:
 	uv sync --extra dev
@@ -40,6 +40,10 @@ backup:
 # VPS, not your laptop — harmless to dry-run with SKIP_START=1 locally.
 deploy:
 	sudo bash deploy/scripts/install.sh
+
+# Pull + build Mini App (npm on the VPS) + rebuild backend + restart. Run on the VPS.
+deploy-pull:
+	bash deploy/scripts/deploy.sh
 
 # --- e2e (qa-e2e) --------------------------------------------------------
 # Runs the Playwright Mini App suite (mock mode) + the in-process pytest bot e2e.

@@ -99,8 +99,10 @@ async def test_qotd_mutual_sends_once(session, monkeypatch):
     notify._cooldowns.clear()
     await notify.notify_qotd_mutual(session, pair_id=a.pair_id, actor_id=a.id)
     assert len(calls) == 1
-    # The body of any answer must never appear — it's meta-only.
-    assert "откройте" in calls[0].lower() or "готовы" in calls[0].lower()
+    # Meta-only: the message mentions "вопрос дня" / opening, never an answer body.
+    # (Any of the 3 rotated phrases is acceptable — assert the invariant, not one variant.)
+    msg = calls[0].lower()
+    assert "вопрос дня" in msg or "открыв" in msg or "готовы" in msg
 
 
 @pytest.mark.asyncio
