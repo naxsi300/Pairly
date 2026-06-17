@@ -10,6 +10,7 @@ import { QuestionOfTheDay } from "./screens/QuestionOfTheDay";
 import { Gifts } from "./screens/Gifts";
 import { MilestoneToast, type MilestoneEvent } from "./components/Toast";
 import { useMilestoneToast } from "./lib/milestoneBus";
+import { StatsCard } from "./components/Stats";
 
 type Tab = "wishlist" | "bucket" | "countdowns" | "mood" | "qotd" | "gifts";
 
@@ -43,6 +44,10 @@ export default function App() {
           onDismiss={dismissMilestone}
         />
       ) : null}
+
+      <StatsCard />
+
+      <StatsCard />
 
       <main className="flex-1">
         {tab === "wishlist" ? <Wishlist /> : null}

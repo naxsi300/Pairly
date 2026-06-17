@@ -154,6 +154,19 @@ export const endpoints = {
       method: "POST",
       body: { status },
     }),
+
+  getPairStats: () =>
+    request<{
+      togetherDays: number;
+      totalWishlist: number;
+      wishlistDone: number;
+      totalGifts: number;
+      giftsCompleted: number;
+      totalQotdAnswers: number;
+      totalCountdowns: number;
+      createdAt: string | null;
+      newMilestones?: { kind: string; value: number }[];
+    }>("/api/pair/stats"),
 };
 
 // ---------------------------------------------------------------------------

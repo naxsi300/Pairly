@@ -153,5 +153,31 @@ export const COPY = {
     gift3: "3 подарочка-действия отправлено. Обещания копятся.",
     gift10: "10 жестов-подарков. Без слов слышно, что вам хорошо.",
     giftCustom: (v: number) => `${v} жестов подарено. Это много.`,
+    giftCompleted5: "5 подарков сделаны делом. Обещания сдерживаются 🔥",
+    giftCompleted15: "15 завершённых жестов. Это уже привычка — держать слово 🤍",
+    giftCompletedCustom: (v: number) => `${v} подарков-действий завершено. Вы держите слово.`,
+    moodMutual7: "7 дней, когда оба делились настроением. Это больше чем просто смайлик 🌤",
+    moodMutualCustom: (v: number) => `${v} дней, где оба открывали настроение.`,
+    togetherDays30: "30 дней вместе. Месяц маленьких историй 🗓",
+    togetherDays100: "100 дней вместе. Целая эпоха для двоих 💫",
+    togetherDays365: "Год вместе. Круг прочерчен — и дальше только интереснее 🌟",
+    togetherDaysCustom: (v: number) => `${v} дней вместе.`,
+  },
+  stats: {
+    title: "Вы вместе",
+    days: (d: number) => `${d} ${pluralDays(d)}`,
+    wishlist: (n: number, done: number) => `Вишлист: ${done} из ${n} сделано`,
+    gifts: (n: number, done: number) => `Подарки: ${done} из ${n} завершено`,
+    qotd: (n: number) => `Вопросов дня: ${n} ответов`,
+    countdowns: (n: number) => `Отсчётов: ${n}`,
   },
 } as const;
+
+function pluralDays(n: number): string {
+  const d = n % 10;
+  const dd = n % 100;
+  if (dd >= 11 && dd <= 14) return "дней";
+  if (d === 1) return "день";
+  if (d >= 2 && d <= 4) return "дня";
+  return "дней";
+}

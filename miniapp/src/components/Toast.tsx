@@ -1,12 +1,15 @@
 /** Soft, one-shot celebratory toast for soft milestones. No counter, no streak, no
  * comparison — just a tiny moment when something is reached. The component
  * disappears on its own after a few seconds or on dismiss.
+ *
+ * For "big" milestones (anniversaries, high thresholds), adds a confetti burst.
  */
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { COPY } from "../copy";
+import { Confetti } from "./Confetti";
 
 export interface MilestoneEvent {
-  kind: string; // "wishlist_count" | "countdown_count" | "qotd_count" | "gift_count"
+  kind: string;
   value: number;
 }
 
@@ -26,7 +29,22 @@ const KIND_LABEL: Record<string, (v: number) => string> = {
     v === 3 ? COPY.milestones.gift3
     : v === 10 ? COPY.milestones.gift10
     : COPY.milestones.giftCustom(v),
+  gift_completed_count: (v) =>
+    v === 5 ? COPY.milestones.giftCompleted5
+    : v === 15 ? COPY.milestones.giftCompleted15
+    : COPY.milestones.giftCompletedCustom(v),
+  mood_mutual_count: (v) =>
+    v === 7 ? COPY.milestones.moodMutual7
+    : COPY.milestones.moodMutualCustom(v),
+  together_days: (v) =>
+    v === 30 ? COPY.milestones.togetherDays30
+    : v === 100 ? COPY.milestones.togetherDays100
+    : v === 365 ? COPY.milestones.togetherDays365
+    : COPY.milestones.togetherDaysCustom(v),
 };
+
+/** Milestones that deserve a confetti burst (anniversaries + bigger achievements). */
+const CONFETTI_KINDS = new Set(["together_days", "gift_completed_count"]);
 
 export function MilestoneToast({
   events,
@@ -35,25 +53,40 @@ export function MilestoneToast({
   events: MilestoneEvent[];
   onDismiss: () => void;
 }) {
-  // Auto-dismiss after 3.5s.
+  const [showConfetti, setShowConfetti] = useState(false);
+
   useEffect(() => {
-    const t = setTimeout(onDismiss, 3500);
+    if (events.some((e) => CONFETTI_KINDS.has(e.kind))) {
+      setShowConfetti(true);
+    }
+  }, [events]);
+
+  // Auto-dismiss after 4s (slightly longer for confetti).
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 4000);
     return () => clearTimeout(t);
   }, [onDismiss]);
+
+  const onConfettiDone = useCallback(() => setShowConfetti(false), []);
+
   if (events.length === 0) return null;
+
   return (
-    <div
-      className="fixed inset-x-0 top-2 z-50 mx-auto max-w-md px-3 animate-fade-in"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="rounded-2xl bg-tg-button/95 px-4 py-3 text-tg-buttonText shadow-glow backdrop-blur">
-        {events.map((e, i) => (
-          <p key={i} className="text-sm font-medium">
-            {KIND_LABEL[e.kind]?.(e.value) ?? COPY.milestones.generic}
-          </p>
-        ))}
+    <>
+      {showConfetti ? <Confetti onDone={onConfettiDone} /> : null}
+      <div
+        className="fixed inset-x-0 top-2 z-50 mx-auto max-w-md px-3 animate-pop"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="rounded-2xl bg-tg-button/95 px-4 py-3 text-tg-buttonText shadow-glow backdrop-blur">
+          {events.map((e, i) => (
+            <p key={i} className="text-sm font-medium">
+              {KIND_LABEL[e.kind]?.(e.value) ?? COPY.milestones.generic}
+            </p>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
