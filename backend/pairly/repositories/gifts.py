@@ -123,3 +123,17 @@ async def archive_stale_unclaimed(session: AsyncSession, pair_id: str) -> int:
     if archived:
         await session.flush()
     return archived
+
+
+async def count_completed(session: AsyncSession, *, pair_id: str) -> int:
+    """Count gifts that went through the full lifecycle (status = complete)."""
+    from sqlalchemy import func
+
+    r = await session.scalar(
+        select(func.count(GiftItem.id)).where(
+            GiftItem.pair_id == pair_id,
+            GiftItem.status == GiftStatus.COMPLETE,
+        )
+    )
+    return r or 0
+    return r or 0

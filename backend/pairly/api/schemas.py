@@ -217,6 +217,20 @@ class WishlistCreateOut(WishlistItemOut):
     new_milestones: list[MilestoneOut] = []
 
 
+class PairStats(_CamelModel):
+    """Ambient shared counters — warm, non-competitive, no streaks/XP/leaderboards.
+    Rendered in the Mini App as a gentle stats card, not a dashboard with goals."""
+
+    together_days: int = 0
+    total_wishlist: int = 0
+    wishlist_done: int = 0
+    total_gifts: int = 0
+    gifts_completed: int = 0
+    total_qotd_answers: int = 0
+    total_countdowns: int = 0
+    created_at: datetime | None = None  # pair.created_at for "since" displays
+
+
 class GiftsResponse(_CamelModel):
     items: list[GiftItemOut] = []
     partner_name: str | None = None

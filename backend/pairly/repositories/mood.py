@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.db.models import MoodEntry
-from pairly.repositories.base import _require_membership
+from pairly.repositories.base import _require_membership, pair_members
 
 # Exactly 5 moods (Russian labels). See docs/copy/mood-sync.md.
 VALID_MOODS = {"сияю", "хорошо", "ровно", "так себе", "паршиво"}
@@ -61,6 +61,32 @@ async def set_mood(
     session.add(entry)
     await session.flush()
     return entry
+
+
+async def count_mutual_mood_days(session: AsyncSession, *, pair_id: str) -> int:
+    """Count distinct days where BOTH partners set a mood (any value, non-stale)."""
+    members = await pair_members(session, pair_id)
+    ids = [m.id for m in members]
+    if len(ids) < 2:
+        return 0
+    u1, u2 = ids[0], ids[1]
+    from sqlalchemy import Date, cast, distinct
+
+    # Distinct dates from user 1.
+    u1_dates = (
+        select(cast(MoodEntry.set_at, Date))
+        .where(MoodEntry.pair_id == pair_id, MoodEntry.user_id == u1)
+        .distinct()
+    )
+    # Distinct dates from user 2 that appear in u1_dates.
+    cnt = await session.scalar(
+        select(func.count(distinct(cast(MoodEntry.set_at, Date)))).where(
+            MoodEntry.pair_id == pair_id,
+            MoodEntry.user_id == u2,
+            cast(MoodEntry.set_at, Date).in_(u1_dates),
+        )
+    )
+    return cnt or 0
 
 
 async def clear_mood(

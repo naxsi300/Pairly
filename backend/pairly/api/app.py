@@ -32,6 +32,7 @@ from pairly.api.schemas import (
     MoodEntryOut,
     MoodResponse,
     MoodSet,
+    PairStats,
     QOTDAnswerIn,
     QOTDAnswerOut,
     QOTDQuestionOut,
@@ -95,6 +96,63 @@ def create_app() -> FastAPI:
     @app.get("/api/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    # --- pair stats (ambient shared-counters, not goals/streaks) ---
+    @app.get("/api/pair/stats", response_model=PairStats)
+    async def pair_stats(
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> PairStats:
+        pair_id = _require_pair(auth)
+        now = __import__("datetime").datetime.now(__import__("datetime").UTC)
+
+        # Together-days from pair.created_at (if available, else 0).
+        pair_obj = await session.get(
+            __import__("pairly.db.models", fromlist=["Pair"]).Pair, pair_id
+        )
+        created_at = pair_obj.created_at if pair_obj else None
+        together_days = 0
+        if created_at is not None:
+            c = created_at if created_at.tzinfo else created_at.replace(tzinfo=__import__("datetime").UTC)
+            together_days = (now - c).days
+
+        # Ambient counts — warm stats, not progress bars.
+        wl = await wishlist.list_items(session, pair_id=pair_id, user_id=auth.user.id)
+        wl_done = sum(1 for i in wl if i.status.value == "done")
+        gifts_list = await gifts.list_gifts(session, pair_id=pair_id, user_id=auth.user.id)
+        gifts_done = await gifts.count_completed(session, pair_id=pair_id)
+
+        from sqlalchemy import func, select
+
+        from pairly.db.models import Countdown, QOTDAnswer
+
+        qotd_n = int((await session.execute(
+            select(func.count(QOTDAnswer.id)).where(QOTDAnswer.pair_id == pair_id)
+        )).scalar_one() or 0)
+        cd_n = int((await session.execute(
+            select(func.count(Countdown.id)).where(Countdown.pair_id == pair_id)
+        )).scalar_one() or 0)
+
+        # Check and emit together-days milestone (fires on the first fetch when threshold crossed).
+        td_ms = await milestones.check_together_days(session, pair_id=pair_id, days=together_days)
+
+        await session.commit()
+
+        result = PairStats(
+            together_days=together_days,
+            total_wishlist=len(wl),
+            wishlist_done=wl_done,
+            total_gifts=len(gifts_list),
+            gifts_completed=gifts_done,
+            total_qotd_answers=qotd_n,
+            total_countdowns=cd_n,
+            created_at=created_at,
+        ).model_dump(by_alias=True)
+        if td_ms:
+            result["newMilestones"] = [
+                MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in td_ms
+            ]
+        return result
 
     # --- wishlist ---
     @app.get("/api/wishlist", response_model=list[WishlistItemOut])
@@ -317,7 +375,7 @@ def create_app() -> FastAPI:
         payload: MoodSet,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> MoodEntryOut:
+    ) -> dict:
         pair_id = _require_pair(auth)
         try:
             entry = await mood.set_mood(
@@ -327,11 +385,19 @@ def create_app() -> FastAPI:
                 mood=payload.mood,
                 note=payload.note,
             )
+            # Check mood mutual milestone: both partners set mood on the same day N times.
+            mutual_days = await mood.count_mutual_mood_days(session, pair_id=pair_id)
+            new_ms = await milestones.check_mood_mutual(session, pair_id=pair_id, count=mutual_days)
             await session.commit()
         except InvalidMoodError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         # NOTE: no mood notification — docs/copy/mood-sync.md forbids it (ambient only).
-        return _to_mood_out(entry)
+        out = _to_mood_out(entry).model_dump(by_alias=True)
+        if new_ms:
+            out["newMilestones"] = [
+                MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
+            ]
+        return out
 
     @app.delete("/api/mood")
     async def clear_mood(
@@ -528,6 +594,20 @@ def create_app() -> FastAPI:
             await notify_gift_redeemed(
                 session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
             )
+        elif item.status == GiftStatus.COMPLETE:
+            # Check gift_completed milestone when a gift finishes the full lifecycle.
+            completed_count = await gifts.count_completed(session, pair_id=pair_id)
+            new_ms_c = await milestones.check_gift_completed(
+                session, pair_id=pair_id, count=completed_count
+            )
+            if new_ms_c:
+                out_ms = [
+                    MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True)
+                    for m in new_ms_c
+                ]
+                result = _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
+                result["newMilestones"] = out_ms
+                return result
         elif item.status == GiftStatus.CLAIMED:
             from pairly.bot.notify import notify_gift_accepted
 

@@ -80,6 +80,9 @@ WISHLIST_THRESHOLDS = (5, 10, 20)
 COUNTDOWN_THRESHOLDS = (5, 10)
 QOTD_THRESHOLDS = (7,)
 GIFT_THRESHOLDS = (3, 10)
+GIFT_COMPLETED_THRESHOLDS = (5, 15)  # gifts actually done (redeemed -> complete)
+MOOD_MUTUAL_THRESHOLDS = (7,)  # both partners set mood on the same day N times
+TOGETHER_DAYS_THRESHOLDS = (30, 100, 365)  # together since pair.created_at
 
 
 async def check_wishlist(
@@ -126,6 +129,45 @@ async def check_gift(
     for v in GIFT_THRESHOLDS:
         if count >= v:
             ms, is_new = await record(session, pair_id=pair_id, kind="gift_count", value=v)
+            if is_new:
+                new.append(ms)
+    return new
+
+
+async def check_gift_completed(
+    session: AsyncSession, *, pair_id: str, count: int
+) -> list[PairMilestone]:
+    """Gifts that went through the full lifecycle (redeemed -> complete)."""
+    new: list[PairMilestone] = []
+    for v in GIFT_COMPLETED_THRESHOLDS:
+        if count >= v:
+            ms, is_new = await record(session, pair_id=pair_id, kind="gift_completed_count", value=v)
+            if is_new:
+                new.append(ms)
+    return new
+
+
+async def check_mood_mutual(
+    session: AsyncSession, *, pair_id: str, count: int
+) -> list[PairMilestone]:
+    """Both partners set mood on the same day — count of such mutual days."""
+    new: list[PairMilestone] = []
+    for v in MOOD_MUTUAL_THRESHOLDS:
+        if count >= v:
+            ms, is_new = await record(session, pair_id=pair_id, kind="mood_mutual_count", value=v)
+            if is_new:
+                new.append(ms)
+    return new
+
+
+async def check_together_days(
+    session: AsyncSession, *, pair_id: str, days: int
+) -> list[PairMilestone]:
+    """Together-days anniversaries: 30, 100, 365."""
+    new: list[PairMilestone] = []
+    for v in TOGETHER_DAYS_THRESHOLDS:
+        if days >= v:
+            ms, is_new = await record(session, pair_id=pair_id, kind="together_days", value=v)
             if is_new:
                 new.append(ms)
     return new
