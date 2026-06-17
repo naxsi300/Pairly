@@ -25,6 +25,7 @@ _DEFAULT_COMMANDS = [
     BotCommand(command="list", description="мой вишлист"),
     BotCommand(command="app", description="открыть приложение"),
     BotCommand(command="cancel", description="отменить текущее действие"),
+    BotCommand(command="unpair", description="расстаться (удалить всё общее)"),
     BotCommand(command="help", description="что умеет бот"),
 ]
 

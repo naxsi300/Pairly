@@ -65,3 +65,12 @@ def upgrade_kb() -> InlineKeyboardMarkup:
     kb.button(text="Узнать про Pro", callback_data="upgrade:info")
     kb.button(text="Не сейчас", callback_data="upgrade:dismiss")
     return kb.as_markup()
+
+
+def unpair_confirm_kb() -> InlineKeyboardMarkup:
+    """Destructive 2-button confirm for /unpair (docs/copy/pair.md)."""
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Да, расстаться", callback_data="unpair:confirm")
+    kb.button(text="Нет, оставить", callback_data="unpair:cancel")
+    kb.adjust(1, 1)  # stacked — make the destructive choice deliberate
+    return kb.as_markup()

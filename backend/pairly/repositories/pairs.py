@@ -87,16 +87,45 @@ async def accept_invite(session: AsyncSession, accepter: User, token: str) -> Pa
 
 
 async def dissolve_pair(session: AsyncSession, user_id: str) -> None:
-    """Hard-dissolve the caller's pair: both members unlinked, pair marked dissolved.
+    """Hard-dissolve the caller's pair: WIPE all shared data, unlink both members.
 
-    Per user-stories: deletes are hard-deletes / no soft-delete retention at the app level.
-    Cascade on the Pair FK wipes pair-scoped data; we keep the pair row as dissolved for audit.
+    Privacy promise (docs/copy/pair.md): "удалит ВСЁ ваше общее... навсегда". So we
+    actually DELETE every pair-scoped row, not just flag the pair. We keep the Pair row
+    itself (marked dissolved_at) as a tombstone for admin/audit — it holds no user data.
     """
+    from datetime import datetime
+
+    from pairly.db.models import (
+        BucketItem,
+        Countdown,
+        GiftItem,
+        MoodEntry,
+        PairMilestone,
+        QOTDAnswer,
+        WishlistItem,
+    )
+
     pair = await get_user_pair(session, user_id)
+
+    # Delete all pair-scoped content. Each table carries pair_id (the invariant).
+    from sqlalchemy import delete
+
+    for model in (
+        WishlistItem,
+        BucketItem,
+        Countdown,
+        GiftItem,
+        MoodEntry,
+        QOTDAnswer,
+        PairMilestone,
+    ):
+        await session.execute(delete(model).where(model.pair_id == pair.id))
+
+    # Unlink members so each can /pair afresh.
     members = await session.scalars(select(User).where(User.pair_id == pair.id))
     for m in members:
         m.pair_id = None
-    from datetime import datetime
 
+    # Tombstone the pair (no user data left on it) for admin counts/audit.
     pair.dissolved_at = datetime.now(UTC)
     await session.flush()

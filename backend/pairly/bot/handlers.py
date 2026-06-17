@@ -7,6 +7,7 @@ gate on shared features.
 
 from __future__ import annotations
 
+import contextlib
 import html
 import time
 
@@ -14,7 +15,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
 from pairly.db.base import SessionLocal
 from pairly.repositories import base, pairs, users, wishlist
@@ -177,6 +178,7 @@ async def cmd_help(message: Message) -> None:
         "/pair — объединиться в пару\n"
         "/list — мой вишлист\n"
         "/app — открыть Pairly\n"
+        "/unpair — расстаться (удалит всё общее)\n"
         "/help — эта подсказка",
         reply_markup=kb,
     )
@@ -368,6 +370,88 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
         return
     await state.clear()
     await message.answer("Отменил.")
+
+
+# --- /unpair (destructive, 2-step confirm) -----------------------------------
+
+
+@router.message(Command("unpair"))
+async def cmd_unpair(message: Message) -> None:
+    """Begin the destructive unpair flow. Only meaningful when paired."""
+    from pairly.bot.keyboards import unpair_confirm_kb
+
+    async with SessionLocal() as session:
+        user = await users.get_or_create_user(
+            session,
+            message.from_user.id,
+            tg_username=message.from_user.username,
+            display_name=_display_name(message),
+        )
+        try:
+            await base.get_user_pair(session, user.id)
+        except NotPairedError:
+            await session.commit()
+            await message.answer("Вы пока не в паре — расставаться не с кем 🙂 /pair")
+            return
+        await session.commit()
+
+    await message.answer(
+        "Это серьёзный шаг. <b>/unpair удалит ВСЁ ваше общее</b> для вас обоих: "
+        "вишлист, подарки, ответы на вопросы, отсчёты, настроение, список желаний. "
+        "Без возможности восстановить — навсегда. Точно хотите?",
+        reply_markup=unpair_confirm_kb(),
+    )
+
+
+@router.callback_query(F.data == "unpair:cancel")
+async def cb_unpair_cancel(call: CallbackQuery) -> None:
+    await call.message.edit_text("Славно, остаёмся парой 💛 Ничего не тронуто.")
+    await call.answer()
+
+
+@router.callback_query(F.data == "unpair:confirm")
+async def cb_unpair_confirm(call: CallbackQuery) -> None:
+    """Wipe all shared data + unlink both members, then notify the partner warmly."""
+    async with SessionLocal() as session:
+        user = await users.resolve_user_by_tg(session, call.from_user.id)
+        if user is None:
+            await call.answer()
+            return
+        try:
+            pair = await base.get_user_pair(session, user.id)
+        except NotPairedError:
+            await session.commit()
+            await call.message.edit_text("Вы уже не в паре. /pair — начать заново.")
+            await call.answer()
+            return
+
+        # Capture the partner BEFORE dissolving (after, the link is gone).
+        from pairly.repositories.base import pair_members
+
+        partner_tg_ids = [
+            m.tg_id for m in await pair_members(session, pair.id) if m.id != user.id
+        ]
+
+        await pairs.dissolve_pair(session, user.id)
+        await session.commit()
+
+    # Tell the partner gently (best-effort; the bot may be blocked).
+    if partner_tg_ids:
+        from pairly.bot.notify import _get_bot
+
+        for tg_id in partner_tg_ids:
+            with contextlib.suppress(Exception):
+                await _get_bot().send_message(
+                    tg_id,
+                    "Ваша пара была расторгнута, и всё общее удалено. "
+                    "Если захотите начать заново — /pair.",
+                )
+
+    await call.message.edit_text(
+        "Готово. Вы больше не пара, и всё общее удалено. "
+        "Если захотите начать заново — /pair."
+    )
+    await call.answer()
 
 
 # --- helpers ------------------------------------------------------------------
