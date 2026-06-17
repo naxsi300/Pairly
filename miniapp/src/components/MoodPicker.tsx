@@ -20,10 +20,10 @@ export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
             disabled={disabled}
             onClick={() => onPick(m.value as MoodValue)}
             aria-pressed={active}
-            className={`flex flex-col items-center gap-1 rounded-2xl py-3 text-center transition active:scale-95 disabled:opacity-50 ${
+            className={`flex flex-col items-center gap-1 rounded-2xl py-3 text-center transition active:scale-95 disabled:opacity-50 backdrop-blur-glass-sm ${
               active
-                ? "bg-tg-button text-tg-buttonText"
-                : "bg-tg-secondary text-tg-text"
+                ? "glass-button"
+                : "bg-tg-secondary/60 text-tg-text"
             }`}
           >
             <span className="text-2xl" aria-hidden>

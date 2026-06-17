@@ -48,7 +48,7 @@ export function Modal({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-t-xl2 bg-tg-bg p-5 shadow-xl sm:rounded-xl2"
+        className="w-full max-w-md glass-elevated p-5 sm:rounded-xl2"
         role="dialog"
         aria-modal="true"
       >

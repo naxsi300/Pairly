@@ -33,6 +33,13 @@ export default {
       boxShadow: {
         soft: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04)",
         glow: "0 4px 24px rgba(0,0,0,0.06)",
+        glass: "0 8px 32px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)",
+        "glass-sm": "0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04)",
+      },
+      backdropBlur: {
+        glass: "12px",
+        "glass-lg": "20px",
+        "glass-sm": "6px",
       },
       transitionDuration: {
         300: "300ms",

@@ -177,7 +177,7 @@ export function Gifts() {
                 void send(g.gesture, g.description);
                 setPicking(false);
               }}
-              className="rounded-2xl bg-tg-secondary p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
+              className="card-glass p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
             >
               <p className="text-sm font-medium text-tg-text">{g.gesture}</p>
               <p className="mt-0.5 text-xs text-tg-hint">{g.description}</p>

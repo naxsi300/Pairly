@@ -15,6 +15,10 @@
   --tg-theme-button-color: #007aff;
   --tg-theme-button-text-color: #ffffff;
   --tg-theme-secondary-bg-color: #f2f2f7;
+  /* Glass surface tokens — tinted versions of bg/secondary at lower opacity. */
+  --glass-surface: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 55%, transparent);
+  --glass-surface-strong: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 72%, transparent);
+  --glass-bg: color-mix(in srgb, var(--tg-theme-bg-color) 78%, transparent);
   color-scheme: light;
 }
 
@@ -27,6 +31,9 @@
     --tg-theme-button-color: #0a84ff;
     --tg-theme-button-text-color: #ffffff;
     --tg-theme-secondary-bg-color: #2c2c2e;
+    --glass-surface: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 50%, transparent);
+    --glass-surface-strong: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 68%, transparent);
+    --glass-bg: color-mix(in srgb, var(--tg-theme-bg-color) 74%, transparent);
     color-scheme: dark;
   }
 }
@@ -45,6 +52,39 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   padding-top: var(--tg-safe-area-inset-top, env(safe-area-inset-top));
+  position: relative;
+}
+
+/*
+ * Ambient glass background layer — large blurred color orbs that shift subtly
+ * behind the content. Glass surfaces sitting on top blur these shapes.
+ * Pure decoration; removed on reduced-motion / prefers-contrast.
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 10%,
+      color-mix(in srgb, var(--tg-theme-link-color) 8%, transparent),
+      transparent 60%),
+    radial-gradient(ellipse 50% 60% at 80% 85%,
+      color-mix(in srgb, var(--tg-theme-button-color) 6%, transparent),
+      transparent 60%),
+    radial-gradient(ellipse 45% 45% at 50% 50%,
+      color-mix(in srgb, var(--tg-theme-secondary-bg-color) 20%, transparent),
+      transparent 70%);
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before { opacity: 0.35; }
+}
+
+@media (prefers-contrast: more) {
+  body::before { display: none; }
 }
 
 /* App scroll area sits between the top safe inset and the bottom tab bar. */
@@ -57,14 +97,62 @@ body {
   scrollbar-width: thin;
 }
 
-/* Card surface — soft shadow, Telegram-native radii. */
+/* ── Glass surface system ──────────────────────────────────────────────── */
+
+/* Card — semi-transparent surface with backdrop-blur (glass card). */
+.card-glass {
+  background: var(--glass-surface);
+  border-radius: 1.25rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05), 0 1px 4px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.card-glass:active {
+  transform: scale(0.99);
+}
+
+/* Elevated glass — for modals, popovers (stronger blur, more opaque). */
+.glass-elevated {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 1.25rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Glass button surface — tint of the button color on a blurred surface. */
+.glass-button {
+  background: color-mix(in srgb, var(--tg-theme-button-color) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+}
+.glass-button:active {
+  transform: scale(0.97);
+  opacity: 0.88;
+}
+
+/* Solid fallback for browsers with no backdrop-filter support. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .card-glass {
+    background: var(--tg-theme-secondary-bg-color);
+  }
+  .glass-elevated {
+    background: var(--tg-theme-bg-color);
+  }
+  .glass-button {
+    background: var(--tg-theme-button-color);
+  }
+}
+
+/* Deprecated: keep card-soft for backward compat during transition. */
 .card-soft {
-  background: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 60%, transparent);
+  background: var(--glass-surface);
   border-radius: 1.25rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
   transition: transform 220ms ease, box-shadow 220ms ease;
 }
-
 .card-soft:active {
   transform: scale(0.99);
 }
@@ -73,15 +161,14 @@ body {
 .btn-press {
   transition: transform 140ms ease, opacity 140ms ease;
 }
-
 .btn-press:active {
   transform: scale(0.96);
   opacity: 0.85;
 }
 
-/* Soft top-bar (for the tab bar / future top sheets) */
+/* Tab bar glass — strong saturate + blur for the navigation surface. */
 .top-blur {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background: color-mix(in srgb, var(--tg-theme-bg-color) 80%, transparent);
+  background: color-mix(in srgb, var(--tg-theme-bg-color) 82%, transparent);
 }

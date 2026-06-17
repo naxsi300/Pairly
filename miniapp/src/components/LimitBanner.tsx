@@ -16,7 +16,7 @@ interface LimitBannerProps {
  */
 export function LimitBanner({ text, count, max, onUpgrade, onDeleteOld }: LimitBannerProps) {
   return (
-    <div className="rounded-xl2 border border-tg-link/30 bg-tg-secondary p-4">
+    <div className="card-glass border border-tg-link/20 p-4">
       <p className="text-sm leading-relaxed text-tg-text">{text}</p>
       {typeof count === "number" && typeof max === "number" ? (
         <p className="mt-1 text-xs text-tg-hint">

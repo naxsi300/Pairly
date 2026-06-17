@@ -30,7 +30,7 @@ export default function App() {
   const [milestone, dismissMilestone] = useMilestoneToast();
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="relative z-[1] flex min-h-full flex-col">
       {IS_MOCK ? (
         <div className="bg-amber-500/10 px-4 py-1 text-center text-xs text-amber-600">
           demo-режим: показаны примеры данных

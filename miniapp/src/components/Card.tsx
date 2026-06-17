@@ -4,11 +4,11 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-/** A rounded surface themed via Telegram's secondary-bg variable. */
+/** A glass card — semi-transparent surface with backdrop-blur, themed via Telegram vars. */
 export function Card({ children, className = "", ...rest }: CardProps) {
   return (
     <div
-      className={`rounded-xl2 bg-tg-secondary p-4 shadow-soft card-soft ${className}`}
+      className={`card-glass p-4 ${className}`}
       {...rest}
     >
       {children}
