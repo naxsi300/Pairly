@@ -55,38 +55,6 @@ body {
   position: relative;
 }
 
-/*
- * Ambient glass background layer — large blurred color orbs that shift subtly
- * behind the content. Glass surfaces sitting on top blur these shapes.
- * Pure decoration; removed on reduced-motion / prefers-contrast.
- */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 60% 50% at 20% 10%,
-      color-mix(in srgb, var(--tg-theme-link-color) 8%, transparent),
-      transparent 60%),
-    radial-gradient(ellipse 50% 60% at 80% 85%,
-      color-mix(in srgb, var(--tg-theme-button-color) 6%, transparent),
-      transparent 60%),
-    radial-gradient(ellipse 45% 45% at 50% 50%,
-      color-mix(in srgb, var(--tg-theme-secondary-bg-color) 20%, transparent),
-      transparent 70%);
-  opacity: 0.7;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body::before { opacity: 0.35; }
-}
-
-@media (prefers-contrast: more) {
-  body::before { display: none; }
-}
-
 /* App scroll area sits between the top safe inset and the bottom tab bar. */
 .app-scroll {
   padding-bottom: calc(64px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)));
