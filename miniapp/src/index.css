@@ -5,7 +5,6 @@
 /*
  * Telegram theme variables are injected by the WebApp host. We provide sensible
  * fallbacks so the UI still renders in a plain browser (dev / preview).
- * The --tg-theme-* names are the canonical Telegram WebApp variables.
  */
 :root {
   --tg-theme-bg-color: #ffffff;
@@ -15,10 +14,6 @@
   --tg-theme-button-color: #007aff;
   --tg-theme-button-text-color: #ffffff;
   --tg-theme-secondary-bg-color: #f2f2f7;
-  /* Glass surface tokens — tinted versions of bg/secondary at lower opacity. */
-  --glass-surface: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 55%, transparent);
-  --glass-surface-strong: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 72%, transparent);
-  --glass-bg: color-mix(in srgb, var(--tg-theme-bg-color) 78%, transparent);
   color-scheme: light;
 }
 
@@ -31,9 +26,6 @@
     --tg-theme-button-color: #0a84ff;
     --tg-theme-button-text-color: #ffffff;
     --tg-theme-secondary-bg-color: #2c2c2e;
-    --glass-surface: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 50%, transparent);
-    --glass-surface-strong: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 68%, transparent);
-    --glass-bg: color-mix(in srgb, var(--tg-theme-bg-color) 74%, transparent);
     color-scheme: dark;
   }
 }
@@ -52,92 +44,296 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   padding-top: var(--tg-safe-area-inset-top, env(safe-area-inset-top));
-  position: relative;
 }
 
-/* App scroll area sits between the top safe inset and the bottom tab bar. */
+/* ── Scroll area bottom padding — accounts for the fixed NavBar ──────── */
 .app-scroll {
-  padding-bottom: calc(64px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)));
+  padding-bottom: calc(80px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)));
 }
 
-/* Minimal, theme-respecting scrollbars. */
 * {
   scrollbar-width: thin;
 }
 
-/* ── Glass surface system ──────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   M3 Design Tokens
+   Derived from Telegram theme vars — light/dark auto-switch via prefers-color-scheme.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Card — semi-transparent surface with backdrop-blur (glass card). */
-.card-glass {
-  background: var(--glass-surface);
-  border-radius: 1.25rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05), 0 1px 4px rgba(0, 0, 0, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: transform 220ms ease, box-shadow 220ms ease;
-}
-.card-glass:active {
-  transform: scale(0.99);
-}
+/* ── Color roles ─────────────────────────────────────────────────────── */
+:root {
+  --m3-primary: var(--tg-theme-button-color);
+  --m3-on-primary: var(--tg-theme-button-text-color);
+  --m3-primary-container: color-mix(in srgb, var(--tg-theme-button-color) 12%, transparent);
+  --m3-on-primary-container: var(--tg-theme-text-color);
 
-/* Elevated glass — for modals, popovers (stronger blur, more opaque). */
-.glass-elevated {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 1.25rem;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
-}
+  --m3-secondary: var(--tg-theme-hint-color);
+  --m3-on-secondary: #fff;
+  --m3-secondary-container: color-mix(in srgb, var(--tg-theme-hint-color) 12%, transparent);
 
-/* Glass button surface — tint of the button color on a blurred surface. */
-.glass-button {
-  background: color-mix(in srgb, var(--tg-theme-button-color) 88%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
-}
-.glass-button:active {
-  transform: scale(0.97);
-  opacity: 0.88;
+  --m3-surface: var(--tg-theme-bg-color);
+  --m3-surface-container-lowest: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 40%, var(--tg-theme-bg-color));
+  --m3-surface-container: var(--tg-theme-secondary-bg-color);
+  --m3-surface-container-high: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 80%, var(--tg-theme-hint-color));
+
+  --m3-on-surface: var(--tg-theme-text-color);
+  --m3-on-surface-variant: var(--tg-theme-hint-color);
+
+  --m3-outline: color-mix(in srgb, var(--tg-theme-hint-color) 30%, transparent);
+  --m3-outline-variant: color-mix(in srgb, var(--tg-theme-hint-color) 16%, transparent);
+
+  --m3-error: var(--tg-theme-destructive-text-color, #dc2626);
+  --m3-on-error: #fff;
+  --m3-error-container: color-mix(in srgb, var(--tg-theme-destructive-text-color, #dc2626) 12%, transparent);
 }
 
-/* Solid fallback for browsers with no backdrop-filter support. */
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-  .card-glass {
-    background: var(--tg-theme-secondary-bg-color);
+/* ── Elevation (shadows) ─────────────────────────────────────────────── */
+:root {
+  --m3-elevation-0: none;
+  --m3-elevation-1: 0 1px 2px 0 rgba(0,0,0,.08), 0 1px 3px 1px rgba(0,0,0,.04);
+  --m3-elevation-2: 0 1px 2px 0 rgba(0,0,0,.12), 0 2px 6px 2px rgba(0,0,0,.06);
+  --m3-elevation-3: 0 4px 8px 3px rgba(0,0,0,.08), 0 1px 3px 0 rgba(0,0,0,.06);
+}
+
+/* ── Shape (border-radius) ───────────────────────────────────────────── */
+:root {
+  --m3-shape-extra-small: 4px;
+  --m3-shape-small: 8px;
+  --m3-shape-medium: 12px;
+  --m3-shape-large: 16px;
+  --m3-shape-full: 9999px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   M3 Component Utilities (@layer components)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer components {
+  /* ── M3 Card — replaces .card-glass ────────────────────────────────── */
+  .card-m3 {
+    background: var(--m3-surface-container);
+    border-radius: var(--m3-shape-medium);
+    box-shadow: var(--m3-elevation-1);
+    border: 1px solid var(--m3-outline-variant);
   }
-  .glass-elevated {
-    background: var(--tg-theme-bg-color);
+
+  /* ── M3 Card (lowest) — for input areas ────────────────────────────── */
+  .card-m3-low {
+    background: var(--m3-surface-container-lowest);
+    border-radius: var(--m3-shape-medium);
+    box-shadow: var(--m3-elevation-0);
+    border: 1px solid var(--m3-outline-variant);
   }
-  .glass-button {
-    background: var(--tg-theme-button-color);
+
+  /* ── M3 Filled Button — primary action ─────────────────────────────── */
+  .btn-m3-filled {
+    background: var(--m3-primary);
+    color: var(--m3-on-primary);
+    border-radius: var(--m3-shape-full);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    padding: 10px 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: box-shadow 200ms ease, opacity 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-m3-filled:hover {
+    box-shadow: var(--m3-elevation-1);
+  }
+  .btn-m3-filled:active {
+    opacity: 0.88;
+  }
+  .btn-m3-filled:disabled {
+    opacity: 0.38;
+  }
+
+  /* ── M3 Outlined Button — secondary action ─────────────────────────── */
+  .btn-m3-outlined {
+    background: transparent;
+    color: var(--m3-primary);
+    border: 1px solid var(--m3-outline);
+    border-radius: var(--m3-shape-full);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    padding: 10px 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-m3-outlined:hover {
+    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+  }
+  .btn-m3-outlined:active {
+    background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
+  }
+  .btn-m3-outlined:disabled {
+    opacity: 0.38;
+    border-color: color-mix(in srgb, var(--m3-on-surface) 12%, transparent);
+    color: var(--m3-on-surface);
+  }
+
+  /* ── M3 Text Button — tertiary action ──────────────────────────────── */
+  .btn-m3-text {
+    background: transparent;
+    color: var(--m3-primary);
+    border: none;
+    border-radius: var(--m3-shape-full);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    padding: 10px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-m3-text:hover {
+    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+  }
+  .btn-m3-text:active {
+    background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
+  }
+  .btn-m3-text:disabled {
+    opacity: 0.38;
+  }
+
+  /* ── M3 Icon Button ────────────────────────────────────────────────── */
+  .btn-m3-icon {
+    background: transparent;
+    color: var(--m3-on-surface-variant);
+    border: none;
+    border-radius: var(--m3-shape-full);
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 200ms ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-m3-icon:hover {
+    background: color-mix(in srgb, var(--m3-on-surface-variant) 8%, transparent);
+  }
+
+  /* ── M3 Outlined Input — replaces glass field ──────────────────────── */
+  .input-m3 {
+    width: 100%;
+    background: var(--m3-surface-container-lowest);
+    border: 1px solid var(--m3-outline-variant);
+    border-radius: var(--m3-shape-extra-small);
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--m3-on-surface);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .input-m3::placeholder {
+    color: var(--m3-on-surface-variant);
+  }
+  .input-m3:focus {
+    outline: none;
+    border-color: var(--m3-primary);
+    box-shadow: 0 0 0 1px var(--m3-primary);
+  }
+
+  /* ── Ripple (base) ─────────────────────────────────────────────────── */
+  .ripple-container {
+    position: relative;
+    overflow: hidden;
+  }
+  .ripple-effect {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--m3-on-surface);
+    opacity: 0.1;
+    transform: scale(0);
+    animation: ripple-expand 400ms ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes ripple-expand {
+    to {
+      transform: scale(4);
+      opacity: 0;
+    }
+  }
+
+  /* ── M3 Surface (page-level) — replaces glass-elevated ─────────────── */
+  .surface-m3 {
+    background: var(--m3-surface);
+    border-radius: var(--m3-shape-large);
+    box-shadow: var(--m3-elevation-2);
+    border: 1px solid var(--m3-outline-variant);
+  }
+
+  /* ── M3 NavBar surface ─────────────────────────────────────────────── */
+  .navbar-m3 {
+    background: var(--m3-surface-container);
+    box-shadow: var(--m3-elevation-2);
+    border-top: 1px solid var(--m3-outline-variant);
+  }
+
+  /* ── Typography utilities ──────────────────────────────────────────── */
+  .text-m3-label {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .text-m3-body {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 400;
+  }
+  .text-m3-title {
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 500;
+  }
+  .text-m3-headline {
+    font-size: 24px;
+    line-height: 32px;
+    font-weight: 400;
   }
 }
 
-/* Deprecated: keep card-soft for backward compat during transition. */
-.card-soft {
-  background: var(--glass-surface);
-  border-radius: 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
-  transition: transform 220ms ease, box-shadow 220ms ease;
+/* ═══════════════════════════════════════════════════════════════════════════
+   Keyframe animations (keep from existing — fade-in, pop, slide-up)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-.card-soft:active {
-  transform: scale(0.99);
+.animate-fade-in {
+  animation: fade-in 300ms ease-out;
 }
 
-/* Primary action button — soft "press" feedback. */
-.btn-press {
-  transition: transform 140ms ease, opacity 140ms ease;
+@keyframes pop {
+  0%   { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1);   opacity: 1; }
 }
-.btn-press:active {
-  transform: scale(0.96);
-  opacity: 0.85;
+.animate-pop {
+  animation: pop 250ms ease-out;
 }
 
-/* Tab bar glass — prominent saturate + blur with subtle top edge. */
-.top-blur {
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background: color-mix(in srgb, var(--tg-theme-bg-color) 72%, transparent);
-  border-top: 0.5px solid color-mix(in srgb, var(--tg-theme-hint-color) 18%, transparent);
+@keyframes slide-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 300ms ease-out;
 }
