@@ -177,11 +177,15 @@ export function Wishlist() {
               type="button"
               onClick={() => setCategory(category === c ? "" : c)}
               aria-pressed={category === c}
-              className={`rounded-full px-3 py-1.5 text-sm backdrop-blur-glass-sm transition ${
-                category === c
-                  ? "glass-button"
-                  : "bg-tg-secondary/60 text-tg-text"
-              }`}
+              className="ripple-container rounded-full px-3 py-1.5 text-sm transition"
+              style={{
+                background: category === c
+                  ? "var(--m3-primary-container)"
+                  : "var(--m3-surface-container)",
+                color: category === c
+                  ? "var(--m3-on-primary-container)"
+                  : "var(--m3-on-surface)",
+              }}
             >
               {wishlistCategoryLabel(c)}
             </button>

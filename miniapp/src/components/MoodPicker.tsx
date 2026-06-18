@@ -7,7 +7,7 @@ interface MoodPickerProps {
   disabled?: boolean;
 }
 
-/** 5-button mood selector. Exactly the labels from docs/copy/mood-sync.md. */
+/** 5-button mood selector. M3 chip style. */
 export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
   return (
     <div className="grid grid-cols-5 gap-2">
@@ -20,11 +20,15 @@ export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
             disabled={disabled}
             onClick={() => onPick(m.value as MoodValue)}
             aria-pressed={active}
-            className={`flex flex-col items-center gap-1 rounded-2xl py-3 text-center transition active:scale-95 disabled:opacity-50 backdrop-blur-glass-sm ${
-              active
-                ? "glass-button"
-                : "bg-tg-secondary/60 text-tg-text"
-            }`}
+            className="ripple-container flex flex-col items-center gap-1 rounded-full py-3 text-center transition active:scale-95 disabled:opacity-50"
+            style={{
+              background: active
+                ? "var(--m3-primary-container)"
+                : "var(--m3-surface-container)",
+              color: active
+                ? "var(--m3-on-primary-container)"
+                : "var(--m3-on-surface)",
+            }}
           >
             <span className="text-2xl" aria-hidden>
               {m.emoji}
