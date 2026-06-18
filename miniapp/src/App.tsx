@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { COPY } from "./copy";
 import { IS_MOCK } from "./sdk/api";
 import { initTwa } from "./sdk/twa";
 import { Wishlist } from "./screens/Wishlist";
@@ -11,17 +10,7 @@ import { Gifts } from "./screens/Gifts";
 import { MilestoneToast, type MilestoneEvent } from "./components/Toast";
 import { useMilestoneToast } from "./lib/milestoneBus";
 import { StatsCard } from "./components/Stats";
-
-type Tab = "wishlist" | "bucket" | "countdowns" | "mood" | "qotd" | "gifts";
-
-const TABS: { id: Tab; label: string; emoji: string }[] = [
-  { id: "wishlist", label: COPY.nav.wishlist, emoji: "🗒" },
-  { id: "bucket", label: COPY.nav.bucket, emoji: "🌌" },
-  { id: "countdowns", label: COPY.nav.countdowns, emoji: "📅" },
-  { id: "mood", label: COPY.nav.mood, emoji: "🙂" },
-  { id: "qotd", label: COPY.nav.qotd, emoji: "💭" },
-  { id: "gifts", label: COPY.nav.gifts, emoji: "🎁" },
-];
+import { NavBar, type Tab } from "./components/NavBar";
 
 // Initialise the Telegram WebApp SDK once (no-op outside Telegram).
 initTwa();
@@ -56,36 +45,7 @@ export default function App() {
         {tab === "gifts" ? <Gifts /> : null}
       </main>
 
-      {/* Bottom tab bar — single-page nav (open-decisions.md #1). */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 top-blur"
-        style={{
-          paddingBottom: "var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom))",
-        }}
-      >
-        <ul className="mx-auto grid max-w-md grid-cols-6">
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  aria-pressed={active}
-                  className={`flex w-full flex-col items-center gap-0.5 py-2 text-[11px] transition ${
-                    active ? "text-tg-link" : "text-tg-hint"
-                  }`}
-                >
-                  <span className="text-lg" aria-hidden>
-                    {t.emoji}
-                  </span>
-                  <span className="leading-none">{t.label}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      <NavBar tab={tab} onTabChange={setTab} />
     </div>
   );
 }
