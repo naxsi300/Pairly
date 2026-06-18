@@ -1,9 +1,9 @@
 import { COPY } from "../copy";
 import { Button } from "./Button";
+import { Card } from "./Card";
 
 interface LimitBannerProps {
   text: string;
-  /** Free-tier count + max, shown as a small "N из M" line. */
   count?: number;
   max?: number;
   onUpgrade?: () => void;
@@ -16,7 +16,7 @@ interface LimitBannerProps {
  */
 export function LimitBanner({ text, count, max, onUpgrade, onDeleteOld }: LimitBannerProps) {
   return (
-    <div className="card-glass border border-tg-link/20 p-4">
+    <Card className="border border-[var(--m3-primary-container)]">
       <p className="text-sm leading-relaxed text-tg-text">{text}</p>
       {typeof count === "number" && typeof max === "number" ? (
         <p className="mt-1 text-xs text-tg-hint">
@@ -31,6 +31,6 @@ export function LimitBanner({ text, count, max, onUpgrade, onDeleteOld }: LimitB
           {COPY.common.deleteOld}
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
