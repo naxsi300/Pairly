@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "icon";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -8,14 +8,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-const base =
-  "inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium transition active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 select-none";
-
 const variants: Record<Variant, string> = {
-  primary: "glass-button text-tg-buttonText shadow-glass-sm",
-  secondary: "bg-tg-secondary/70 text-tg-text backdrop-blur-glass-sm",
-  ghost: "bg-transparent text-tg-link",
-  danger: "bg-transparent text-red-500",
+  primary: "btn-m3-filled",
+  secondary: "btn-m3-outlined",
+  ghost: "btn-m3-text",
+  danger: "btn-m3-text text-[var(--m3-error)] hover:bg-[color-mix(in_srgb,var(--m3-error)_8%,transparent)]",
+  icon: "btn-m3-icon",
 };
 
 export function Button({
@@ -26,7 +24,10 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button className={`${base} ${variants[variant]} ${full ? "w-full" : ""} ${className}`} {...rest}>
+    <button
+      className={`${variants[variant]} ${full ? "w-full" : ""} ${className}`}
+      {...rest}
+    >
       {children}
     </button>
   );
