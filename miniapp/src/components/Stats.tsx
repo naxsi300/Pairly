@@ -44,7 +44,7 @@ export function StatsCard() {
 
   return (
     <div className="mx-auto max-w-md px-4 pt-4 animate-fade-in">
-      <div className="card-glass px-3 py-2 text-center text-xs text-tg-hint">
+      <div className="card-m3 px-3 py-2 text-center text-xs text-tg-hint">
         <span className="font-medium text-tg-text">
           {COPY.stats.days(stats.togetherDays)}
         </span>
