@@ -75,11 +75,20 @@ export function MilestoneToast({
     <>
       {showConfetti ? <Confetti onDone={onConfettiDone} /> : null}
       <div
-        className="fixed inset-x-0 top-2 z-50 mx-auto max-w-md px-3 animate-pop"
+        className="fixed inset-x-0 z-50 mx-auto max-w-md px-3 animate-slide-up"
         role="status"
         aria-live="polite"
+        style={{
+          bottom: "calc(80px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 8px)",
+        }}
       >
-        <div className="rounded-2xl bg-tg-button/95 px-4 py-3 text-tg-buttonText shadow-glow backdrop-blur">
+        <div
+          className="rounded-full px-6 py-3 shadow-[var(--m3-elevation-3)]"
+          style={{
+            background: "var(--m3-surface-container-high)",
+            color: "var(--m3-on-surface)",
+          }}
+        >
           {events.map((e, i) => (
             <p key={i} className="text-sm font-medium">
               {KIND_LABEL[e.kind]?.(e.value) ?? COPY.milestones.generic}
