@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
 
@@ -66,10 +66,31 @@ class WishlistItemOut(_CamelModel):
     status: str
     notes: str | None = None
     event_date: datetime | None = None
-    # Forwarded-media capture (forwarding-fix). `photo_path` on the model maps to
-    # the public web URL exposed here as `photoUrl` (camelCase) to the Mini App.
-    photo_url: str | None = Field(default=None, validation_alias="photo_path", serialization_alias="photoUrl")
+    # True when a forwarded photo's file_id was captured; the Mini App resolves the
+    # image on demand via GET /api/wishlist/{id}/photo (which 302s to a Telegram URL).
     telegram_file_id: str | None = None
+    has_photo: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_has_photo(cls, data: object) -> object:
+        """Set has_photo from a truthy telegram_file_id (model or dict input)."""
+        if isinstance(data, dict):
+            data["has_photo"] = bool(data.get("telegram_file_id"))
+        else:
+            # SQLAlchemy model instance — read the attribute.
+            data = {
+                "id": data.id,
+                "title": data.title,
+                "address": data.address,
+                "category": data.category,
+                "status": data.status.value if hasattr(data.status, "value") else data.status,
+                "notes": data.notes,
+                "event_date": data.event_date,
+                "telegram_file_id": data.telegram_file_id,
+                "has_photo": bool(data.telegram_file_id),
+            }
+        return data
 
     model_config = {"populate_by_name": True}
 

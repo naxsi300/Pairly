@@ -15,7 +15,7 @@ is always camelCase on the way out.
 
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.api.schemas import (
@@ -93,16 +93,6 @@ def create_app() -> FastAPI:
     app.add_exception_handler(NotPairedError, _precondition)
     app.add_exception_handler(LookupError, _not_found)
 
-    # Serve forwarded wishlist photos (forwarding-fix). The bot writes images to the
-    # same directory resolved by pairly.bot.media (co-located with the DB so the
-    # Docker volume persists them); the Mini App renders them via this public mount.
-    from pairly.bot.media import _photo_dir
-    from starlette.staticfiles import StaticFiles
-
-    _photo_dir_path = _photo_dir()
-    _photo_dir_path.mkdir(parents=True, exist_ok=True)
-    app.mount("/media/wishlist", StaticFiles(directory=str(_photo_dir_path)), name="wishlist-media")
-
     @app.get("/api/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
@@ -173,6 +163,50 @@ def create_app() -> FastAPI:
         pair_id = _require_pair(auth)
         items = await wishlist.list_items(session, pair_id=pair_id, user_id=auth.user.id)
         return [WishlistItemOut.model_validate(i) for i in items]
+
+    @app.get("/api/wishlist/{item_id}/photo")
+    async def get_wishlist_photo(
+        item_id: str,
+        init_data: str = "",
+        dev_user_id: str = "",
+        session: AsyncSession = Depends(get_session),
+    ) -> Response:
+        """Resolve a forwarded photo on demand and 302 to Telegram's temp file URL.
+
+        ``<img src>`` cannot send the X-Telegram-Init-Data header, so auth here is
+        via the ``init_data`` (or ``dev_user_id`` in dev) query param — the same
+        HMAC initData the client already sends as a header on every other request
+        (equivalent threat model; initData is itself short-lived). Membership is
+        still enforced: the item must belong to the caller's pair.
+
+        Returns 204 when the item has no photo, 404 when absent, 502 if Telegram
+        declines the lookup — best-effort, the <img> just stays empty.
+        """
+        from fastapi.responses import RedirectResponse
+
+        from pairly.auth import resolve_init_data
+        from pairly.bot.notify import _get_bot
+
+        auth = await resolve_init_data(init_data, session, dev_user_id=dev_user_id)
+        pair_id = _require_pair(auth)  # 412 if unpaired
+        try:
+            item = await wishlist.get_item(
+                session, pair_id=pair_id, user_id=auth.user.id, item_id=item_id
+            )
+        except LookupError:
+            return Response(status_code=404)
+        if not item.telegram_file_id:
+            return Response(status_code=204)
+        bot = _get_bot()
+        try:
+            file = await bot.get_file(item.telegram_file_id)
+        except Exception:
+            return Response(status_code=502)
+        if not file.file_path:
+            return Response(status_code=204)
+        # aiogram builds the absolute temp-file URL from the bot token + path.
+        url = bot.session.api.file_url(bot.token, file.file_path)
+        return RedirectResponse(url=str(url), status_code=302)
 
     @app.post("/api/wishlist")
     async def post_wishlist(

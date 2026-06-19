@@ -29,12 +29,6 @@ class Settings(BaseSettings):
     # SQLite (dev default) -> Postgres (prod). Async drivers chosen from the scheme.
     database_url: str = "sqlite+aiosqlite:///./pairly.db"
 
-    # --- Media storage ---
-    # Where forwarded wishlist photos are stored on disk. Default: co-located with
-    # the SQLite DB (so in Docker it lands on the same persistent volume). Set an
-    # absolute path to override. The API serves this dir at /media/wishlist.
-    media_dir: str | None = None
-
     # --- API (FastAPI, separate process from the bot) ---
     api_host: str = "127.0.0.1"
     api_port: int = 8000

@@ -145,9 +145,9 @@ class WishlistItem(Base):
     # Dedupe key from forwarded message_id (nullable; null when not from a forward).
     source_message_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     # Forwarded-media capture (forwarding-fix): the Telegram file_id of the source
-    # photo (to re-fetch if needed) and the public web path to the stored image.
+    # photo. We store ONLY the file_id and resolve it to a temp URL on demand —
+    # no on-disk photo storage (no volume, no cleanup, survives container recreate).
     telegram_file_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    photo_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow

@@ -117,11 +117,15 @@ export function Wishlist() {
             <li key={item.id}>
               <Card>
                 <div className="flex items-start gap-3">
-                  {item.photoUrl ? (
+                  {item.hasPhoto ? (
                     <img
-                      src={item.photoUrl}
+                      src={endpoints.wishlistPhotoUrl(item.id)}
                       alt=""
                       loading="lazy"
+                      onError={(e) => {
+                        // Telegram temp URL expired or lookup failed — hide cleanly.
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
                       className="h-16 w-16 flex-shrink-0 rounded-xl object-cover"
                     />
                   ) : null}

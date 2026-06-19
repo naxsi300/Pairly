@@ -107,6 +107,21 @@ export const endpoints = {
   listWishlist: () => request<WishlistItem[]>("/api/wishlist"),
   addWishlist: (b: { title: string; address?: string | null; category?: string | null }) =>
     request<WishlistItem>("/api/wishlist", { method: "POST", body: b }),
+
+  /**
+   * On-demand forwarded-photo URL for an item. <img src> can't send the auth
+   * header, so we pass initData (prod) / devUserId (dev) in the query. The
+   * backend 302-redirects to a short-lived Telegram file URL.
+   */
+  wishlistPhotoUrl: (id: string): string => {
+    if (USE_MOCK) return "";
+    const params = new URLSearchParams();
+    const initData = getInitData();
+    if (initData) params.set("init_data", initData);
+    const devUid = getDevUserId();
+    if (devUid) params.set("dev_user_id", devUid);
+    return `${API_URL}/api/wishlist/${id}/photo?${params.toString()}`;
+  },
   markDone: (item_id: string) =>
     request<WishlistItem>("/api/mark-done", { method: "POST", body: { item_id } }),
   /** Set explicit status. body.status is one of "open"|"planned"|"done"|"archived". */

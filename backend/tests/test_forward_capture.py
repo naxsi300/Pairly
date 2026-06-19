@@ -25,7 +25,7 @@ async def _pair(session):
 
 
 @pytest.mark.asyncio
-async def test_create_item_persists_notes_and_photo(session):
+async def test_create_item_persists_notes_and_file_id(session):
     a, _b, pair = await _pair(session)
     item = await wishlist.create_item(
         session,
@@ -33,32 +33,37 @@ async def test_create_item_persists_notes_and_photo(session):
         user_id=a.id,
         title="Джаз-вечер в «Союз Композиторов»",
         notes="Уютный джазовый вечер. Живой квартет, 23 ноября, 20:00.",
-        photo_path="/media/wishlist/abc123.jpg",
         telegram_file_id="AgADBQAD123",
     )
     await session.commit()
     assert item.notes is not None and "джазовый" in item.notes
-    assert item.photo_path == "/media/wishlist/abc123.jpg"
     assert item.telegram_file_id == "AgADBQAD123"
 
 
 @pytest.mark.asyncio
-async def test_wishlist_out_serializes_photo_as_camel(session):
-    """WishlistItemOut.model_validate(model) maps photo_path -> photoUrl."""
+async def test_wishlist_out_derives_has_photo(session):
+    """WishlistItemOut derives hasPhoto (camelCase) from a truthy telegram_file_id."""
     a, _b, pair = await _pair(session)
-    item = await wishlist.create_item(
+    with_photo = await wishlist.create_item(
         session,
         pair_id=pair.id,
         user_id=a.id,
         title="Кофейня «Цех 85»",
         notes="спешелти-кофе",
-        photo_path="/media/wishlist/def.jpg",
+        telegram_file_id="AgADBQAD999",
+    )
+    without_photo = await wishlist.create_item(
+        session,
+        pair_id=pair.id,
+        user_id=a.id,
+        title="Просто идея",
     )
     await session.commit()
-    out = WishlistItemOut.model_validate(item).model_dump(by_alias=True)
-    assert out["photoUrl"] == "/media/wishlist/def.jpg"
+    out = WishlistItemOut.model_validate(with_photo).model_dump(by_alias=True)
+    assert out["hasPhoto"] is True
     assert out["notes"] == "спешелти-кофе"
-    assert out["title"] == "Кофейня «Цех 85»"
+    out2 = WishlistItemOut.model_validate(without_photo).model_dump(by_alias=True)
+    assert out2["hasPhoto"] is False
 
 
 def test_forward_with_junk_prefix_picks_real_title():

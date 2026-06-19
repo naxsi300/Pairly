@@ -260,8 +260,8 @@ async def cmd_list(message: Message) -> None:
 async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
     """The core capture loop: a forwarded post becomes a wishlist item.
 
-    The incoming ``bot`` is injected by aiogram — the same Bot instance that
-    received the message, so it can download any attached photo.
+    The incoming ``bot`` is injected by aiogram (unused for capture now — photos
+    are resolved on demand from telegram_file_id by the API).
     """
     """The core capture loop: a forwarded post becomes a wishlist item."""
     # An album arrives as several updates; only handle the first photo per group.
@@ -302,20 +302,10 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
         parsed = parse_forwarded_text(text)
         title = parsed.title or text.strip()[:256]
 
-        # Capture the forwarded photo (best-effort, silent on failure) and the
-        # full description text. Previously both were discarded — the item landed
-        # in the list as a bare title, which is the user's "looks empty" complaint.
-        from pairly.bot.media import download_forwarded_photo
-
-        photo_url: str | None = None
-        telegram_file_id: str | None = None
-        if message.photo:
-            try:
-                photo_url = await download_forwarded_photo(bot, message)
-                telegram_file_id = message.photo[-1].file_id
-            except Exception:
-                # Photo capture must never block the wishlist save.
-                pass
+        # Capture the forwarded photo's file_id (best-effort). We store ONLY the
+        # Telegram file_id — no disk. The API resolves it to a temp URL on demand
+        # (so no storage ops, no volume, and photos survive container recreate).
+        telegram_file_id: str | None = message.photo[-1].file_id if message.photo else None
 
         # Full description = the forwarded text beyond the title, capped to ~4 KB.
         notes = text.strip()[:4096] if text.strip() else None
@@ -330,7 +320,6 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
                 category=parsed.category,
                 notes=notes,
                 telegram_file_id=telegram_file_id,
-                photo_path=photo_url,
             )
             await session.commit()
         except WishlistLimitError:
