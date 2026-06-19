@@ -24,6 +24,11 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const nearest = (cds.data ?? [])
     .filter((c) => new Date(c.targetDate).getTime() > Date.now())
     .sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime())[0];
+  // "Soon" nudge: highlight when the nearest occasion is within 3 days.
+  const daysToNearest = nearest
+    ? Math.round((new Date(nearest.targetDate).getTime() - Date.now()) / 86_400_000)
+    : null;
+  const occasionSoon = daysToNearest !== null && daysToNearest <= 3;
 
   return (
     <div className="mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
@@ -62,17 +67,30 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
         <MoodSummary mood={mood.data} />
       </Card>
 
-      {/* Next occasion */}
-      <Card>
-        <button type="button" onClick={() => onOpen("countdowns")} className="w-full text-left">
+      {/* Next occasion — warm hero when it's soon (≤3 days), else a calm card. */}
+      {nearest && occasionSoon ? (
+        <button
+          type="button"
+          onClick={() => onOpen("countdowns")}
+          className="rw-hero-warm text-left"
+        >
           <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardNextOccasionTitle}</p>
           <p className="text-base text-tg-text">
-            {nearest
-              ? `${countdownEmoji(nearest)} ${nearest.label} · ${countdownDisplay(nearest)}`
-              : COPY.home.noOccasion}
+            {countdownEmoji(nearest)} {nearest.label} · {countdownDisplay(nearest)}
           </p>
         </button>
-      </Card>
+      ) : (
+        <Card>
+          <button type="button" onClick={() => onOpen("countdowns")} className="w-full text-left">
+            <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardNextOccasionTitle}</p>
+            <p className="text-base text-tg-text">
+              {nearest
+                ? `${countdownEmoji(nearest)} ${nearest.label} · ${countdownDisplay(nearest)}`
+                : COPY.home.noOccasion}
+            </p>
+          </button>
+        </Card>
+      )}
 
       {/* QOTD */}
       <Card>
