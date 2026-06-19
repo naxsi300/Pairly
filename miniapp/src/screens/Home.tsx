@@ -7,6 +7,7 @@ import { countdownDisplay, countdownEmoji } from "../lib/format";
 import { Card } from "../components/Card";
 import { DateWheel } from "../components/DateWheel";
 import { MoreSheet, type Destination } from "../components/MoreSheet";
+import { Rituals } from "../components/Rituals";
 import { haptic } from "../sdk/twa";
 
 /** Home dashboard — the front door tying ambient cards together (R-warm). */
@@ -102,6 +103,9 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
           </p>
         </button>
       </Card>
+
+      {/* Weekly rituals */}
+      <Rituals />
 
       <button
         type="button"
