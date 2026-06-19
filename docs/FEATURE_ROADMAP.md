@@ -7,12 +7,12 @@
 
 Два MUST из roadmap реализованы, протестированы и задеплоены на prod-test сервер (`/opt/pairly`, Docker, real data):
 
-1. **f-forwarding-fix** — пересылка теперь захватывает фото + описание + умный заголовок.
+1. **f-forwarding-fix** — пересылка теперь захватывает фото (file_id) + описание + умный заголовок.
    - `parse.py`: пропуск junk-линий (t.me URL, @handle, цена «🔥 1 990 ₽», emoji-баннер) → правильный заголовок
-   - `handlers.py` `on_forward`: persist `notes=` (полный текст), фото через новый `media.py`
-   - `media.py`: content-addressed фото в `/data/wishlist_photos/<hash>.jpg` (на Docker volume), served via `/media/wishlist`
-   - миграция `0004_wishlist_photo`: колонки `telegram_file_id`, `photo_path`
-   - Mini App: карточка рендерит thumbnail + 2-line notes preview
+   - `handlers.py` `on_forward`: persist `notes=` (полный текст) + `telegram_file_id` фото
+   - **Фото без диска:** храним только Telegram `file_id`. Mini App тянет картинку on-demand: `GET /api/wishlist/{id}/photo?init_data=<hmac>` → 302 → временный URL Telegram (~1 ч). Auth через query (initData), membership enforced. Без volume, без cleanup, переживает recreate контейнера.
+   - миграции `0004` (добавил `telegram_file_id`) + `0005` (дропнул `photo_path` после отказа от диска)
+   - Mini App: карточка рендерит thumbnail (`hasPhoto` → on-demand URL, скрывается при протухании) + 2-line notes preview
    - **13 тестов** (6 парсер + 4 capture + 3 оригинальных), 71 passed всего
 2. **f-bot-entry-point** — бот закрывает loop без выхода в апп:
    - после пересылки: inline «✏️ Переименовать» (FSM rename flow) + «🗂 Открыть вишлист» (WebApp deep link)
