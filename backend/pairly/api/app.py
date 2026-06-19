@@ -93,16 +93,15 @@ def create_app() -> FastAPI:
     app.add_exception_handler(NotPairedError, _precondition)
     app.add_exception_handler(LookupError, _not_found)
 
-    # Serve forwarded wishlist photos (forwarding-fix). The bot writes images to
-    # data/wishlist_photos/; the Mini App renders them via this public mount.
-    # Created on demand so a missing dir never breaks boot.
-    from pathlib import Path
-
+    # Serve forwarded wishlist photos (forwarding-fix). The bot writes images to the
+    # same directory resolved by pairly.bot.media (co-located with the DB so the
+    # Docker volume persists them); the Mini App renders them via this public mount.
+    from pairly.bot.media import _photo_dir
     from starlette.staticfiles import StaticFiles
 
-    _photo_dir = Path("data/wishlist_photos")
-    _photo_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/media/wishlist", StaticFiles(directory=str(_photo_dir)), name="wishlist-media")
+    _photo_dir_path = _photo_dir()
+    _photo_dir_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/media/wishlist", StaticFiles(directory=str(_photo_dir_path)), name="wishlist-media")
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:
