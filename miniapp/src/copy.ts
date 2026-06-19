@@ -48,6 +48,18 @@ export const COPY = {
     moreCountdowns: "📅 Отсчёты",
     moreGifts: "🎁 Подарки",
     moreQotd: "💭 Вопрос дня",
+    moreNotes: "💌 Записки",
+  },
+  notes: {
+    heading: "Записки",
+    sub: "тёплые слова для партнёра — когда захочется",
+    empty: "Пока нет ни одной записки. Напишите что-то тёплое 💛",
+    placeholder: "Напишите записку…",
+    send: "💌 Отправить",
+    sent: "Записка отправлена 💌",
+    fromYou: "вы",
+    toPartner: "партнёру",
+    fromPartner: "партнёр",
   },
   common: {
     add: "Добавить",

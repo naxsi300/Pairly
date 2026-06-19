@@ -110,6 +110,16 @@ export interface DateIdeaResponse {
   category: string | null;
 }
 
+export interface LoveNoteItem {
+  id: string;
+  body: string;
+  deliverAt?: string | null;
+  /** True if the caller authored it. */
+  mine: boolean;
+  readByRecipient: boolean;
+  createdAt: string;
+}
+
 export const endpoints = {
   listWishlist: () => request<WishlistItem[]>("/api/wishlist"),
   addWishlist: (b: { title: string; address?: string | null; category?: string | null }) =>
@@ -118,6 +128,12 @@ export const endpoints = {
   /** Spin the date-wheel. category: "eat"|"do"|"stay"|"watch"|"buy"|undefined. */
   getDateIdea: (category?: string) =>
     request<DateIdeaResponse>(`/api/date-idea${category ? `?category=${category}` : ""}`),
+
+  listLoveNotes: () => request<LoveNoteItem[]>("/api/love-notes"),
+  sendLoveNote: (b: { body: string; deliverAt?: string | null }) =>
+    request<LoveNoteItem>("/api/love-notes", { method: "POST", body: b }),
+  readLoveNote: (id: string) =>
+    request<LoveNoteItem>(`/api/love-notes/${id}/read`, { method: "POST" }),
 
   /**
    * On-demand forwarded-photo URL for an item. <img src> can't send the auth

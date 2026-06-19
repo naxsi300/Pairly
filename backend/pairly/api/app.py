@@ -33,6 +33,8 @@ from pairly.api.schemas import (
     MoodResponse,
     MoodSet,
     DateIdeaOut,
+    LoveNoteCreate,
+    LoveNoteOut,
     PairStats,
     QOTDAnswerIn,
     QOTDAnswerOut,
@@ -47,6 +49,7 @@ from pairly.config import get_settings
 from pairly.db.base import get_session
 from pairly.db.models import GiftStatus
 from pairly.repositories import bucket, countdowns, gifts, milestones, mood, qotd, wishlist
+from pairly.repositories import love_notes
 from pairly.repositories.base import NotPairedError, PairAccessError
 from pairly.repositories.bucket import BucketLimitError
 from pairly.repositories.countdowns import CountdownLimitError
@@ -221,6 +224,73 @@ def create_app() -> FastAPI:
         pair_id = _require_pair(auth)
         idea = await pick_date_idea(session, pair_id=pair_id, category=category)
         return DateIdeaOut(source=idea.source, title=idea.title, category=idea.category)
+
+    # --- love notes ---
+    @app.get("/api/love-notes", response_model=list[LoveNoteOut])
+    async def get_love_notes(
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> list[LoveNoteOut]:
+        pair_id = _require_pair(auth)
+        notes = await love_notes.list_notes(session, pair_id=pair_id, user_id=auth.user.id)
+        return [
+            LoveNoteOut(
+                id=n.id,
+                body=n.body,
+                deliver_at=n.deliver_at,
+                mine=n.created_by == auth.user.id,
+                read_by_recipient=n.read_by_recipient,
+                created_at=n.created_at,
+            )
+            for n in notes
+        ]
+
+    @app.post("/api/love-notes", response_model=LoveNoteOut)
+    async def post_love_note(
+        payload: LoveNoteCreate,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> LoveNoteOut:
+        pair_id = _require_pair(auth)
+        note = await love_notes.create_note(
+            session,
+            pair_id=pair_id,
+            user_id=auth.user.id,
+            body=payload.body,
+            deliver_at=payload.deliver_at,
+        )
+        await session.commit()
+        return LoveNoteOut(
+            id=note.id,
+            body=note.body,
+            deliver_at=note.deliver_at,
+            mine=True,
+            read_by_recipient=False,
+            created_at=note.created_at,
+        )
+
+    @app.post("/api/love-notes/{note_id}/read", response_model=LoveNoteOut)
+    async def read_love_note(
+        note_id: str,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> LoveNoteOut:
+        pair_id = _require_pair(auth)
+        try:
+            n = await love_notes.mark_read(
+                session, pair_id=pair_id, user_id=auth.user.id, note_id=note_id
+            )
+        except LookupError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="note not found") from exc
+        await session.commit()
+        return LoveNoteOut(
+            id=n.id,
+            body=n.body,
+            deliver_at=n.deliver_at,
+            mine=n.created_by == auth.user.id,
+            read_by_recipient=n.read_by_recipient,
+            created_at=n.created_at,
+        )
 
     @app.post("/api/wishlist")
     async def post_wishlist(

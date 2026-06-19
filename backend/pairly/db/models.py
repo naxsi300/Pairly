@@ -285,10 +285,33 @@ class PairMilestone(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class LoveNote(Base):
+    """A warm note one partner leaves for the other.
+
+    Scheduled delivery via the bot (Telegram-native) — no geo, no push spam.
+    The sender writes it; the recipient sees it in the Mini App inbox and via a
+    bot message at the chosen time. Read-receipt is tracked so missed deliveries
+    don't vanish.
+    """
+
+    __tablename__ = "love_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    pair_id: Mapped[str] = mapped_column(ForeignKey("pairs.id", ondelete="CASCADE"), index=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    body: Mapped[str] = mapped_column(String(1000))
+    # HH:MM local-time hint when to deliver (null = delivered immediately).
+    deliver_at: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    delivered: Mapped[bool] = mapped_column(default=False)
+    read_by_recipient: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 # Expose the aggregate count helper column type for migrations parity.
 __all__ = [
     "AdminAuditLog",
     "Base",
+    "LoveNote",
     "PairMilestone",
     "BucketItem",
     "BucketStatus",

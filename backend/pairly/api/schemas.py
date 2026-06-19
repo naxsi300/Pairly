@@ -102,6 +102,20 @@ class DateIdeaOut(_CamelModel):
     category: str | None = None
 
 
+class LoveNoteCreate(_CamelModel):
+    body: str = Field(min_length=1, max_length=1000)
+    deliver_at: str | None = None  # optional 'HH:MM' hint
+
+
+class LoveNoteOut(_CamelModel):
+    id: str
+    body: str
+    deliver_at: str | None = None
+    mine: bool = False  # True if the caller authored it
+    read_by_recipient: bool = False
+    created_at: datetime
+
+
 # --- Bucket ---
 
 class BucketCreate(_CamelModel):

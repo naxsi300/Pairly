@@ -1,7 +1,7 @@
 import { COPY } from "../copy";
 import { Modal } from "./Modal";
 
-export type Destination = "bucket" | "countdowns" | "gifts" | "qotd";
+export type Destination = "bucket" | "countdowns" | "gifts" | "qotd" | "notes";
 
 /** Bottom-sheet listing the non-tab destination screens. */
 export function MoreSheet({
@@ -14,6 +14,7 @@ export function MoreSheet({
   onPick: (d: Destination) => void;
 }) {
   const items: { id: Destination; label: string }[] = [
+    { id: "notes", label: COPY.home.moreNotes },
     { id: "bucket", label: COPY.home.moreBucket },
     { id: "countdowns", label: COPY.home.moreCountdowns },
     { id: "gifts", label: COPY.home.moreGifts },
