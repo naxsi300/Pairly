@@ -1,5 +1,5 @@
 import { useCallback, useRef, type PointerEvent } from "react";
-export type Tab = "wishlist" | "bucket" | "countdowns" | "mood" | "qotd" | "gifts";
+export type Tab = "home" | "wishlist" | "mood";
 
 import { COPY } from "../copy";
 
@@ -9,12 +9,9 @@ interface NavBarProps {
 }
 
 const TABS: { id: Tab; label: string; emoji: string }[] = [
+  { id: "home", label: COPY.nav.home, emoji: "🏠" },
   { id: "wishlist", label: COPY.nav.wishlist, emoji: "🗒" },
-  { id: "bucket", label: COPY.nav.bucket, emoji: "🌌" },
-  { id: "countdowns", label: COPY.nav.countdowns, emoji: "📅" },
   { id: "mood", label: COPY.nav.mood, emoji: "🙂" },
-  { id: "qotd", label: COPY.nav.qotd, emoji: "💭" },
-  { id: "gifts", label: COPY.nav.gifts, emoji: "🎁" },
 ];
 
 export function NavBar({ tab, onTabChange }: NavBarProps) {
@@ -44,7 +41,7 @@ export function NavBar({ tab, onTabChange }: NavBarProps) {
         paddingBottom: "var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom))",
       }}
     >
-      <ul ref={barRef} className="mx-auto grid max-w-md grid-cols-6">
+      <ul ref={barRef} className="mx-auto grid max-w-md grid-cols-3">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (

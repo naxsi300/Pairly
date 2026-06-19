@@ -32,6 +32,7 @@ from pairly.api.schemas import (
     MoodEntryOut,
     MoodResponse,
     MoodSet,
+    DateIdeaOut,
     PairStats,
     QOTDAnswerIn,
     QOTDAnswerOut,
@@ -207,6 +208,19 @@ def create_app() -> FastAPI:
         # aiogram builds the absolute temp-file URL from the bot token + path.
         url = bot.session.api.file_url(bot.token, file.file_path)
         return RedirectResponse(url=str(url), status_code=302)
+
+    @app.get("/api/date-idea", response_model=DateIdeaOut)
+    async def get_date_idea(
+        category: str | None = None,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> DateIdeaOut:
+        """Spin the date-wheel: a "what do we do" idea from the open wishlist."""
+        from pairly.use_cases.date_idea import pick_date_idea
+
+        pair_id = _require_pair(auth)
+        idea = await pick_date_idea(session, pair_id=pair_id, category=category)
+        return DateIdeaOut(source=idea.source, title=idea.title, category=idea.category)
 
     @app.post("/api/wishlist")
     async def post_wishlist(

@@ -103,10 +103,21 @@ export interface QOTDResponse extends QOTDState {
   partnerName: string;
 }
 
+export interface DateIdeaResponse {
+  /** "wishlist" (a real wanted item) or "default" (canned idea). */
+  source: string;
+  title: string;
+  category: string | null;
+}
+
 export const endpoints = {
   listWishlist: () => request<WishlistItem[]>("/api/wishlist"),
   addWishlist: (b: { title: string; address?: string | null; category?: string | null }) =>
     request<WishlistItem>("/api/wishlist", { method: "POST", body: b }),
+
+  /** Spin the date-wheel. category: "eat"|"do"|"stay"|"watch"|"buy"|undefined. */
+  getDateIdea: (category?: string) =>
+    request<DateIdeaResponse>(`/api/date-idea${category ? `?category=${category}` : ""}`),
 
   /**
    * On-demand forwarded-photo URL for an item. <img src> can't send the auth

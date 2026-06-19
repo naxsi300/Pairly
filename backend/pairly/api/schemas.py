@@ -95,6 +95,13 @@ class WishlistItemOut(_CamelModel):
     model_config = {"populate_by_name": True}
 
 
+class DateIdeaOut(_CamelModel):
+    """Result of spinning the date-wheel."""
+    source: str  # "wishlist" | "default"
+    title: str
+    category: str | None = None
+
+
 # --- Bucket ---
 
 class BucketCreate(_CamelModel):
