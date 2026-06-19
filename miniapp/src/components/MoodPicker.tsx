@@ -7,10 +7,10 @@ interface MoodPickerProps {
   disabled?: boolean;
 }
 
-/** 5-button mood selector. M3 chip style. */
+/** Mood selector — R-warm tiles (gallery mood-opt). 2-wide responsive wrap. */
 export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
   return (
-    <div className="grid grid-cols-5 gap-2">
+    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
       {COPY.mood.moods.map((m) => {
         const active = value === m.value;
         return (
@@ -20,20 +20,12 @@ export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
             disabled={disabled}
             onClick={() => onPick(m.value as MoodValue)}
             aria-pressed={active}
-            className="ripple-container flex flex-col items-center gap-1 rounded-full py-3 text-center transition active:scale-95 disabled:opacity-50"
-            style={{
-              background: active
-                ? "var(--m3-primary-container)"
-                : "var(--m3-surface-container)",
-              color: active
-                ? "var(--m3-on-primary-container)"
-                : "var(--m3-on-surface)",
-            }}
+            className={`rw-mood-opt ripple-container ${active ? "is-active" : ""}`}
           >
-            <span className="text-2xl" aria-hidden>
+            <span className="emoji" aria-hidden>
               {m.emoji}
             </span>
-            <span className="text-xs">{m.label}</span>
+            <span className="label">{m.label}</span>
           </button>
         );
       })}
