@@ -105,6 +105,33 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   R-warm — the chosen warm design direction (from the approved gallery).
+   A coral accent layered on top of M3. Coexists with M3 tokens.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Warm coral accent (light). Warm-on is always white for contrast. */
+  --warm: #ff6b6b;
+  --warm-strong: #ff5252;
+  --warm-on: #ffffff;
+  --warm-container: color-mix(in srgb, var(--warm) 14%, var(--m3-surface-container));
+  /* Rounded-card radius used across R-warm surfaces (matches the gallery). */
+  --rw-radius: 20px;
+  --rw-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --rw-shadow-lifted: 0 6px 20px rgba(0, 0, 0, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Lifted coral for dark backgrounds (legibility). */
+    --warm: #ff8a7a;
+    --warm-strong: #ff7464;
+    --warm-on: #1c1c1e;
+    --warm-container: color-mix(in srgb, var(--warm) 16%, var(--m3-surface-container));
+    --rw-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --rw-shadow-lifted: 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    M3 Component Utilities (@layer components)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -336,4 +363,249 @@ body {
 }
 .animate-slide-up {
   animation: slide-up 300ms ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   R-warm component classes — namespaced rw- (coexist with M3 card-m3 etc).
+   Values verbatim from the approved gallery's warm-lib.mjs.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Typography helpers used across the gallery. */
+.rw-heading {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  padding: 2px 0 4px;
+}
+.rw-sub {
+  font-size: 14px;
+  color: var(--m3-on-surface-variant);
+}
+.rw-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--m3-on-surface-variant);
+  margin: 18px 0 10px;
+}
+.rw-meta {
+  font-size: 12px;
+  color: var(--m3-primary);
+  font-weight: 600;
+}
+
+/* Hero blocks — warm and primary-tinted gradients (the gallery's signature CTA surfaces). */
+.rw-hero-warm {
+  background: linear-gradient(135deg, var(--warm-container), var(--m3-surface-container));
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: var(--rw-shadow-lifted);
+}
+.rw-hero {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--m3-primary) 14%, var(--m3-surface-container)),
+    var(--m3-surface-container)
+  );
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: var(--rw-shadow-lifted);
+}
+
+/* Buttons — warm-filled is the primary CTA in R-warm. */
+.rw-btn-warm {
+  display: block;
+  width: 100%;
+  background: var(--warm);
+  color: var(--warm-on);
+  border: none;
+  border-radius: 24px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--warm) 30%, transparent);
+  cursor: pointer;
+}
+.rw-btn-ghost {
+  display: block;
+  width: 100%;
+  background: none;
+  color: var(--m3-primary);
+  border: 1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent);
+  border-radius: 24px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Pair-bar — two-column ambient "you / partner" row. */
+.rw-pair-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--m3-surface-container);
+  border-radius: var(--rw-radius);
+  padding: 14px;
+  box-shadow: var(--rw-shadow);
+}
+.rw-pair-bar .who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--m3-on-surface);
+}
+
+/* Chip pill selectors (category/mood filters). */
+.rw-chip {
+  background: var(--m3-surface-container);
+  border-radius: 18px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--m3-on-surface);
+  border: none;
+  cursor: pointer;
+}
+.rw-chip.is-active {
+  background: var(--m3-primary);
+  color: var(--m3-on-primary);
+}
+
+/* Emoji tile picker (4-col grid, e.g. gift/ritual selection). */
+.rw-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.rw-emoji-opt {
+  background: var(--m3-surface-container);
+  border-radius: var(--rw-radius);
+  padding: 14px 4px;
+  text-align: center;
+  box-shadow: var(--rw-shadow);
+  border: none;
+  cursor: pointer;
+}
+.rw-emoji-opt .emoji {
+  font-size: 30px;
+  display: block;
+  margin-bottom: 4px;
+}
+.rw-emoji-opt .label {
+  font-size: 11px;
+  color: var(--m3-on-surface-variant);
+  font-weight: 500;
+}
+.rw-emoji-opt.is-active {
+  background: var(--m3-primary);
+  color: var(--m3-on-primary);
+}
+.rw-emoji-opt.is-active .label {
+  color: var(--m3-on-primary);
+  font-weight: 600;
+}
+.rw-emoji-opt.is-active .emoji {
+  transform: scale(1.1);
+}
+
+/* Mood tile (2-col grid). */
+.rw-mood-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.rw-mood-opt {
+  background: var(--m3-surface-container);
+  border-radius: var(--rw-radius);
+  padding: 18px;
+  text-align: center;
+  box-shadow: var(--rw-shadow);
+  border: none;
+  cursor: pointer;
+}
+.rw-mood-opt .emoji {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 6px;
+}
+.rw-mood-opt .label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--m3-on-surface);
+}
+.rw-mood-opt.is-active {
+  background: var(--m3-primary);
+  color: var(--m3-on-primary);
+}
+.rw-mood-opt.is-active .label {
+  color: var(--m3-on-primary);
+}
+
+/* Countdown blocks. */
+.rw-countdown {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.rw-cd-unit {
+  background: var(--m3-surface-container);
+  border-radius: 16px;
+  padding: 14px 10px;
+  text-align: center;
+  min-width: 64px;
+  box-shadow: var(--rw-shadow);
+}
+.rw-cd-num {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--m3-on-surface);
+}
+.rw-cd-label {
+  font-size: 11px;
+  color: var(--m3-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Empty state. */
+.rw-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--m3-on-surface-variant);
+}
+.rw-empty .emoji {
+  font-size: 56px;
+  display: block;
+  margin-bottom: 14px;
+}
+
+/* Stats row. */
+.rw-stat-row {
+  display: flex;
+  gap: 10px;
+}
+.rw-stat {
+  flex: 1;
+  background: var(--m3-surface-container);
+  border-radius: var(--rw-radius);
+  padding: 18px 14px;
+  text-align: center;
+  box-shadow: var(--rw-shadow);
+}
+.rw-stat-big {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--m3-on-surface);
+}
+.rw-stat-label {
+  font-size: 12px;
+  color: var(--m3-on-surface-variant);
+  margin-top: 2px;
 }
