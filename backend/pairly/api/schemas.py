@@ -104,7 +104,8 @@ class DateIdeaOut(_CamelModel):
 
 class LoveNoteCreate(_CamelModel):
     body: str = Field(min_length=1, max_length=1000)
-    deliver_at: str | None = None  # optional 'HH:MM' hint
+    # optional 'HH:MM' delivery hint; validated so the future scheduler can't choke.
+    deliver_at: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 class LoveNoteOut(_CamelModel):

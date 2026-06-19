@@ -260,6 +260,13 @@ def create_app() -> FastAPI:
             deliver_at=payload.deliver_at,
         )
         await session.commit()
+        # Deliver to the partner now (deliver_at is a future-cron hint; no scheduler
+        # yet, so deliver immediately rather than dropping). Best-effort + silent.
+        from pairly.bot.notify import notify_love_note
+
+        await notify_love_note(
+            session, pair_id=pair_id, actor_id=auth.user.id, body=note.body
+        )
         return LoveNoteOut(
             id=note.id,
             body=note.body,

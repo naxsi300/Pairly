@@ -395,9 +395,15 @@ body {
   font-weight: 600;
 }
 
-/* Hero blocks — warm and primary-tinted gradients (the gallery's signature CTA surfaces). */
+/* Hero blocks — warm and primary-tinted gradients (the gallery's signature CTA surfaces).
+   Warm stop is a real warm tint (warm blended onto the base BG, not onto the container)
+   so the gradient is visibly warm rather than two near-identical container stops. */
 .rw-hero-warm {
-  background: linear-gradient(135deg, var(--warm-container), var(--m3-surface-container));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--warm) 18%, var(--m3-surface)),
+    var(--m3-surface)
+  );
   border-radius: 22px;
   padding: 20px;
   box-shadow: var(--rw-shadow-lifted);

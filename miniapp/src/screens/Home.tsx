@@ -11,7 +11,13 @@ import { Rituals } from "../components/Rituals";
 import { haptic } from "../sdk/twa";
 
 /** Home dashboard — the front door tying ambient cards together (R-warm). */
-export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
+export function Home({
+  onOpen,
+  onOpenTab,
+}: {
+  onOpen: (d: Destination) => void;
+  onOpenTab: (tab: "wishlist" | "mood") => void;
+}) {
   const stats = useApi(endpoints.getPairStats);
   const mood = useApi<MoodResponse>(endpoints.getMood);
   const qotd = useApi<QOTDResponse>(endpoints.getQotd);
@@ -46,11 +52,11 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
         <p className="rw-sub">{COPY.home.wheelSub}</p>
       </button>
 
-      {/* Open wishlist quick glance */}
+      {/* Open wishlist quick glance → Wishlist tab (not Bucket) */}
       <Card>
         <button
           type="button"
-          onClick={() => onOpen("bucket")}
+          onClick={() => onOpenTab("wishlist")}
           className="flex w-full items-center justify-between text-left"
         >
           <span className="text-base text-tg-text">

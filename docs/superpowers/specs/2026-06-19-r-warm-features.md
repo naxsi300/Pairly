@@ -46,7 +46,7 @@ Built, in order:
 6. **Daily question coupling** (`f-qotd-coupling`) — QOTD as a Home card + reveal flow (already exists as screen; couple to Home).
 7. **Occasion nudges** (`f-occasion-nudges`) — nearest-countdown card on Home + (optional) bot reminder hook.
 8. **Rituals/plans** (`f-rituals-plans`) — weekly ritual checklist section on Home.
-9. **Mood history** (`f-mood-history`) — last-7-days ambient mini-chart on Mood screen (read-only, no raw logs).
+9. **Mood history** (`f-mood-history`) — **DEFERRED.** The `MoodEntry` model is explicitly **latest-only** with the docstring "No history graph, no streak, no score (privacy-by-design)", and `set_mood` *overwrites* the prior row — so no per-day history is persisted anywhere. Building a trend chart would require changing that privacy invariant (storing daily mood logs), which conflicts with the app's stated non-goals and the audit's DROP of mood-sync for jealousy/privacy risk. Not built without explicit user sign-off to relax the privacy-by-design rule. The current Mood screen already shows the pair's *current* ambient state; that's the privacy-respecting ceiling here.
 10. **Love notes** (`f-love-notes`) — Telegram-native scheduled note via bot (no geo). Backend table + bot command + Mini App inbox.
 
 **Two-tap consent** (`f-triage-two-tap`) — flagged in roadmap as MUST but most invasive (schema + bot + API + UI). Time-boxed: attempt within the window; if it risks the last-hour integration, defer to a follow-up plan (documented).

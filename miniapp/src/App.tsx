@@ -37,7 +37,7 @@ export default function App() {
           <DestinationView dest={dest} onBack={() => setDest(null)} />
         ) : (
           <>
-            {tab === "home" ? <Home onOpen={(d) => setDest(d)} /> : null}
+            {tab === "home" ? <Home onOpen={(d) => setDest(d)} onOpenTab={(t) => setTab(t)} /> : null}
             {tab === "wishlist" ? <Wishlist /> : null}
             {tab === "mood" ? <Mood /> : null}
           </>

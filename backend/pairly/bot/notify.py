@@ -206,6 +206,21 @@ async def notify_wishlist_added(
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
 
 
+async def notify_love_note(
+    session: AsyncSession, *, pair_id: str, actor_id: str, body: str
+) -> None:
+    """Deliver a love note to the partner — the note body IS the message.
+
+    Delivery is immediate (the optional HH:MM deliver_at is a future scheduled-
+    delivery hint; there's no cron yet, so we deliver now rather than dropping
+    it). Best-effort + silent on failure, like every notify.
+    """
+    actor = await session.get(User, actor_id)
+    name = _actor_label(actor) if actor else "Партнёр"
+    text = f"💌 {name} оставил(а) вам записку:\n\n{body}"
+    await _send(session, pair_id=pair_id, actor_id=actor_id, text=text)
+
+
 # NOTE: there is NO notify_mood_set. Mood is ambient-only by hard contract —
 # docs/copy/mood-sync.md: "NEVER send an alert when partner's mood changes."
 # A mood push manufactures "why didn't they tell me they were down" pressure.

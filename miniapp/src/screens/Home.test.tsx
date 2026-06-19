@@ -30,7 +30,7 @@ vi.mock("../sdk/api", async () => {
 
 describe("Home", () => {
   it("renders heading + wheel CTA + question + wishlist glance", async () => {
-    render(<Home onOpen={() => {}} />);
+    render(<Home onOpen={() => {}} onOpenTab={() => {}} />);
     expect(screen.getByText("Ваш уголок")).toBeTruthy();
     expect(screen.getByText(/Крутить свидание/)).toBeTruthy();
     await waitFor(() => {

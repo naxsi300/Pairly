@@ -116,6 +116,24 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
         return json({ ...qotd, partnerName });
       case "/api/gifts":
         return json({ items: gifts, partnerName });
+      case "/api/pair/stats":
+        return json({
+          togetherDays: 42,
+          totalWishlist: wishlist.length,
+          wishlistDone: wishlist.filter((w) => w.status === "done").length,
+          totalGifts: gifts.length,
+          giftsCompleted: 0,
+          totalQotdAnswers: 3,
+          totalCountdowns: countdowns.length,
+          createdAt: new Date(now - 42 * 86_400_000).toISOString(),
+        });
+      case "/api/date-idea":
+        return json({ source: "wishlist", title: wishlist[0]?.title ?? "Прогулка по набережной", category: "do" });
+      case "/api/love-notes":
+        return json([
+          { id: "ln1", body: "Доброе утро, любимый 🌅", deliverAt: "09:00", mine: false, readByRecipient: false, createdAt: new Date(now - 2 * 3600_000).toISOString() },
+          { id: "ln2", body: "Спасибо за вчерашний вечер 💛", deliverAt: null, mine: true, readByRecipient: true, createdAt: new Date(now - 26 * 3600_000).toISOString() },
+        ]);
       default:
         return json({ status: "ok" }, 200);
     }
@@ -145,6 +163,8 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
       case "/api/qotd/answer":
         qotd = { ...qotd, myAnswer: body.answer as string };
         return json(qotd, 200);
+      case "/api/love-notes":
+        return json({ id: rid(), body: body.body, deliverAt: body.deliverAt ?? null, mine: true, readByRecipient: false, createdAt: new Date().toISOString() }, 201);
       case "/api/gift":
         gifts = [
           { id: rid(), description: null, status: "received", direction: "me", createdAt: new Date().toISOString(), ...body },
