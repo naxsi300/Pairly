@@ -125,6 +125,16 @@ async def set_status(
     return item
 
 
+async def rename_item(
+    session: AsyncSession, *, pair_id: str, user_id: str, item_id: str, title: str
+) -> WishlistItem:
+    """Rename an item's title. Membership-enforced. Title is truncated to 256 chars."""
+    item = await get_item(session, pair_id=pair_id, user_id=user_id, item_id=item_id)
+    item.title = title.strip()[:256]
+    await session.flush()
+    return item
+
+
 # Public re-export of the tier type for callers that need it.
 __all__ = [
     "PairTier",
@@ -134,5 +144,6 @@ __all__ = [
     "create_item",
     "get_item",
     "list_items",
+    "rename_item",
     "set_status",
 ]

@@ -65,6 +65,11 @@ class WishTitle(StatesGroup):
     waiting_for_title = State()
 
 
+class WishEdit(StatesGroup):
+    """Editing an existing item's title after a forward (wish:edit callback)."""
+    waiting_for_new_title = State()
+
+
 # --- /start -------------------------------------------------------------------
 
 
@@ -345,7 +350,12 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
             session, pair_id=pair.id, actor_id=user.id, title=title
         )
 
-    await message.answer(f"Готово — добавил в вишлист: «{html.escape(title)}»")
+    from pairly.bot.keyboards import wishlist_saved_kb
+
+    await message.answer(
+        f"Готово — добавил в вишлист: «{html.escape(title)}»",
+        reply_markup=wishlist_saved_kb(item.id),
+    )
 
 
 # FSM handler: user replied with a title for a media forward.
@@ -387,6 +397,62 @@ async def on_non_text_in_title_state(message: Message) -> None:
     await message.answer(
         "Нужно название текстом — пришлите заголовок, или /cancel чтобы отменить."
     )
+
+
+# --- Edit title of a saved wishlist item (wish:edit callback) -----------------
+
+
+@router.callback_query(F.data.startswith("wish:edit:"))
+async def cb_wish_edit(call: CallbackQuery, state: FSMContext) -> None:
+    """User tapped «✏️ Переименовать» on a saved item — ask for the new title."""
+    item_id = call.data.split(":", 2)[-1] if call.data else ""
+    if not item_id:
+        await call.answer("Не нашёл пункт.", show_alert=True)
+        return
+    await state.set_state(WishEdit.waiting_for_new_title)
+    await state.update_data(item_id=item_id)
+    await call.message.answer("Напишите новое название — и я сохраню.")
+    await call.answer()
+
+
+@router.message(StateFilter(WishEdit.waiting_for_new_title), F.text)
+async def on_rename_reply(message: Message, state: FSMContext) -> None:
+    """User replied with a new title for the item being renamed."""
+    data = await state.get_data()
+    item_id = data.get("item_id")
+    await state.clear()
+    if not item_id or not message.text:
+        await message.answer("Не получилось переименовать. Попробуйте ещё раз.")
+        return
+
+    async with SessionLocal() as session:
+        user = await users.get_or_create_user(
+            session,
+            message.from_user.id,
+            tg_username=message.from_user.username,
+            display_name=_display_name(message),
+        )
+        try:
+            pair = await base.get_user_pair(session, user.id)
+        except NotPairedError:
+            await session.commit()
+            await message.answer("Сначала объединитесь в пару: /pair")
+            return
+        try:
+            item = await wishlist.rename_item(
+                session, pair_id=pair.id, user_id=user.id, item_id=item_id, title=message.text
+            )
+            await session.commit()
+        except LookupError:
+            await session.rollback()
+            await message.answer("Не нашёл этот пункт — возможно, его удалили.")
+            return
+    await message.answer(f"Готово — теперь это «{html.escape(item.title)}»")
+
+
+@router.message(StateFilter(WishEdit.waiting_for_new_title))
+async def on_non_text_in_rename_state(message: Message) -> None:
+    await message.answer("Нужно название текстом — или /cancel чтобы отменить.")
 
 
 @router.message(Command("cancel"))

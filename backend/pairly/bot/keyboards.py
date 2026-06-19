@@ -49,13 +49,27 @@ def wishlist_category_kb() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for code, label in (
         ("eat", "🍽 Поесть"),
-        ("do", "🎉 Сделать"),
         ("stay", "🛌 Переночевать"),
         ("watch", "🎬 Посмотреть"),
         ("buy", "🛍 Купить"),
     ):
         kb.button(text=label, callback_data=f"wish:cat:{code}")
     kb.adjust(2, 3)
+    return kb.as_markup()
+
+
+def wishlist_saved_kb(item_id: str) -> InlineKeyboardMarkup:
+    """Post-forward affordances: edit the title (inline) + open the Mini App.
+
+    The edit button carries the item_id so the callback handler knows which item
+    to rename. The Mini App button is omitted if no webapp_url is configured.
+    """
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Переименовать", callback_data=f"wish:edit:{item_id}")
+    webapp = webapp_open_kb()
+    if webapp is not None:
+        kb.button(text="🗂 Открыть вишлист", web_app=WebAppInfo(url=get_settings().webapp_url.strip().rstrip("/")))
+    kb.adjust(1)  # stacked — each action on its own row
     return kb.as_markup()
 
 
