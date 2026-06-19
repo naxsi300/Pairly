@@ -50,6 +50,8 @@ async def create_item(
     category: str | None = None,
     notes: str | None = None,
     source_message_id: int | str | None = None,
+    telegram_file_id: str | None = None,
+    photo_path: str | None = None,
 ) -> WishlistItem:
     """Create a wishlist item, enforcing membership + free-tier limit + dedupe."""
     pair = await _require_membership(session, pair_id, user_id)
@@ -81,6 +83,8 @@ async def create_item(
         category=category,
         notes=notes,
         source_message_hash=src_hash,
+        telegram_file_id=telegram_file_id,
+        photo_path=photo_path,
     )
     session.add(item)
     await session.flush()

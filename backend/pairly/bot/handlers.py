@@ -11,7 +11,7 @@ import contextlib
 import html
 import time
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -252,7 +252,12 @@ async def cmd_list(message: Message) -> None:
 
 
 @router.message(F.forward_origin)
-async def on_forward(message: Message, state: FSMContext) -> None:
+async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
+    """The core capture loop: a forwarded post becomes a wishlist item.
+
+    The incoming ``bot`` is injected by aiogram — the same Bot instance that
+    received the message, so it can download any attached photo.
+    """
     """The core capture loop: a forwarded post becomes a wishlist item."""
     # An album arrives as several updates; only handle the first photo per group.
     # Later photos (no caption of their own) would otherwise each ask for a title.
@@ -291,6 +296,25 @@ async def on_forward(message: Message, state: FSMContext) -> None:
 
         parsed = parse_forwarded_text(text)
         title = parsed.title or text.strip()[:256]
+
+        # Capture the forwarded photo (best-effort, silent on failure) and the
+        # full description text. Previously both were discarded — the item landed
+        # in the list as a bare title, which is the user's "looks empty" complaint.
+        from pairly.bot.media import download_forwarded_photo
+
+        photo_url: str | None = None
+        telegram_file_id: str | None = None
+        if message.photo:
+            try:
+                photo_url = await download_forwarded_photo(bot, message)
+                telegram_file_id = message.photo[-1].file_id
+            except Exception:
+                # Photo capture must never block the wishlist save.
+                pass
+
+        # Full description = the forwarded text beyond the title, capped to ~4 KB.
+        notes = text.strip()[:4096] if text.strip() else None
+
         try:
             await wishlist.create_item(
                 session,
@@ -299,6 +323,9 @@ async def on_forward(message: Message, state: FSMContext) -> None:
                 title=title,
                 address=parsed.address,
                 category=parsed.category,
+                notes=notes,
+                telegram_file_id=telegram_file_id,
+                photo_path=photo_url,
             )
             await session.commit()
         except WishlistLimitError:

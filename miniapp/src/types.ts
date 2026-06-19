@@ -26,6 +26,8 @@ export interface WishlistItem {
   eventDate?: string | null;
   notes?: string | null;
   status: WishlistStatus;
+  /** Forwarded-media capture: public URL to the stored photo, if any. */
+  photoUrl?: string | null;
 }
 
 export type BucketStatus = "dreaming" | "planning" | "done";

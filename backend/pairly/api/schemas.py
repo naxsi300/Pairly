@@ -66,6 +66,12 @@ class WishlistItemOut(_CamelModel):
     status: str
     notes: str | None = None
     event_date: datetime | None = None
+    # Forwarded-media capture (forwarding-fix). `photo_path` on the model maps to
+    # the public web URL exposed here as `photoUrl` (camelCase) to the Mini App.
+    photo_url: str | None = Field(default=None, validation_alias="photo_path", serialization_alias="photoUrl")
+    telegram_file_id: str | None = None
+
+    model_config = {"populate_by_name": True}
 
 
 # --- Bucket ---

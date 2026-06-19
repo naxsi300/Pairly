@@ -43,14 +43,54 @@ class ParsedPost:
     category: str | None
 
 
+# --- Title selection ----------------------------------------------------------
+# A forwarded Telegram channel post usually opens with a "junk" line that is NOT
+# the real title: a t.me link, the @channel handle, a price banner ("🔥 1 990 ₽"),
+# or a pure-emoji header. The actual title is typically the first line that reads
+# like a human title. We skip junk leading lines; if everything looks like junk,
+# we fall back to line 1 (an editable guess beats a blank title that blocks save).
+
+# Lines we treat as "not a title" when they appear at the top of the post.
+_URL_RE = re.compile(r"^https?://\S+$", re.IGNORECASE)
+_HANDLE_RE = re.compile(r"^@[A-Za-z0-9_]{3,}$")
+# Pure-emoji / decorative banner (only emoji & punctuation, no word chars).
+_EMOJI_BANNER_RE = re.compile(r"^[\W\D\s]+$")
+# Price-like banner: emoji/symbol prefix then a number with currency glyph.
+_PRICE_RE = re.compile(r"^[\W\d\s]*\d[\d\s.,]*\s*(₽|\$|€|₸|£|руб)\.?\s*$", re.IGNORECASE)
+
+
+def _looks_like_junk_title(line: str) -> bool:
+    """True if a leading line is probably NOT the post's real title."""
+    if not line:
+        return True
+    if _URL_RE.match(line) or _HANDLE_RE.match(line):
+        return True
+    if _PRICE_RE.match(line):
+        return True
+    # EMOJI_BANNER must not match real words (contains a letter/digit) and must
+    # actually contain something (avoid treating "" — already handled — as banner).
+    if not re.search(r"[A-Za-zА-Яа-яЁё0-9]", line) and _EMOJI_BANNER_RE.match(line):
+        return True
+    return False
+
+
+def _pick_title(lines: list[str]) -> str | None:
+    """First title-like line; falls back to line 1 if all lines look like junk."""
+    if not lines:
+        return None
+    for ln in lines:
+        if not _looks_like_junk_title(ln):
+            return ln[:256]
+    return lines[0][:256]
+
+
 def parse_forwarded_text(text: str) -> ParsedPost:
     """Best-effort parse. Never raises; missing fields -> None."""
     if not text or not text.strip():
         return ParsedPost(title=None, address=None, date_hint=None, time_hint=None, category=None)
 
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    # Title = first line, trimmed to a sane length.
-    title = lines[0][:256] if lines else None
+    title = _pick_title(lines)
 
     lowered = text.lower()
     category = None

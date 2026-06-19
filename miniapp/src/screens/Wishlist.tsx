@@ -116,11 +116,22 @@ export function Wishlist() {
           {items.map((item) => (
             <li key={item.id}>
               <Card>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-medium text-tg-text">{item.title}</p>
+                <div className="flex items-start gap-3">
+                  {item.photoUrl ? (
+                    <img
+                      src={item.photoUrl}
+                      alt=""
+                      loading="lazy"
+                      className="h-16 w-16 flex-shrink-0 rounded-xl object-cover"
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-medium leading-snug text-tg-text">{item.title}</p>
                     {item.address ? (
                       <p className="mt-0.5 truncate text-sm text-tg-hint">📍 {item.address}</p>
+                    ) : null}
+                    {item.notes ? (
+                      <p className="mt-1 line-clamp-2 text-xs text-tg-hint">{item.notes}</p>
                     ) : null}
                     <p className="mt-1 text-xs text-tg-hint">
                       {[wishlistCategoryLabel(item.category), wishlistStatusLabel(item.status)]
