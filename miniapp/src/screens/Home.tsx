@@ -79,6 +79,9 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
         <button type="button" onClick={() => onOpen("qotd")} className="w-full text-left">
           <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardQotdTitle}</p>
           <p className="text-base text-tg-text">{qotd.data?.question?.text ?? "…"}</p>
+          <p className="rw-meta mt-1">
+            {qotdStatus(qotd.data)}
+          </p>
         </button>
       </Card>
 
@@ -110,4 +113,12 @@ function MoodSummary({ mood }: { mood: MoodResponse | null | undefined }) {
       {COPY.mood.youLabel}: {mine} · {mood.partnerName || COPY.mood.partnerLabel}: {theirs}
     </p>
   );
+}
+
+/** QOTD reveal-state hint shown under the question on the Home card. */
+function qotdStatus(q: QOTDResponse | null | undefined): string {
+  if (!q || !q.question) return COPY.home.qotdHint;
+  if (q.myAnswer && q.partnerAnswered) return COPY.home.qotdBothAnswered;
+  if (q.myAnswer && !q.partnerAnswered) return COPY.home.qotdWaitingPartner;
+  return COPY.home.qotdYouWaiting;
 }
