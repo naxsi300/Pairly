@@ -3,6 +3,26 @@
 Сгенерировано: workflow-аудит 18 мок-фич + маппинг реального кода Pairly.
 Исходник моков: `/tmp/pairly_design/features.mjs`. Галерея: `http://localhost:8847/gallery/features.html`.
 
+## ✅ Отгружено на prod (commit `244e3b8`, 2026-06-19)
+
+Два MUST из roadmap реализованы, протестированы и задеплоены на prod-test сервер (`/opt/pairly`, Docker, real data):
+
+1. **f-forwarding-fix** — пересылка теперь захватывает фото + описание + умный заголовок.
+   - `parse.py`: пропуск junk-линий (t.me URL, @handle, цена «🔥 1 990 ₽», emoji-баннер) → правильный заголовок
+   - `handlers.py` `on_forward`: persist `notes=` (полный текст), фото через новый `media.py`
+   - `media.py`: content-addressed фото в `/data/wishlist_photos/<hash>.jpg` (на Docker volume), served via `/media/wishlist`
+   - миграция `0004_wishlist_photo`: колонки `telegram_file_id`, `photo_path`
+   - Mini App: карточка рендерит thumbnail + 2-line notes preview
+   - **13 тестов** (6 парсер + 4 capture + 3 оригинальных), 71 passed всего
+2. **f-bot-entry-point** — бот закрывает loop без выхода в апп:
+   - после пересылки: inline «✏️ Переименовать» (FSM rename flow) + «🗂 Открыть вишлист» (WebApp deep link)
+   - новый `WishEdit` FSM state, callback `wish:edit:<id>`, repo `rename_item()`
+
+**Осталось (MUST, не сделано):**
+- **f-triage-two-tap** — partner consent до записи в shared DB. Самый инвазивный (schema + bot notify + API + UI). Оставлен как отдельная задача — требует аккуратного дизайна, не спешки на real data ночью.
+
+**Прочее из roadmap** (SHOULD/COULD/DROP) — см. таблицу ниже; дропы совпали с решением пользователя.
+
 ## 🐛 Корневая причина бага пересылки в wishlist
 
 Пересылка **существует** (`F.forward_origin` в `backend/pairly/bot/handlers.py:254`). Баг = трёхчастный провал захвата, всё подтверждено в коде:
