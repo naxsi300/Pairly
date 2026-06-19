@@ -74,6 +74,30 @@ export function Wishlist() {
     }
   }
 
+  /** "Хочу повторить": create a fresh open wish from a done one (keeps the
+   * completed item as history; the repeat is a new idea to look forward to). */
+  async function repeat(item: WishlistItem) {
+    setBusy(true);
+    try {
+      const created = await endpoints.addWishlist({
+        title: item.title,
+        address: item.address ?? null,
+        category: item.category ?? null,
+      }) as WishlistItem & { newMilestones?: { kind: string; value: number }[] };
+      setData((prev) => [created, ...(prev ?? [])]);
+      haptic("success");
+      for (const m of created.newMilestones ?? []) {
+        emitMilestone({ kind: m.kind, value: m.value });
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 402) {
+        refetch();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove(item: WishlistItem) {
     setData((prev) => (prev ?? []).filter((w) => w.id !== item.id));
     haptic("light");
@@ -152,6 +176,9 @@ export function Wishlist() {
                   ) : (
                     <>
                       <span className="self-center text-sm text-tg-hint">✅ сделано</span>
+                      <Button variant="ghost" onClick={() => repeat(item)} disabled={busy}>
+                        {COPY.wishlist.repeat}
+                      </Button>
                       <Button variant="ghost" onClick={() => undo(item)}>
                         ↶ Отменить
                       </Button>
