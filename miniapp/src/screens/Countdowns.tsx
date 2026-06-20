@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
-import { countdownDisplay, countdownEmoji } from "../lib/format";
+import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -45,6 +45,7 @@ export function Countdowns() {
   const [emoji, setEmoji] = useState("");
   const [busy, setBusy] = useState(false);
   const [dateErr, setDateErr] = useState(false);
+  const [milestone, setMilestone] = useState(false);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
@@ -63,12 +64,14 @@ export function Countdowns() {
         label: label.trim(),
         targetDate: target,
         emoji: emoji.trim() || null,
+        recurrence: milestone ? "milestone" : undefined,
       })) as Countdown & { newMilestones?: { kind: string; value: number }[] };
       setData((prev) => [item, ...(prev ?? [])]);
       setAdding(false);
       setLabel("");
       setDate("");
       setEmoji("");
+      setMilestone(false);
       haptic("success");
       for (const m of item.newMilestones ?? []) {
         emitMilestone({ kind: m.kind, value: m.value });
@@ -118,15 +121,24 @@ export function Countdowns() {
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((c) => {
+            const isMilestone = c.recurrence === "milestone";
             const blocks = cdBlocks(c);
+            const ms = isMilestone ? nextMilestone(c) : null;
             return (
               <li key={c.id}>
                 <div className="card" style={{ alignItems: "center", textAlign: "center" }}>
                   <div className="card-title">{countdownEmoji(c)} {c.label}</div>
-                  {c.recurrence ? (
+                  {isMilestone ? (
+                    <div className="card-sub">{Math.max(0, Math.abs(countdownDays(c)))} дней вместе</div>
+                  ) : c.recurrence ? (
                     <div className="card-sub">{c.recurrence === "annual" ? "каждый год" : "каждый месяц"}</div>
                   ) : null}
-                  {blocks ? (
+                  {isMilestone && ms ? (
+                    <>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: "var(--tg-warm)", marginTop: 4 }}>{ms.label}</div>
+                      <div className="card-sub" style={{ marginTop: 2 }}>следующая круглая дата · через {ms.daysUntil} дн.</div>
+                    </>
+                  ) : blocks ? (
                     <div className="countdown" style={{ marginTop: 4 }}>
                       {blocks.map((b) => (
                         <div className="cd-unit" key={b.label}>
@@ -178,6 +190,23 @@ export function Countdowns() {
           maxLength={4}
           onChange={(e) => setEmoji(e.target.value)}
         />
+        <button
+          type="button"
+          onClick={() => setMilestone((v) => !v)}
+          aria-pressed={milestone}
+          className="ripple-container rounded-full px-3 py-2 text-left text-sm transition"
+          style={{
+            background: milestone ? "var(--m3-primary-container)" : "var(--m3-surface-container)",
+            color: milestone ? "var(--m3-on-primary-container)" : "var(--tg-text)",
+          }}
+        >
+          {milestone ? "✓ " : ""}🎯 Считать круглые даты от этой даты (точка отсчёта)
+        </button>
+        {milestone ? (
+          <p className="text-xs" style={{ color: "var(--tg-hint)" }}>
+            Например, укажите дату знакомства — и ближайший повод сам покажет круглую дату: 100 дней, 1 год, 1000 дней вместе.
+          </p>
+        ) : null}
       </Modal>
     </div>
   );

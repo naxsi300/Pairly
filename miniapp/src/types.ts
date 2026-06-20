@@ -45,7 +45,7 @@ export interface BucketItem {
   completedAt?: string | null;
 }
 
-export type CountdownRecurrence = "annual" | "monthly" | null;
+export type CountdownRecurrence = "annual" | "monthly" | "milestone" | null;
 
 export interface Countdown {
   id: ID;
@@ -56,7 +56,15 @@ export interface Countdown {
   recurrence: CountdownRecurrence;
 }
 
-export type MoodValue = "сияю" | "хорошо" | "ровно" | "так себе" | "паршиво";
+export type MoodValue =
+  | "сияю"
+  | "радостно"
+  | "хорошо"
+  | "спокойно"
+  | "ровно"
+  | "так себе"
+  | "грустно"
+  | "паршиво";
 
 export interface MoodEntry {
   mood: MoodValue;

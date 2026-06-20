@@ -187,6 +187,7 @@ export const endpoints = {
   getMood: () => request<MoodResponse>("/api/mood"),
   setMood: (b: { mood: string; note?: string | null }) =>
     request<MoodEntry>("/api/mood", { method: "POST", body: b }),
+  clearMood: () => request<{ ok: boolean }>("/api/mood", { method: "DELETE" }),
 
   getQotd: () => request<QOTDResponse>("/api/qotd"),
   answerQotd: (b: { answer: string }) =>

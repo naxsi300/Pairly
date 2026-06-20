@@ -145,9 +145,12 @@ export const COPY = {
     clearButton: "🚫 Убрать настроение",
     moods: [
       { emoji: "😊", value: "сияю", label: "сияю" },
+      { emoji: "😄", value: "радостно", label: "радостно" },
       { emoji: "🙂", value: "хорошо", label: "хорошо" },
+      { emoji: "😌", value: "спокойно", label: "спокойно" },
       { emoji: "😐", value: "ровно", label: "ровно" },
       { emoji: "🙁", value: "так себе", label: "так себе" },
+      { emoji: "😔", value: "грустно", label: "грустно" },
       { emoji: "😢", value: "паршиво", label: "паршиво" },
     ] as const,
   },

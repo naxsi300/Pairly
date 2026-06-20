@@ -147,6 +147,7 @@ export function Wishlist() {
           <button
             type="button"
             className={`chip ${filter === "active" ? "active" : ""}`}
+            style={{ flex: 1, textAlign: "center", justifyContent: "center" }}
             onClick={() => setFilter("active")}
           >
             📋 Активные ({activeItems.length})
@@ -154,6 +155,7 @@ export function Wishlist() {
           <button
             type="button"
             className={`chip ${filter === "done" ? "active" : ""}`}
+            style={{ flex: 1, textAlign: "center", justifyContent: "center" }}
             onClick={() => setFilter("done")}
           >
             ✓ Сделано ({doneItems.length})

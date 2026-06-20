@@ -54,6 +54,7 @@ export function Mood() {
     try {
       setData((prev) => ({ ...(prev ?? ({} as MoodResponse)), self: null }));
       haptic("light");
+      await endpoints.clearMood();
     } catch {
       refetch();
     } finally {

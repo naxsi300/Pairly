@@ -18,10 +18,9 @@ vi.mock("../sdk/api", async () => {
         question: { id: "q1", text: "О чём мечтаем?", category: "x" },
         myAnswer: null, partnerAnswered: false, partnerAnswer: null, partnerName: "Маша",
       }),
-      listCountdowns: vi.fn().mockResolvedValue([]),
-      listWishlist: vi.fn().mockResolvedValue([
-        { id: "w1", title: "Пицца", status: "open" },
-        { id: "w2", title: "Кино", status: "done" },
+      listCountdowns: vi.fn().mockResolvedValue([
+        // a past countdown → appears in the dynamic strip
+        { id: "c1", label: "Знакомство", emoji: "💛", targetDate: new Date(Date.now() - 112 * 86_400_000).toISOString(), recurrence: "annual" },
       ]),
       getDateIdea: vi.fn().mockResolvedValue({ source: "wishlist", title: "Пицца", category: "eat" }),
     },
@@ -29,14 +28,14 @@ vi.mock("../sdk/api", async () => {
 });
 
 describe("Home", () => {
-  it("renders heading + wheel CTA + question + wishlist glance", async () => {
+  it("renders wheel CTA + question + dynamic countdown strip (no heading)", async () => {
     render(<Home onOpen={() => {}} onOpenTab={() => {}} />);
-    expect(screen.getByText("Ваш уголок")).toBeTruthy();
     expect(screen.getByText(/Крутить свидание/)).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByText("О чём мечтаем?")).toBeTruthy();
-      // mock: 1 open (w1), 1 done (w3)
-      expect(screen.getByText(/1 в списке · 1 сделано/)).toBeTruthy();
+      // the past "Знакомство" countdown surfaces in the elapsed-time strip
+      expect(screen.getByText("Знакомство")).toBeTruthy();
+      expect(screen.getByText("дней назад")).toBeTruthy();
     });
   });
 });

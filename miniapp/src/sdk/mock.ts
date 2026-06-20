@@ -42,6 +42,7 @@ let countdowns: Countdown[] = [
   { id: "c1", label: "Отпуск", emoji: "🏝", targetDate: iso(40), recurrence: null },
   { id: "c2", label: "Годовщина", emoji: "💛", targetDate: iso(2), recurrence: "annual" },
   { id: "c3", label: "Познакомились", emoji: "📅", targetDate: iso(-900), recurrence: "annual" },
+  { id: "c4", label: "Знакомство", emoji: "💛", targetDate: iso(-412), recurrence: "milestone" },
 ];
 
 let moodSelf: MoodEntry | null = { mood: "хорошо", note: "тёплый день", setAt: new Date(now - 3 * 3600_000).toISOString() };

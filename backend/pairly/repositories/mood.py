@@ -14,13 +14,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pairly.db.models import MoodEntry
 from pairly.repositories.base import _require_membership, pair_members
 
-# Exactly 5 moods (Russian labels). See docs/copy/mood-sync.md.
-VALID_MOODS = {"сияю", "хорошо", "ровно", "так себе", "паршиво"}
+# 8 moods (Russian, gender-neutral adverbial) — a 4×2 valence gradient.
+# See docs/copy/mood-sync.md.
+VALID_MOODS = {
+    "сияю",
+    "радостно",
+    "хорошо",
+    "спокойно",
+    "ровно",
+    "так себе",
+    "грустно",
+    "паршиво",
+}
 _MOOD_TTL = timedelta(hours=24)
 
 
 class InvalidMoodError(Exception):
-    """Raised when a mood value isn't one of the 5 fixed labels."""
+    """Raised when a mood value isn't one of the 8 fixed labels."""
 
 
 def _is_stale(set_at: datetime) -> bool:

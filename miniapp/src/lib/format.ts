@@ -77,6 +77,59 @@ export function countdownEmoji(c: Countdown): string {
   return c.emoji?.trim() || "📅";
 }
 
+/** Whole-day delta from now to a countdown's target (negative = past). */
+export function countdownDays(c: Countdown, now: Date = new Date()): number {
+  const diff = new Date(c.targetDate).getTime() - now.getTime();
+  return Math.round(diff / 86_400_000);
+}
+
+/** Russian pluralization for years: 1 год / 2–4 года / 5+ лет. */
+function ruYears(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} год`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return `${n} года`;
+  return `${n} лет`;
+}
+
+// Round "together" day-count milestones generated from a reference date.
+const DAY_MILESTONES = [
+  100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000,
+];
+
+/**
+ * For a "milestone" countdown (recurrence === "milestone"), target_date is a
+ * reference point (e.g. дата знакомства). Returns the next upcoming round date —
+ * a 100/…/1000-day or yearly anniversary — as a synthetic occasion, or null.
+ */
+export function nextMilestone(
+  c: Countdown,
+  now: Date = new Date(),
+): { date: Date; daysUntil: number; label: string } | null {
+  const ref = new Date(c.targetDate);
+  if (Number.isNaN(ref.getTime())) return null;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const candidates: { date: Date; label: string }[] = [];
+  for (const d of DAY_MILESTONES) {
+    candidates.push({ date: new Date(ref.getTime() + d * 86_400_000), label: `${d} дней вместе` });
+  }
+  for (let y = 1; y <= 100; y++) {
+    candidates.push({
+      date: new Date(ref.getFullYear() + y, ref.getMonth(), ref.getDate()),
+      label: `${ruYears(y)} вместе`,
+    });
+  }
+  const first = candidates
+    .filter((cand) => cand.date.getTime() >= todayStart.getTime())
+    .sort((a, b) => a.date.getTime() - b.date.getTime())[0];
+  if (!first) return null;
+  return {
+    date: first.date,
+    daysUntil: Math.max(0, Math.round((first.date.getTime() - now.getTime()) / 86_400_000)),
+    label: first.label,
+  };
+}
+
 /** Format an ISO timestamp as a short ru date (e.g. "5 марта"). */
 export function shortDate(iso?: string | null): string | null {
   if (!iso) return null;
