@@ -200,6 +200,15 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
     }
   }
 
+  if (method === "PATCH") {
+    if (path.startsWith("/api/countdowns/")) {
+      const id = path.split("/")[3];
+      countdowns = countdowns.map((c) => (c.id === id ? { ...c, ...body } : c));
+      return json(countdowns.find((c) => c.id === id) ?? body, 200);
+    }
+    return json({ ok: true });
+  }
+
   if (method === "DELETE") {
     if (path === "/api/mood") {
       moodSelf = null;

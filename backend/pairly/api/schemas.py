@@ -169,6 +169,16 @@ class CountdownOut(_CamelModel):
     recurrence: str | None = None
 
 
+class CountdownUpdate(_CamelModel):
+    """Partial update — only fields the client sends are applied (exclude_unset).
+    A field explicitly sent as null (e.g. recurrence) clears it."""
+
+    label: str | None = Field(default=None, min_length=1, max_length=128)
+    target_date: datetime | None = Field(default=None, alias="targetDate", validation_alias="targetDate")
+    emoji: str | None = None
+    recurrence: Literal["annual", "monthly", "milestone"] | None = None
+
+
 # --- Mood ---
 
 class MoodSet(_CamelModel):

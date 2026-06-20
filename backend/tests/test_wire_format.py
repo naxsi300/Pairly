@@ -111,6 +111,37 @@ async def test_countdowns_get_emits_target_date_camel(session):
 
 
 @pytest.mark.asyncio
+async def test_countdowns_patch_updates_sent_fields_and_keeps_the_rest(session):
+    a, b = await _make_pair(session, 13, 14)
+    client = _client_for(a, session)
+    created = client.post(
+        "/api/countdowns",
+        json={"label": "Отпуск", "targetDate": "2026-08-15T10:00:00Z", "emoji": "🏝"},
+    ).json()
+    cid = created["id"]
+
+    # Patch only label + recurrence; emoji and targetDate must be untouched.
+    patched = client.patch(
+        f"/api/countdowns/{cid}",
+        json={"label": "Большой отпуск", "recurrence": "annual"},
+    )
+    assert patched.status_code == 200, patched.text
+    body = patched.json()
+    assert body["label"] == "Большой отпуск"
+    assert body["recurrence"] == "annual"
+    assert body["emoji"] == "🏝"                          # untouched
+    assert body["targetDate"].startswith("2026-08-15")   # untouched
+
+    # An explicit null clears recurrence → one-shot.
+    cleared = client.patch(f"/api/countdowns/{cid}", json={"recurrence": None}).json()
+    assert cleared["recurrence"] is None
+
+    # Unknown id → 404.
+    miss = client.patch("/api/countdowns/does-not-exist", json={"label": "x"})
+    assert miss.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_gifts_get_emits_partner_name_camel(session):
     a, b = await _make_pair(session, 11, 12)
     client = _client_for(a, session)

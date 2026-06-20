@@ -24,6 +24,7 @@ from pairly.api.schemas import (
     BucketStatusUpdate,
     CountdownCreate,
     CountdownOut,
+    CountdownUpdate,
     GiftCreate,
     GiftItemOut,
     GiftsResponse,
@@ -511,6 +512,30 @@ def create_app() -> FastAPI:
         except LookupError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="not found") from exc
         return {"ok": True}
+
+    @app.patch("/api/countdowns/{item_id}")
+    async def patch_countdowns(
+        item_id: str,
+        payload: CountdownUpdate,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        pair_id = _require_pair(auth)
+        try:
+            # Only fields the client actually sent (exclude_unset), so an explicit
+            # null clears a column while omitted fields are left untouched.
+            fields = payload.model_dump(exclude_unset=True, by_alias=False)
+            item = await countdowns.update_item(
+                session,
+                pair_id=pair_id,
+                user_id=auth.user.id,
+                item_id=item_id,
+                fields=fields,
+            )
+            await session.commit()
+        except LookupError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="not found") from exc
+        return _to_countdown_out(item).model_dump(by_alias=True)
 
     # --- mood ---
     @app.get("/api/mood", response_model=MoodResponse)

@@ -78,3 +78,25 @@ async def delete_item(
         raise LookupError(item_id)
     await session.delete(item)
     await session.flush()
+
+
+async def update_item(
+    session: AsyncSession,
+    *,
+    pair_id: str,
+    user_id: str,
+    item_id: str,
+    fields: dict,
+) -> Countdown:
+    """Apply a partial update. `fields` keys are python column names (label,
+    target_date, emoji, recurrence); only provided keys are written, so a key
+    explicitly passed as None clears it (e.g. recurrence → one-shot)."""
+    await _require_membership(session, pair_id, user_id)
+    item = await session.get(Countdown, item_id)
+    if item is None or item.pair_id != pair_id:
+        raise LookupError(item_id)
+    for key in ("label", "target_date", "emoji", "recurrence"):
+        if key in fields:
+            setattr(item, key, fields[key])
+    await session.flush()
+    return item

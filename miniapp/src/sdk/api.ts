@@ -29,7 +29,7 @@ export class ApiError extends Error {
 const fetchImpl: typeof fetch = USE_MOCK ? (mockFetch as unknown as typeof fetch) : window.fetch.bind(window);
 
 interface RequestOptions {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
 }
@@ -181,6 +181,15 @@ export const endpoints = {
     emoji?: string | null;
     recurrence?: Countdown["recurrence"];
   }) => request<Countdown>("/api/countdowns", { method: "POST", body: b }),
+  updateCountdown: (
+    id: string,
+    b: Partial<{
+      label: string;
+      targetDate: string;
+      emoji: string | null;
+      recurrence: Countdown["recurrence"];
+    }>,
+  ) => request<Countdown>(`/api/countdowns/${id}`, { method: "PATCH", body: b }),
   deleteCountdown: (id: string) =>
     request<{ ok: true }>(`/api/countdowns/${id}`, { method: "DELETE" }),
 

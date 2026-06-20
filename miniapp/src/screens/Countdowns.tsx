@@ -39,9 +39,17 @@ function parseRuDate(input: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Inverse of parseRuDate for prefilling the edit field: ISO → "dd.mm.yyyy". */
+function isoToRuDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+}
+
 export function Countdowns() {
   const { data, loading, error, refetch, setData } = useApi(endpoints.listCountdowns);
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [date, setDate] = useState("");
   const [emoji, setEmoji] = useState("");
@@ -51,8 +59,9 @@ export function Countdowns() {
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
+  const isEditing = editingId !== null;
 
-  /** Clear all add-modal fields — on close/cancel AND after a successful save —
+  /** Clear all modal fields — on close/cancel AND after a successful save —
    * so the next open starts fresh (no stale milestone toggle, title, or date error). */
   function resetForm() {
     setLabel("");
@@ -60,11 +69,22 @@ export function Countdowns() {
     setEmoji("");
     setMilestone(false);
     setDateErr(false);
+    setEditingId(null);
   }
-  const closeAdd = () => {
+  const closeModal = () => {
     resetForm();
     setAdding(false);
   };
+
+  /** Open the modal prefilled from an existing countdown (edit mode). */
+  function openEdit(c: Countdown) {
+    setEditingId(c.id);
+    setLabel(c.label);
+    setDate(isoToRuDate(c.targetDate));
+    setEmoji(c.emoji ?? "");
+    setMilestone(c.recurrence === "milestone");
+    setDateErr(false);
+  }
 
   async function submit() {
     if (!label.trim()) return;
@@ -75,20 +95,31 @@ export function Countdowns() {
     }
     setDateErr(false);
     setBusy(true);
+    const body = {
+      label: label.trim(),
+      targetDate: target,
+      emoji: emoji.trim() || null,
+      recurrence: milestone ? "milestone" : null,
+    } as const;
     try {
-      const item = (await endpoints.addCountdown({
-        label: label.trim(),
-        targetDate: target,
-        emoji: emoji.trim() || null,
-        recurrence: milestone ? "milestone" : undefined,
-      })) as Countdown & { newMilestones?: { kind: string; value: number }[] };
-      setData((prev) => [item, ...(prev ?? [])]);
-      setAdding(false);
-      resetForm();
-      haptic("success");
-      for (const m of item.newMilestones ?? []) {
-        emitMilestone({ kind: m.kind, value: m.value });
+      if (editingId) {
+        const item = await endpoints.updateCountdown(editingId, body);
+        setData((prev) => (prev ?? []).map((c) => (c.id === editingId ? item : c)));
+        haptic("success");
+      } else {
+        const item = (await endpoints.addCountdown({
+          label: body.label,
+          targetDate: body.targetDate,
+          emoji: body.emoji,
+          recurrence: body.recurrence === "milestone" ? "milestone" : undefined,
+        })) as Countdown & { newMilestones?: { kind: string; value: number }[] };
+        setData((prev) => [item, ...(prev ?? [])]);
+        haptic("success");
+        for (const m of item.newMilestones ?? []) {
+          emitMilestone({ kind: m.kind, value: m.value });
+        }
       }
+      closeModal();
     } catch {
       refetch();
     } finally {
@@ -163,9 +194,14 @@ export function Countdowns() {
                   ) : (
                     <div style={{ fontSize: 28, fontWeight: 700, color: "var(--tg-button)", marginTop: 4 }}>{countdownDisplay(c)}</div>
                   )}
-                  <button type="button" className="btn-ghost" style={{ width: "auto", padding: "8px 16px", color: "var(--m3-error)", borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)", marginTop: 4 }} onClick={() => remove(c)}>
-                    🗑 {COPY.common.delete}
-                  </button>
+                  <div className="card-actions" style={{ justifyContent: "center", marginTop: 6 }}>
+                    <button type="button" className="card-act ghost" onClick={() => openEdit(c)}>
+                      ✏️ {COPY.common.edit}
+                    </button>
+                    <button type="button" className="card-act danger" aria-label={COPY.common.delete} onClick={() => remove(c)}>
+                      🗑 {COPY.common.delete}
+                    </button>
+                  </div>
                 </div>
               </li>
             );
@@ -174,10 +210,11 @@ export function Countdowns() {
       )}
 
       <Modal
-        open={adding}
-        title={COPY.countdowns.addPrompt}
-        onClose={closeAdd}
+        open={adding || isEditing}
+        title={isEditing ? "Изменить отсчёт" : COPY.countdowns.addPrompt}
+        onClose={closeModal}
         onSubmit={submit}
+        submitLabel={isEditing ? COPY.common.save : undefined}
         submitDisabled={!label.trim() || !date.trim() || busy}
       >
         <TextInput
