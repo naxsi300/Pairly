@@ -47,15 +47,27 @@ export function Rituals() {
     });
   }
 
+  const total = COPY.home.rituals.length;
   const count = Object.values(done).filter(Boolean).length;
+  const pct = total ? Math.round((count / total) * 100) : 0;
+  const allDone = total > 0 && count === total;
 
   return (
     <Card>
-      <p className="rw-section-label" style={{ margin: "0 0 4px" }}>
-        {COPY.home.cardRitualsTitle}
-      </p>
-      <p className="rw-sub mb-2">{COPY.home.ritualsSub}</p>
-      <ul className="flex flex-col gap-1.5">
+      <div className="card-row" style={{ alignItems: "baseline", gap: 10 }}>
+        <div className="card-title">🔁 {COPY.home.cardRitualsTitle}</div>
+        <div className="card-sub" style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
+          {count}/{total}
+        </div>
+      </div>
+      <div className="progress" style={{ marginTop: 6 }}>
+        <div
+          className="progress-fill"
+          style={{ width: `${pct}%`, background: allDone ? "var(--tg-warm)" : "var(--tg-button)" }}
+        />
+      </div>
+      <div className="card-sub" style={{ margin: "8px 0 2px" }}>{COPY.home.ritualsSub}</div>
+      <ul className="flex flex-col gap-1" style={{ marginTop: 6 }}>
         {COPY.home.rituals.map((r) => {
           const checked = !!done[r.id];
           return (
@@ -63,28 +75,25 @@ export function Rituals() {
               <button
                 type="button"
                 onClick={() => toggle(r.id)}
-                className="flex w-full items-center gap-3 py-1 text-left"
+                aria-pressed={checked}
+                className="ritual-row"
               >
-                <span
-                  className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs"
-                  style={{
-                    background: checked ? "var(--warm)" : "var(--m3-surface-container-high)",
-                    color: checked ? "#fff" : "var(--m3-on-surface-variant)",
-                  }}
-                  aria-hidden
-                >
-                  {checked ? "✓" : ""}
-                </span>
-                <span className="text-base text-tg-text">
-                  <span className="mr-1">{r.emoji}</span>
-                  <span className={checked ? "line-through opacity-60" : ""}>{r.label}</span>
+                <span className="ritual-check" aria-hidden>{checked ? "✓" : ""}</span>
+                <span className="ritual-label">
+                  <span className="emoji" style={{ fontSize: 18 }}>{r.emoji}</span>
+                  <span className={checked ? "done" : ""}>{r.label}</span>
                 </span>
               </button>
             </li>
           );
         })}
       </ul>
-      <p className="rw-meta mt-2">{COPY.home.ritualsDone.replace("{n}", String(count))}</p>
+      {allDone ? (
+        <div className="banner banner-warm" style={{ marginTop: 10 }}>
+          <span className="emoji">🎉</span>
+          <div style={{ flex: 1 }}>все ритуалы недели выполнены — вы молодцы</div>
+        </div>
+      ) : null}
     </Card>
   );
 }

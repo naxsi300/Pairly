@@ -66,6 +66,16 @@ const partnerName = "Партнёр";
 // Demo-only Pro toggle (the hidden admin menu flips this in mock mode).
 let pro = false;
 
+// Demo pairs for the admin dashboard.
+let adminPairs: {
+  pairId: string; tier: string; isPro: boolean; dissolved: boolean; createdAt: string | null;
+  members: { tgId: number; name: string | null; username: string | null }[];
+}[] = [
+  { pairId: "p-demo", tier: pro ? "pro" : "free", isPro: pro, dissolved: false, createdAt: new Date(now - 42 * 86_400_000).toISOString(), members: [{ tgId: 1001, name: "Маша", username: "masha" }, { tgId: 1002, name: "Пётр", username: "peter" }] },
+  { pairId: "p-2", tier: "pro", isPro: true, dissolved: false, createdAt: new Date(now - 120 * 86_400_000).toISOString(), members: [{ tgId: 2001, name: "Даша", username: null }, { tgId: 2002, name: "Игорь", username: "igor" }] },
+  { pairId: "p-3", tier: "free", isPro: false, dissolved: false, createdAt: new Date(now - 5 * 86_400_000).toISOString(), members: [{ tgId: 3001, name: null, username: "kat" }, { tgId: 3002, name: "Лёша", username: null }] },
+];
+
 /**
  * E2E SEAM: Playwright (or any test harness) can override mock state via
  * `window.__PAIRLY_E2E__` BEFORE the page loads app code. e.g.:
@@ -136,6 +146,17 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
       case "/api/admin/status":
         // Mock: always admin-enabled in demo so the hidden menu works locally.
         return json({ pairId: "demo-pair", userId: "demo-user", tgId: 0, tier: pro ? "pro" : "free", isPro: pro, adminEnabled: true });
+      case "/api/admin/stats":
+        return json({ total: adminPairs.length, pro: adminPairs.filter((p) => p.isPro).length, free: adminPairs.filter((p) => !p.isPro).length, dissolved: 0 });
+      case "/api/admin/pairs":
+        return json({ items: adminPairs });
+      case "/api/admin/lookup": {
+        const tg = Number(url.searchParams.get("tg"));
+        const found = adminPairs.find((p) => p.members.some((m) => m.tgId === tg));
+        return found ? json(found) : json({ error: "not found" }, 404);
+      }
+      case "/api/admin/audit":
+        return json({ items: [{ actorTgId: 0, action: "grant_pro", targetPairId: adminPairs[1]?.pairId ?? "x", detail: "{}", createdAt: new Date(now - 3600_000).toISOString() }] });
       case "/api/date-idea": {
         const m = url.searchParams.get("mode");
         if (m === "smart") {
@@ -214,6 +235,12 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
           gifts = gifts.map((g) => (g.id === id ? { ...g, status: next[action] ?? g.status } : g));
           return json(gifts.find((g) => g.id === id) ?? {}, 200);
         }
+        if (path.startsWith("/api/admin/pairs/") && path.endsWith("/pro")) {
+          // POST /api/admin/pairs/<id>/pro — grant
+          const id = path.split("/")[4];
+          adminPairs = adminPairs.map((p) => (p.pairId === id ? { ...p, isPro: true, tier: "pro" } : p));
+          return json({ isPro: true }, 200);
+        }
         return json({ ok: true });
     }
   }
@@ -231,6 +258,11 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
     if (path === "/api/mood") {
       moodSelf = null;
       return json({ ok: true });
+    }
+    if (path.startsWith("/api/admin/pairs/") && path.endsWith("/pro")) {
+      const id = path.split("/")[4];
+      adminPairs = adminPairs.map((p) => (p.pairId === id ? { ...p, isPro: false, tier: "free" } : p));
+      return json({ isPro: false }, 200);
     }
     if (path.startsWith("/api/wishlist/")) {
       const id = path.split("/")[3];

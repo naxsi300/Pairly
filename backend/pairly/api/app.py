@@ -869,6 +869,121 @@ def create_app() -> FastAPI:
         pair_obj = await session.get(Pair, pair_id)
         return {"isPro": bool(pair_obj and pair_obj.is_pro())}
 
+    # --- admin: manage ALL pairs (dashboard) — admin-gated, 404 for non-admins ---
+
+    def _pair_out(pair: Pair, members: list) -> dict:  # type: ignore[type-arg]
+        return {
+            "pairId": pair.id,
+            "tier": pair.tier.value,
+            "isPro": pair.is_pro(),
+            "dissolved": pair.dissolved_at is not None,
+            "createdAt": pair.created_at.isoformat() if pair.created_at else None,
+            "members": [
+                {
+                    "tgId": m.tg_id,
+                    "name": m.display_name,
+                    "username": m.tg_username,
+                }
+                for m in members
+            ],
+        }
+
+    @app.get("/api/admin/stats")
+    async def admin_stats(
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        return await admin_repo.pair_counts(session)
+
+    @app.get("/api/admin/pairs")
+    async def admin_list_pairs(
+        limit: int = 20,
+        offset: int = 0,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        rows = await admin_repo.list_pairs(session, limit=limit, offset=offset)
+        return {"items": [_pair_out(p, ms) for p, ms in rows]}
+
+    @app.get("/api/admin/lookup")
+    async def admin_lookup_pair(
+        tg: int,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        """Resolve a pair by any member's Telegram id."""
+        from pairly.db.models import User
+        from sqlalchemy import select as _select
+
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        resolved = await admin_repo.resolve_pair_by_tg_id(session, tg)
+        if resolved is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="pair not found")
+        _user, pair = resolved
+        members = list((await session.execute(_select(User).where(User.pair_id == pair.id))).scalars())
+        return _pair_out(pair, members)
+
+    @app.post("/api/admin/pairs/{target_pair_id}/pro")
+    async def admin_grant_pro(
+        target_pair_id: str,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        try:
+            pair = await admin_repo.grant_pro(
+                session, actor_tg_id=auth.user.tg_id, target_pair_id=target_pair_id
+            )
+        except admin_repo.AdminError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        await session.commit()
+        return {"isPro": pair.is_pro()}
+
+    @app.delete("/api/admin/pairs/{target_pair_id}/pro")
+    async def admin_revoke_pro(
+        target_pair_id: str,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        try:
+            pair = await admin_repo.revoke_pro(
+                session, actor_tg_id=auth.user.tg_id, target_pair_id=target_pair_id
+            )
+        except admin_repo.AdminError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        await session.commit()
+        return {"isPro": pair.is_pro()}
+
+    @app.get("/api/admin/audit")
+    async def admin_audit(
+        limit: int = 20,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        rows = await admin_repo.recent_audit(session, limit=limit)
+        return {
+            "items": [
+                {
+                    "actorTgId": r.actor_tg_id,
+                    "action": r.action,
+                    "targetPairId": r.target_pair_id,
+                    "detail": r.detail,
+                    "createdAt": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ]
+        }
+
     return app
 
 

@@ -177,3 +177,49 @@ async def test_admin_status_and_toggle_pro(session, monkeypatch):
     client_b = _client_for(b, session)
     assert client_b.get("/api/admin/status").status_code == 404
     assert client_b.post("/api/admin/toggle-pro").status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_dashboard_manages_other_pairs(session, monkeypatch):
+    import pairly.config as cfg
+
+    a, _b = await _make_pair(session, 17, 18)
+    c, d = await _make_pair(session, 19, 20)  # a second, "other" pair
+    monkeypatch.setattr(cfg, "admin_tg_id_set", lambda: {17})  # `a` is the admin
+    client = _client_for(a, session)
+
+    # Stats.
+    stats = client.get("/api/admin/stats")
+    assert stats.status_code == 200
+    assert stats.json()["total"] >= 2
+
+    # List pairs.
+    pairs = client.get("/api/admin/pairs?limit=10").json()["items"]
+    assert len(pairs) >= 2
+    assert {p["pairId"] for p in pairs} >= {a.pair_id, c.pair_id} if hasattr(a, "pair_id") else True
+
+    # Lookup the other pair by a member's tg id.
+    lookup = client.get("/api/admin/lookup?tg=20")
+    assert lookup.status_code == 200
+    assert lookup.json()["pairId"] == c.pair_id
+    assert lookup.json()["isPro"] is False
+
+    # Grant Pro on the OTHER pair (not the admin's own).
+    grant = client.post(f"/api/admin/pairs/{c.pair_id}/pro")
+    assert grant.status_code == 200
+    assert grant.json()["isPro"] is True
+
+    # Audit log records the grant.
+    audit = client.get("/api/admin/audit?limit=5").json()["items"]
+    assert any(row["action"] == "grant_pro" and row["targetPairId"] == c.pair_id for row in audit)
+
+    # Revoke Pro on the other pair.
+    revoke = client.delete(f"/api/admin/pairs/{c.pair_id}/pro")
+    assert revoke.status_code == 200
+    assert revoke.json()["isPro"] is False
+
+    # Non-admin → 404 on every dashboard endpoint.
+    monkeypatch.setattr(cfg, "admin_tg_id_set", lambda: set())
+    client_d = _client_for(d, session)
+    assert client_d.get("/api/admin/pairs").status_code == 404
+    assert client_d.post(f"/api/admin/pairs/{c.pair_id}/pro").status_code == 404

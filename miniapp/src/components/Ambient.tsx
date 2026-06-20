@@ -28,7 +28,7 @@ const CHALLENGES: { emoji: string; title: string; desc: string }[] = [
   { emoji: "🌅", title: "Встретить закат", desc: "Найдите точку и проводите солнце вместе" },
 ];
 
-/** Weekly couple-challenge — a warm hero with an accept/progress toggle. */
+/** Weekly couple-challenge — a warm hero with a 3-state accept→done flow. */
 export function CoupleChallenge() {
   const week = weekKey();
   const idx = (() => {
@@ -39,39 +39,59 @@ export function CoupleChallenge() {
   })();
   const ch = CHALLENGES[idx];
 
-  const [steps, setSteps] = useState(0);
+  // 0 = idle, 1 = accepted, 2 = done.
+  const [step, setStep] = useState(0);
   useEffect(() => {
     const raw = localStorage.getItem(`pairly.challenge.${week}`);
-    setSteps(raw ? Number(JSON.parse(raw)) : 0);
+    setStep(raw ? Number(JSON.parse(raw)) || 0 : 0);
   }, [week]);
 
-  function bump() {
-    setSteps((prev) => {
-      const next = prev >= 1 ? 0 : 1; // toggle accepted↔done
-      try {
-        localStorage.setItem(`pairly.challenge.${week}`, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      haptic(next ? "success" : "light");
-      return next;
-    });
+  function persist(next: number) {
+    setStep(next);
+    try {
+      localStorage.setItem(`pairly.challenge.${week}`, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    haptic(next === 2 ? "success" : "light");
   }
 
+  const pct = step === 0 ? 0 : step === 1 ? 50 : 100;
+
   return (
-    <div className="hero-warm" style={{ textAlign: "center", padding: "20px" }}>
-      <div style={{ fontSize: 13, color: "var(--tg-warm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
-        {COPY.home.challengeTitle}
+    <div className="hero-warm" style={{ padding: "18px 18px 16px" }}>
+      <div className="card-row" style={{ alignItems: "center", gap: 12 }}>
+        <span className="emoji" style={{ fontSize: 34, flexShrink: 0 }}>{ch.emoji}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: "var(--tg-warm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+            {COPY.home.challengeTitle}
+          </div>
+          <div className="card-title" style={{ marginTop: 2 }}>{ch.title}</div>
+          <div className="card-sub" style={{ marginTop: 2 }}>{ch.desc}</div>
+        </div>
       </div>
-      <div style={{ fontSize: 42, margin: "8px 0" }}>{ch.emoji}</div>
-      <div style={{ fontSize: 20, fontWeight: 700 }}>{ch.title}</div>
-      <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 6 }}>{ch.desc}</div>
-      <div className="progress" style={{ marginTop: 14 }}>
-        <div className="progress-fill" style={{ width: steps ? "100%" : "0%", background: steps ? "var(--tg-warm)" : "var(--tg-button)" }} />
+
+      <div className="progress" style={{ marginTop: 12 }}>
+        <div className="progress-fill" style={{ width: `${pct}%`, background: step === 2 ? "var(--tg-warm)" : "var(--tg-button)" }} />
       </div>
-      <button type="button" className="btn-warm" style={{ marginTop: 12 }} onClick={bump}>
-        {steps ? COPY.home.challengeDone : COPY.home.challengeAccept}
-      </button>
+
+      <div className="card-actions" style={{ marginTop: 10 }}>
+        {step === 0 ? (
+          <button type="button" className="card-act warm" onClick={() => persist(1)}>
+            {COPY.home.challengeAccept}
+          </button>
+        ) : step === 1 ? (
+          <>
+            <button type="button" className="card-act ghost" onClick={() => persist(0)}>Отмена</button>
+            <button type="button" className="card-act warm" onClick={() => persist(2)}>✓ Выполнили</button>
+          </>
+        ) : (
+          <>
+            <span className="card-sub" style={{ flex: 1, color: "var(--tg-warm)", fontWeight: 600 }}>🎉 {COPY.home.challengeDone}</span>
+            <button type="button" className="card-act ghost" onClick={() => persist(0)}>↺</button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

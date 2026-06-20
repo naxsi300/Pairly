@@ -243,6 +243,40 @@ export const endpoints = {
     }>("/api/admin/status"),
   togglePro: () =>
     request<{ isPro: boolean }>("/api/admin/toggle-pro", { method: "POST" }),
+  getAdminStats: () =>
+    request<{ total: number; pro: number; free: number; dissolved: number }>(
+      "/api/admin/stats",
+    ),
+  listAdminPairs: (limit = 20, offset = 0) =>
+    request<{ items: AdminPair[] }>(
+      `/api/admin/pairs?limit=${limit}&offset=${offset}`,
+    ),
+  lookupPair: (tg: number) =>
+    request<AdminPair>(`/api/admin/lookup?tg=${tg}`),
+  setPairPro: (pairId: string, enable: boolean) =>
+    request<{ isPro: boolean }>(
+      `/api/admin/pairs/${pairId}/pro`,
+      { method: enable ? "POST" : "DELETE" },
+    ),
+  getAdminAudit: (limit = 20) =>
+    request<{ items: AdminAuditEntry[] }>(`/api/admin/audit?limit=${limit}`),
+};
+
+export type AdminPair = {
+  pairId: string;
+  tier: string;
+  isPro: boolean;
+  dissolved: boolean;
+  createdAt: string | null;
+  members: { tgId: number; name: string | null; username: string | null }[];
+};
+
+export type AdminAuditEntry = {
+  actorTgId: number;
+  action: string;
+  targetPairId: string;
+  detail: string | null;
+  createdAt: string | null;
 };
 
 // ---------------------------------------------------------------------------

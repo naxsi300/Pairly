@@ -112,8 +112,8 @@ function qotdStatus(q: QOTDResponse | null | undefined): string {
   return COPY.home.qotdYouWaiting;
 }
 
-/** A warm "tap to open" section entry — distinguishes navigational cards from
- *  the neutral ambient (live-data) cards via the warm-container tint + chevron. */
+/** A "tap to open" section entry — same .card surface as the ambient cards so it
+ *  reads as part of the feed; the warm chevron is the only accent. */
 function EntryCard({
   emoji,
   title,
@@ -130,20 +130,14 @@ function EntryCard({
       type="button"
       onClick={onClick}
       className="card card-row"
-      style={{
-        border: "none",
-        cursor: "pointer",
-        textAlign: "left",
-        alignItems: "center",
-        background: "var(--warm-container)",
-      }}
+      style={{ border: "none", cursor: "pointer", textAlign: "left", alignItems: "center" }}
     >
-      <span className="emoji" style={{ fontSize: 26 }}>{emoji}</span>
+      <span className="emoji" style={{ fontSize: 24 }}>{emoji}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div className="card-title">{title}</div>
         <div className="card-sub">{sub}</div>
       </div>
-      <span style={{ color: "var(--tg-warm)", fontWeight: 700, fontSize: 18 }}>→</span>
+      <span style={{ color: "var(--tg-hint)", fontWeight: 700, fontSize: 18 }}>›</span>
     </button>
   );
 }
