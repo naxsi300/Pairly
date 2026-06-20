@@ -6,13 +6,18 @@ the wheel always has an answer. No geo (user-rejected) — only wishlist + mood.
 
 from __future__ import annotations
 
+import logging
 import secrets
 from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.db.models import WishlistItem, WishlistStatus
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -67,6 +72,20 @@ def _category_label(category: str | None) -> str:
     return _CATEGORY_LABELS.get(category or "", "совместных идей")
 
 
+def _resolve_tz(timezone: str | None) -> ZoneInfo:
+    """Parse a caller-provided IANA name; fall back to UTC on bad input.
+
+    We never want a bad timezone string to crash the wheel — the time-of-day
+    label is a soft prompt hint, not a hard contract.
+    """
+    if not timezone:
+        return ZoneInfo("UTC")
+    try:
+        return ZoneInfo(timezone)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
+
 async def pick_date_idea(
     session: AsyncSession,
     *,
@@ -74,6 +93,7 @@ async def pick_date_idea(
     category: str | None,
     user_id: str,
     mode: str = "random",
+    timezone: str | None = None,
 ) -> DateIdea:
     """Return a single date idea.
 
@@ -85,17 +105,27 @@ async def pick_date_idea(
       - "lucky": an OmniRoute pick of ANY idea (not limited to the wishlist).
         Pro-only; falls back to a canned idea if OmniRoute isn't configured.
 
+    ``timezone`` is an IANA name (e.g. ``"Asia/Tokyo"``); the smart-mode prompt
+    uses it to label the time-of-day correctly. Unknown / missing values fall
+    back to UTC. Random mode ignores it (no time-of-day hint in that prompt).
+
     No geolocation/weather (real-time geo is a hard non-goal) — only wishlist +
     moods + broad time context.
     """
     if mode in ("smart", "lucky"):
         try:
             return await _ai_pick(
-                session, pair_id=pair_id, mode=mode, user_id=user_id, category=category
+                session,
+                pair_id=pair_id,
+                mode=mode,
+                user_id=user_id,
+                category=category,
+                timezone=timezone,
             )
-        except Exception:
+        except Exception as exc:
             # AI not configured / errored → degrade gracefully to the random path.
-            pass
+            # Logged (mode + exception) so operators can spot upstream flakiness.
+            logger.warning("date_idea %s mode: AI unavailable, falling back (%s)", mode, exc)
     items = await _open_items(session, pair_id, category)
     if items:
         chosen = secrets.choice(items)
@@ -121,11 +151,18 @@ _SYSTEM_PROMPT = (
 
 
 async def _build_context(
-    session: AsyncSession, *, pair_id: str, user_id: str, include_wishlist: bool = True
+    session: AsyncSession,
+    *,
+    pair_id: str,
+    user_id: str,
+    include_wishlist: bool = True,
+    timezone: str | None = None,
 ) -> str:
-    """Wishlist (optional) + current moods + time-of-day, as a prompt block."""
-    from datetime import datetime
+    """Wishlist (optional) + current moods + time-of-day, as a prompt block.
 
+    ``timezone`` is an IANA name; the time-of-day label uses the caller's local
+    clock so a Tokyo user doesn't see «утро» when it's «вечер» for them.
+    """
     from pairly.repositories import mood as mood_repo
 
     lines: list[str] = []
@@ -148,14 +185,21 @@ async def _build_context(
             lines.append("Текущие настроения пары: " + ", ".join(parts) + ".")
     except Exception:
         pass
-    hour = datetime.now().hour
+    tz = _resolve_tz(timezone)
+    hour = datetime.now(tz).hour
     tod = "утро" if 5 <= hour < 12 else "день" if 12 <= hour < 18 else "вечер" if 18 <= hour < 23 else "ночь"
     lines.append(f"Сейчас {tod}.")
     return "\n".join(lines)
 
 
 async def _ai_pick(
-    session: AsyncSession, *, pair_id: str, mode: str, user_id: str, category: str | None
+    session: AsyncSession,
+    *,
+    pair_id: str,
+    mode: str,
+    user_id: str,
+    category: str | None,
+    timezone: str | None = None,
 ) -> DateIdea:
     from pairly.ai import AIError, chat_json
 
@@ -174,7 +218,13 @@ async def _ai_pick(
             items = await _open_items(session, pair_id, None)
         if not items:
             raise AIError("empty wishlist for smart pick")
-        context = await _build_context(session, pair_id=pair_id, user_id=user_id, include_wishlist=True)
+        context = await _build_context(
+            session,
+            pair_id=pair_id,
+            user_id=user_id,
+            include_wishlist=True,
+            timezone=timezone,
+        )
         user_msg = (
             "Выбери ОДНО свидание ИХ ЖЕ списка желаний (можно переформулировать "
             "красивее, но суть — из вишлиста) и объясни, почему оно подходит сейчас.\n\n"
@@ -183,7 +233,13 @@ async def _ai_pick(
         )
         source = "wishlist"
     else:  # lucky — do NOT bias with the wishlist; it's "any idea".
-        context = await _build_context(session, pair_id=pair_id, user_id=user_id, include_wishlist=False)
+        context = await _build_context(
+            session,
+            pair_id=pair_id,
+            user_id=user_id,
+            include_wishlist=False,
+            timezone=timezone,
+        )
         user_msg = (
             "Предложи ОДНО новое свидание для этой пары — не из их списка, а свежую идею. "
             "Объясни, почему.\n\n"
