@@ -54,7 +54,9 @@ async def accept_invite(session: AsyncSession, accepter: User, token: str) -> Pa
     if accepter.pair_id is not None:
         raise InviteError("Вы уже в паре.")
 
-    invite = await session.scalar(select(PairInvite).where(PairInvite.token == token))
+    invite = await session.scalar(
+        select(PairInvite).where(PairInvite.token == token).with_for_update()
+    )
     if invite is None:
         raise InviteError("Приглашение не найдено.")
     if invite.consumed_by is not None or invite.consumed_at is not None:
@@ -99,6 +101,7 @@ async def dissolve_pair(session: AsyncSession, user_id: str) -> None:
         BucketItem,
         Countdown,
         GiftItem,
+        LoveNote,
         MoodEntry,
         PairMilestone,
         QOTDAnswer,
@@ -108,6 +111,8 @@ async def dissolve_pair(session: AsyncSession, user_id: str) -> None:
     pair = await get_user_pair(session, user_id)
 
     # Delete all pair-scoped content. Each table carries pair_id (the invariant).
+    # LoveNote is included explicitly — the Pair row is tombstoned (never deleted),
+    # so the LoveNote.pair_id FK ondelete=CASCADE never fires on its own.
     from sqlalchemy import delete
 
     for model in (
@@ -118,6 +123,7 @@ async def dissolve_pair(session: AsyncSession, user_id: str) -> None:
         MoodEntry,
         QOTDAnswer,
         PairMilestone,
+        LoveNote,
     ):
         await session.execute(delete(model).where(model.pair_id == pair.id))
 

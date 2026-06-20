@@ -10,6 +10,7 @@ from pairly.db.models import (
     BucketItem,
     Countdown,
     GiftItem,
+    LoveNote,
     MoodEntry,
     Pair,
     PairMilestone,
@@ -21,6 +22,7 @@ from pairly.repositories import (
     bucket,
     countdowns,
     gifts,
+    love_notes,
     mood,
     pairs,
     qotd,
@@ -48,6 +50,9 @@ async def _seed_pair_with_everything(session):
     )
     await mood.set_mood(session, pair_id=pair.id, user_id=a.id, mood="сияю")
     await gifts.create_gift(session, pair_id=pair.id, giver_id=a.id, gesture="Массаж")
+    await love_notes.create_note(
+        session, pair_id=pair.id, user_id=a.id, body="люблю тебя"
+    )
     q = await qotd.todays_question(session)
     await qotd.post_answer(
         session, pair_id=pair.id, user_id=a.id, question_id=q.id, body="хорошо"
@@ -61,7 +66,7 @@ async def test_dissolve_pair_wipes_all_shared_data(session):
     a, b, pair = await _seed_pair_with_everything(session)
 
     # Pre-conditions: data exists.
-    for model in (WishlistItem, BucketItem, Countdown, MoodEntry, GiftItem, QOTDAnswer):
+    for model in (WishlistItem, BucketItem, Countdown, MoodEntry, GiftItem, QOTDAnswer, LoveNote):
         rows = (await session.scalars(select(model).where(model.pair_id == pair.id))).all()
         assert len(rows) >= 1, f"expected at least one {model.__name__} before dissolve"
 
@@ -77,6 +82,7 @@ async def test_dissolve_pair_wipes_all_shared_data(session):
         GiftItem,
         QOTDAnswer,
         PairMilestone,
+        LoveNote,
     ):
         rows = (await session.scalars(select(model).where(model.pair_id == pair.id))).all()
         assert rows == [], f"{model.__name__} should be empty after dissolve, got {len(rows)}"
