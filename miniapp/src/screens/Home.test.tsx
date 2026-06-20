@@ -19,8 +19,9 @@ vi.mock("../sdk/api", async () => {
         myAnswer: null, partnerAnswered: false, partnerAnswer: null, partnerName: "Маша",
       }),
       listCountdowns: vi.fn().mockResolvedValue([
-        // a past countdown → appears in the dynamic strip
-        { id: "c1", label: "Знакомство", emoji: "💛", targetDate: new Date(Date.now() - 112 * 86_400_000).toISOString(), recurrence: "annual" },
+        // a past one-shot countdown → appears in the elapsed-time strip
+        // (annual/monthly now roll forward to "Ближайший повод", not the strip)
+        { id: "c1", label: "Знакомство", emoji: "💛", targetDate: new Date(Date.now() - 112 * 86_400_000).toISOString(), recurrence: null },
       ]),
       getDateIdea: vi.fn().mockResolvedValue({ source: "wishlist", title: "Пицца", category: "eat" }),
     },

@@ -213,8 +213,10 @@ class Countdown(Base):
     emoji: Mapped[str | None] = mapped_column(String(16), nullable=True)
     target_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Recurrence rule: 'annual' | 'monthly' | 'milestone' | None.
-    # 'annual'/'monthly' roll conceptually; 'milestone' marks a reference date
-    # (e.g. дата знакомства) whose round anniversaries are synthesized client-side.
+    # 'annual'/'monthly': the next occurrence is computed at read time (client-side)
+    # once the date passes — the stored target_date is NOT mutated.
+    # 'milestone': target_date is a reference point (e.g. дата знакомства) whose
+    # round anniversaries are synthesized client-side.
     recurrence: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

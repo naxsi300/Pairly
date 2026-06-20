@@ -51,14 +51,18 @@ export function giftStatusLabel(s: GiftStatus): string {
 /**
  * Countdown display per docs/copy/countdowns.md:
  * >48h → "через N дн."; ≤48h → "через N ч"; past → "N дн. назад"; today → "сегодня!".
+ * Recurring (annual/monthly) countdowns roll forward to their next occurrence,
+ * so a passed anniversary shows "через N дн." to the next one, not "N дн. назад".
  */
 export function countdownDisplay(c: Countdown, now: Date = new Date()): string {
-  const target = new Date(c.targetDate).getTime();
+  const occ = nextOccurrence(c, now);
+  const targetDate = occ ?? new Date(c.targetDate);
+  const target = targetDate.getTime();
   const diffMs = target - now.getTime();
   const isSameDay =
-    now.getFullYear() === new Date(c.targetDate).getFullYear() &&
-    now.getMonth() === new Date(c.targetDate).getMonth() &&
-    now.getDate() === new Date(c.targetDate).getDate();
+    now.getFullYear() === targetDate.getFullYear() &&
+    now.getMonth() === targetDate.getMonth() &&
+    now.getDate() === targetDate.getDate();
   if (isSameDay) return "сегодня!";
   if (diffMs > 0) {
     if (diffMs <= 48 * 3600_000) {
@@ -92,15 +96,47 @@ function ruYears(n: number): string {
   return `${n} лет`;
 }
 
-/** Add N years to a date, clamping Feb 29 → Feb 28 on non-leap years (the JS
- * Date constructor would otherwise silently overflow to Mar 1). */
-function addYears(d: Date, years: number): Date {
-  const res = new Date(d.getFullYear() + years, d.getMonth(), d.getDate());
+/** Add N months to a date, clamping the day to month-end on overflow (e.g.
+ * Jan 31 + 1 month → Feb 28/29; Feb 29 + 12 months on a non-leap year → Feb 28).
+ * The JS Date constructor would otherwise silently spill into the next month. */
+function addMonths(d: Date, months: number): Date {
+  const res = new Date(d.getFullYear(), d.getMonth() + months, d.getDate());
   if (res.getDate() !== d.getDate()) {
-    // day rolled over (Feb 29 target on a non-leap year) → last day of target month
-    return new Date(d.getFullYear() + years, d.getMonth() + 1, 0);
+    // day rolled over → last day of the target month
+    return new Date(d.getFullYear(), d.getMonth() + months + 1, 0);
   }
   return res;
+}
+
+/** Add N years (12 months each), with the same month-end clamping. */
+function addYears(d: Date, years: number): Date {
+  return addMonths(d, years * 12);
+}
+
+/**
+ * For a recurring countdown (recurrence "annual"/"monthly"), the EFFECTIVE
+ * target is the next occurrence on/after today — computed at read time, without
+ * mutating the stored date (so the original is preserved and there's no race).
+ * Returns null for one-shot (null) and milestone countdowns; callers then use
+ * the raw target / nextMilestone() respectively. Iterations are capped as a guard.
+ */
+export function nextOccurrence(c: Countdown, now: Date = new Date()): Date | null {
+  if (c.recurrence !== "annual" && c.recurrence !== "monthly") return null;
+  const base = new Date(c.targetDate);
+  if (Number.isNaN(base.getTime())) return null;
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Add the step to the ORIGINAL base each iteration (not the rolled date) so a
+  // month-end date like Jan 31 doesn't stick: Jan 31 → Feb 28 → Mar 31 → Apr 30…
+  const stepMonths = c.recurrence === "annual" ? 12 : 1;
+  let n = 0;
+  let d = base;
+  let guard = 0;
+  while (d.getTime() < todayStart.getTime() && guard < 600) {
+    n += 1;
+    d = addMonths(base, n * stepMonths);
+    guard++;
+  }
+  return d;
 }
 
 // Round "together" day-count milestones generated from a reference date.

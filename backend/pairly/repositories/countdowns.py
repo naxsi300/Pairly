@@ -1,7 +1,9 @@
 """Countdowns repository — pair-scoped, with free-tier limit (10).
 
 A target date is a resolved instant (store the datetime, not a floating date) so the
-"today" boundary is unambiguous across time zones. Recurrence rolls day-after-passing.
+"today" boundary is unambiguous across time zones. Recurrence ('annual'/'monthly') is
+interpreted at READ time by the Mini App (it rolls forward to the next occurrence once
+the stored date passes); the row itself is never mutated, so the original date survives.
 """
 
 from __future__ import annotations

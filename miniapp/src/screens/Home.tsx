@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import type { MoodResponse, QOTDResponse } from "../sdk/api";
 import type { Countdown } from "../types";
-import { countdownDisplay, countdownEmoji, nextMilestone } from "../lib/format";
+import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
 import { DateWheel } from "../components/DateWheel";
 import { MoreSheet, type Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
@@ -96,7 +96,10 @@ function nearestOccasion(
       const m = nextMilestone(c);
       if (m) cands.push({ at: m.date.getTime(), emoji: countdownEmoji(c), label: m.label, sub: occasionSub(m.daysUntil) });
     } else {
-      const at = new Date(c.targetDate).getTime();
+      // Recurring (annual/monthly) countdowns roll forward to their next
+      // occurrence — include those even when the stored date has passed.
+      const occ = nextOccurrence(c);
+      const at = (occ ?? new Date(c.targetDate)).getTime();
       if (at > now) cands.push({ at, emoji: countdownEmoji(c), label: c.label, sub: countdownDisplay(c) });
     }
   }

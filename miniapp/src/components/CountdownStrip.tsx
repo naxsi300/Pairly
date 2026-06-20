@@ -15,7 +15,10 @@ export function CountdownStrip({ items }: { items: Countdown[] }) {
   const now = new Date();
   const rows = items
     .map((c) => ({ c, days: countdownDays(c, now) }))
-    .filter((r) => r.days <= 0) // elapsed only — the together/ago timeline
+    // Elapsed only — the together/ago timeline. Recurring (annual/monthly)
+    // countdowns are excluded: they roll forward to "Ближайщий повод" instead
+    // of freezing as "N дней назад".
+    .filter((r) => r.days <= 0 && r.c.recurrence !== "annual" && r.c.recurrence !== "monthly")
     .sort((a, b) => {
       const am = a.c.recurrence === "milestone" ? 0 : 1;
       const bm = b.c.recurrence === "milestone" ? 0 : 1;

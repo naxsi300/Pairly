@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
-import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone } from "../lib/format";
+import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -11,9 +11,11 @@ import { Modal } from "../components/Modal";
 import { TextInput } from "../components/Field";
 
 /** Split a countdown into day/hour/min blocks for the gallery `.countdown` layout.
- * Returns null when the target has passed (caller falls back to countdownDisplay). */
+ * Recurring countdowns roll forward to their next occurrence. Returns null when
+ * the (effective) target has passed (caller falls back to countdownDisplay). */
 function cdBlocks(c: Countdown, now: Date = new Date()): { num: string; label: string }[] | null {
-  const diff = new Date(c.targetDate).getTime() - now.getTime();
+  const target = (nextOccurrence(c, now) ?? new Date(c.targetDate)).getTime();
+  const diff = target - now.getTime();
   if (diff <= 0) return null;
   const d = Math.floor(diff / 86_400_000);
   const h = Math.floor((diff % 86_400_000) / 3_600_000);
