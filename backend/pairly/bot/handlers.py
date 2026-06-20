@@ -24,6 +24,8 @@ from pairly.repositories.base import NotPairedError
 from pairly.repositories.pairs import InviteError
 from pairly.repositories.wishlist import WishlistLimitError
 
+from pairly.bot.text import truncate_graphemes
+
 router = Router(name="pairly-main")
 
 
@@ -315,7 +317,7 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
         from pairly.bot.parse import parse_forwarded_text
 
         parsed = parse_forwarded_text(text)
-        title = parsed.title or text.strip()[:256]
+        title = parsed.title or truncate_graphemes(text.strip(), 256)
 
         # Capture the forwarded photo's file_id (best-effort). We store ONLY the
         # Telegram file_id — no disk. The API resolves it to a temp URL on demand
@@ -340,6 +342,7 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
                 notes=notes,
                 telegram_file_id=telegram_file_id,
                 source_url=source_url,
+                source_message_id=message.message_id,
                 status=WishlistStatus.PENDING,  # two-tap: partner must approve
             )
             await session.commit()
@@ -381,11 +384,15 @@ async def on_title_reply(message: Message, state: FSMContext) -> None:
         await message.answer("Не получилось сохранить. Попробуйте переслать ещё раз.")
         return
 
-    title = message.text.strip()[:256]
+    title = truncate_graphemes(message.text.strip(), 256)
     async with SessionLocal() as session:
         try:
             await wishlist.create_item(
-                session, pair_id=pair_id, user_id=user_id, title=title
+                session,
+                pair_id=pair_id,
+                user_id=user_id,
+                title=title,
+                source_message_id=f"fsm-colon-{message.message_id}",
             )
             await session.commit()
         except WishlistLimitError:
