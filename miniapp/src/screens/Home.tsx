@@ -4,13 +4,13 @@ import { endpoints, useApi } from "../sdk/api";
 import type { MoodResponse, QOTDResponse } from "../sdk/api";
 import type { Countdown, WishlistItem } from "../types";
 import { countdownDisplay, countdownEmoji } from "../lib/format";
-import { Card } from "../components/Card";
 import { DateWheel } from "../components/DateWheel";
 import { MoreSheet, type Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { haptic } from "../sdk/twa";
 
-/** Home dashboard — the front door tying ambient cards together (R-warm). */
+/** Home — 1:1 with the R-warm gallery "Ваш уголок": heading + warm hero CTA +
+ * ambient cards (mood, next occasion, QOTD, rituals). */
 export function Home({
   onOpen,
   onOpenTab,
@@ -27,123 +27,98 @@ export function Home({
   const [more, setMore] = useState(false);
 
   const days = stats.data?.togetherDays ?? 0;
-  const openWishlist = (wl.data ?? []).filter((i) => i.status === "open");
+  const openCount = (wl.data ?? []).filter((i) => i.status === "open").length;
+  const doneCount = (wl.data ?? []).filter((i) => i.status === "done").length;
   const nearest = (cds.data ?? [])
     .filter((c) => new Date(c.targetDate).getTime() > Date.now())
     .sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime())[0];
-  // "Soon" nudge: highlight when the nearest occasion is within 3 days.
   const daysToNearest = nearest
     ? Math.round((new Date(nearest.targetDate).getTime() - Date.now()) / 86_400_000)
     : null;
   const occasionSoon = daysToNearest !== null && daysToNearest <= 3;
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
-      <h1 className="rw-heading">{COPY.home.heading}</h1>
-      <p className="rw-sub">{COPY.home.greeting(days)}</p>
+    <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
+      <h1 className="heading">{COPY.home.heading}</h1>
+      <div className="sub">{COPY.home.greeting(days)}</div>
 
-      {/* Date-wheel CTA (warm hero) */}
-      <button
-        type="button"
-        onClick={() => { haptic("light"); setWheel(true); }}
-        className="rw-hero-warm text-left"
-      >
-        <p className="text-base font-semibold text-tg-text">{COPY.home.wheelCta}</p>
-        <p className="rw-sub">{COPY.home.wheelSub}</p>
+      {/* Date-wheel warm hero CTA */}
+      <button type="button" onClick={() => { haptic("light"); setWheel(true); }} className="hero-warm" style={{ textAlign: "center", padding: "24px 20px", border: "none", cursor: "pointer" }}>
+        <div style={{ fontSize: 48, marginBottom: 8 }}>🎡</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--tg-text)" }}>{COPY.home.wheelSub}</div>
+        <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 4 }}>{COPY.home.wheelCta}</div>
       </button>
 
-      {/* Open wishlist quick glance → Wishlist tab (not Bucket) */}
-      <Card>
-        <button
-          type="button"
-          onClick={() => onOpenTab("wishlist")}
-          className="flex w-full items-center justify-between text-left"
-        >
-          <span className="text-base text-tg-text">
-            {openWishlist.length > 0
-              ? `${openWishlist.length} ${openWishlist.length === 1 ? "хотелка" : "хотелок"} в списке`
-              : "Хотите что-то попробовать?"}
-          </span>
-          <span className="rw-meta">→</span>
-        </button>
-      </Card>
+      {/* Together stats row */}
+      {days > 0 ? (
+        <div className="stat-row">
+          <div className="stat">
+            <div className="stat-big">{days}</div>
+            <div className="stat-label">дней вместе</div>
+          </div>
+          <div className="stat">
+            <div className="stat-big">{openCount}</div>
+            <div className="stat-label">хотелок в списке</div>
+          </div>
+          <div className="stat">
+            <div className="stat-big">{doneCount}</div>
+            <div className="stat-label">сделано</div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Mood ambient */}
-      <Card>
-        <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardMoodTitle}</p>
+      <button type="button" onClick={() => onOpenTab("mood")} className="card" style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
+        <div className="section-label" style={{ margin: "0 0 4px" }}>{COPY.home.cardMoodTitle}</div>
         <MoodSummary mood={mood.data} />
-      </Card>
-
-      {/* Next occasion — warm hero when it's soon (≤3 days), else a calm card. */}
-      {nearest && occasionSoon ? (
-        <button
-          type="button"
-          onClick={() => onOpen("countdowns")}
-          className="rw-hero-warm text-left"
-        >
-          <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardNextOccasionTitle}</p>
-          <p className="text-base text-tg-text">
-            {countdownEmoji(nearest)} {nearest.label} · {countdownDisplay(nearest)}
-          </p>
-        </button>
-      ) : (
-        <Card>
-          <button type="button" onClick={() => onOpen("countdowns")} className="w-full text-left">
-            <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardNextOccasionTitle}</p>
-            <p className="text-base text-tg-text">
-              {nearest
-                ? `${countdownEmoji(nearest)} ${nearest.label} · ${countdownDisplay(nearest)}`
-                : COPY.home.noOccasion}
-            </p>
-          </button>
-        </Card>
-      )}
-
-      {/* QOTD */}
-      <Card>
-        <button type="button" onClick={() => onOpen("qotd")} className="w-full text-left">
-          <p className="rw-section-label" style={{ margin: "0 0 6px" }}>{COPY.home.cardQotdTitle}</p>
-          <p className="text-base text-tg-text">{qotd.data?.question?.text ?? "…"}</p>
-          <p className="rw-meta mt-1">
-            {qotdStatus(qotd.data)}
-          </p>
-        </button>
-      </Card>
-
-      {/* Weekly rituals */}
-      <Rituals />
-
-      <button
-        type="button"
-        onClick={() => setMore(true)}
-        className="self-center text-sm"
-        style={{ color: "var(--m3-primary)" }}
-      >
-        {COPY.home.more} →
       </button>
 
+      {/* Next occasion — warm hero when soon */}
+      <button type="button" onClick={() => onOpen("countdowns")} className={occasionSoon ? "hero-warm" : "card"} style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
+        <div className="section-label" style={{ margin: "0 0 4px" }}>{COPY.home.cardNextOccasionTitle}</div>
+        <div className="card-title">
+          {nearest
+            ? `${countdownEmoji(nearest)} ${nearest.label} · ${countdownDisplay(nearest)}`
+            : COPY.home.noOccasion}
+        </div>
+      </button>
+
+      {/* QOTD */}
+      <button type="button" onClick={() => onOpen("qotd")} className="card" style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
+        <div className="section-label" style={{ margin: "0 0 4px" }}>{COPY.home.cardQotdTitle}</div>
+        <div className="card-title">{qotd.data?.question?.text ?? "…"}</div>
+        <div style={{ fontSize: 12, color: "var(--tg-button)", fontWeight: 600, marginTop: 4 }}>{qotdStatus(qotd.data)}</div>
+      </button>
+
+      {/* Rituals */}
+      <Rituals />
+
+      {/* Wishlist glance → Wishlist tab */}
+      <button type="button" onClick={() => onOpenTab("wishlist")} className="card" style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
+        <div className="section-label" style={{ margin: "0 0 4px" }}>Вишлист</div>
+        <div className="card-title">{openCount > 0 ? `${openCount} в списке · ${doneCount} сделано` : "Добавьте первую хотелку"}</div>
+      </button>
+
+      {/* More */}
+      <button type="button" onClick={() => setMore(true)} className="btn-ghost">{COPY.home.more} →</button>
+
       <DateWheel open={wheel} onClose={() => setWheel(false)} />
-      <MoreSheet
-        open={more}
-        onClose={() => setMore(false)}
-        onPick={(d) => { setMore(false); onOpen(d); }}
-      />
+      <MoreSheet open={more} onClose={() => setMore(false)} onPick={(d) => { setMore(false); onOpen(d); }} />
     </div>
   );
 }
 
 function MoodSummary({ mood }: { mood: MoodResponse | null | undefined }) {
-  if (!mood) return <p className="text-base text-tg-hint">…</p>;
+  if (!mood) return <div className="card-sub">…</div>;
   const mine = mood.self?.mood ?? COPY.mood.notSet;
   const theirs = mood.partner?.mood ?? COPY.mood.notSet;
   return (
-    <p className="text-base text-tg-text">
+    <div className="card-title">
       {COPY.mood.youLabel}: {mine} · {mood.partnerName || COPY.mood.partnerLabel}: {theirs}
-    </p>
+    </div>
   );
 }
 
-/** QOTD reveal-state hint shown under the question on the Home card. */
 function qotdStatus(q: QOTDResponse | null | undefined): string {
   if (!q || !q.question) return COPY.home.qotdHint;
   if (q.myAnswer && q.partnerAnswered) return COPY.home.qotdBothAnswered;

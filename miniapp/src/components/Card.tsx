@@ -2,17 +2,15 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
-  /** Use lower-elevation surface (for input areas). Default: false. */
+  /** Accepted for API compat; the gallery has a single card surface. */
   low?: boolean;
 }
 
-/** M3 card — opaque surface with tonal elevation, replaces .card-glass. */
+/** R-warm card — the gallery's `.card` (rounded 20, soft shadow, column flex). */
 export function Card({ children, low, className = "", ...rest }: CardProps) {
+  void low; // gallery has one card style
   return (
-    <div
-      className={`${low ? "card-m3-low" : "card-m3"} p-4 ${className}`}
-      {...rest}
-    >
+    <div className={`card ${className}`} {...rest}>
       {children}
     </div>
   );

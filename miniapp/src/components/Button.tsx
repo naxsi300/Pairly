@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "icon";
+type Variant = "primary" | "warm" | "secondary" | "ghost" | "danger" | "icon";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -8,12 +8,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
+/** Map variants onto the canonical R-warm button classes (gallery's .btn family). */
 const variants: Record<Variant, string> = {
-  primary: "btn-m3-filled",
-  secondary: "btn-m3-outlined",
-  ghost: "btn-m3-text",
-  danger: "btn-m3-text text-[var(--m3-error)] hover:bg-[color-mix(in_srgb,var(--m3-error)_8%,transparent)]",
-  icon: "btn-m3-icon",
+  primary: "btn",
+  warm: "btn-warm",
+  secondary: "btn-ghost",
+  ghost: "btn-ghost",
+  danger: "btn-ghost",
+  icon: "btn-ghost",
 };
 
 export function Button({
@@ -21,13 +23,21 @@ export function Button({
   full,
   className = "",
   children,
+  style,
   ...rest
 }: ButtonProps) {
+  void full; // gallery .btn* are full-width by default
+  // `.btn*` are full-width by default in the gallery. `danger` tints ghost red.
+  const dangerStyle =
+    variant === "danger"
+      ? {
+          color: "var(--m3-error)",
+          borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)",
+          ...style,
+        }
+      : style;
   return (
-    <button
-      className={`${variants[variant]} ${full ? "w-full" : ""} ${className}`}
-      {...rest}
-    >
+    <button className={`${variants[variant]} ${className}`} style={dangerStyle} {...rest}>
       {children}
     </button>
   );

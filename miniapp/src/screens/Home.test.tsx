@@ -35,7 +35,8 @@ describe("Home", () => {
     expect(screen.getByText(/Крутить свидание/)).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByText("О чём мечтаем?")).toBeTruthy();
-      expect(screen.getByText(/1 хотелка в списке/)).toBeTruthy();
+      // mock: 1 open (w1), 1 done (w3)
+      expect(screen.getByText(/1 в списке · 1 сделано/)).toBeTruthy();
     });
   });
 });

@@ -74,27 +74,15 @@ export function Wishlist() {
     }
   }
 
-  /** "Хочу повторить": create a fresh open wish from a done one (keeps the
-   * completed item as history; the repeat is a new idea to look forward to). */
+  /** "Хочу повторить": reopen THIS item in place (back to open) so you can do
+   * it again. Does NOT spawn a duplicate — the same row becomes actionable. */
   async function repeat(item: WishlistItem) {
-    setBusy(true);
+    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "open" } : w)));
+    haptic("success");
     try {
-      const created = await endpoints.addWishlist({
-        title: item.title,
-        address: item.address ?? null,
-        category: item.category ?? null,
-      }) as WishlistItem & { newMilestones?: { kind: string; value: number }[] };
-      setData((prev) => [created, ...(prev ?? [])]);
-      haptic("success");
-      for (const m of created.newMilestones ?? []) {
-        emitMilestone({ kind: m.kind, value: m.value });
-      }
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 402) {
-        refetch();
-      }
-    } finally {
-      setBusy(false);
+      await endpoints.setWishlistStatus(item.id, "open");
+    } catch {
+      refetch();
     }
   }
 

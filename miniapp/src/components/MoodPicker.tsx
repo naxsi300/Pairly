@@ -7,10 +7,10 @@ interface MoodPickerProps {
   disabled?: boolean;
 }
 
-/** Mood selector — R-warm tiles (gallery mood-opt). 2-wide responsive wrap. */
+/** Mood selector — 1:1 with the gallery `.mood-grid` / `.mood-opt`. */
 export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+    <div className="mood-grid">
       {COPY.mood.moods.map((m) => {
         const active = value === m.value;
         return (
@@ -20,7 +20,7 @@ export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
             disabled={disabled}
             onClick={() => onPick(m.value as MoodValue)}
             aria-pressed={active}
-            className={`rw-mood-opt ripple-container ${active ? "is-active" : ""}`}
+            className={`mood-opt ${active ? "active" : ""}`}
           >
             <span className="emoji" aria-hidden>
               {m.emoji}
