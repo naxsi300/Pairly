@@ -83,11 +83,11 @@ async def transition(
     gift_id: str,
     to: GiftStatus,
 ) -> GiftItem:
-    """Apply a legal state transition. Membership-enforced.
+    """Apply a legal state transition. Membership- and role-enforced.
 
-    - CLAIMED: recipient accepts.
-    - DECLINED: recipient declines (warm — only valid from RECEIVED).
-    - REDEEMED: giver marks done. Blocked unless currently CLAIMED (must have happened).
+    - CLAIMED: recipient accepts (must be the receiver).
+    - DECLINED: recipient declines (must be the receiver; only valid from RECEIVED).
+    - REDEEMED: giver marks done (must be the giver; only valid from CLAIMED).
     - COMPLETE: either partner, only from REDEEMED.
     """
     await _require_membership(session, pair_id, user_id)
@@ -97,6 +97,14 @@ async def transition(
         pass
     else:
         raise GiftStateError(f"illegal transition {gift.status} -> {to}")
+
+    # Actor-role guard: CLAIM/DECLINE only the receiver, REDEEM only the giver.
+    if to in (GiftStatus.CLAIMED, GiftStatus.DECLINED) and user_id != gift.receiver_id:
+        raise GiftStateError(
+            f"only the receiver may {to.value} a gift"
+        )
+    if to == GiftStatus.REDEEMED and user_id != gift.giver_id:
+        raise GiftStateError("only the giver may redeem a gift")
 
     gift.status = to
     await session.flush()
