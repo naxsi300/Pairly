@@ -7,7 +7,7 @@ import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from 
 import { useIsPro } from "../lib/useIsPro";
 import { DateWheel } from "../components/DateWheel";
 import { AdminMenu } from "../components/AdminMenu";
-import { MoreSheet, type Destination } from "../components/MoreSheet";
+import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
 import { CoupleChallenge, Gratitude } from "../components/Ambient";
@@ -27,7 +27,6 @@ export function Home({
   const cds = useApi<Countdown[]>(endpoints.listCountdowns);
   const { isPro, setPro, refresh } = useIsPro();
   const [wheel, setWheel] = useState(false);
-  const [more, setMore] = useState(false);
   const [admin, setAdmin] = useState(false);
 
   // Hidden admin trigger: open via #admin deep link (on load OR hash change).
@@ -122,8 +121,10 @@ export function Home({
       {/* Daily gratitude */}
       <Gratitude />
 
-      {/* More */}
-      <button type="button" onClick={() => setMore(true)} className="btn-ghost">{COPY.home.more} →</button>
+      {/* Section entries — everything that used to live behind "Ещё", now in the feed */}
+      <EntryCard emoji="🌌" title="Мечты" sub="что хотите пережить вместе" onClick={() => onOpen("bucket")} />
+      <EntryCard emoji="🎁" title="Подарки" sub="добрые дела и сюрпризы" onClick={() => onOpen("gifts")} />
+      <EntryCard emoji="💌" title="Записки" sub="тёплые слова для партнёра" onClick={() => onOpen("notes")} />
 
       <DateWheel
         open={wheel}
@@ -132,7 +133,6 @@ export function Home({
         onOpenAdmin={() => setAdmin(true)}
       />
       <AdminMenu open={admin} onClose={() => setAdmin(false)} setPro={setPro} refresh={refresh} />
-      <MoreSheet open={more} onClose={() => setMore(false)} onPick={(d) => { setMore(false); onOpen(d); }} />
     </div>
   );
 }
@@ -182,4 +182,40 @@ function qotdStatus(q: QOTDResponse | null | undefined): string {
   if (q.myAnswer && q.partnerAnswered) return COPY.home.qotdBothAnswered;
   if (q.myAnswer && !q.partnerAnswered) return COPY.home.qotdWaitingPartner;
   return COPY.home.qotdYouWaiting;
+}
+
+/** A warm "tap to open" section entry — distinguishes navigational cards from
+ *  the neutral ambient (live-data) cards via the warm-container tint + chevron. */
+function EntryCard({
+  emoji,
+  title,
+  sub,
+  onClick,
+}: {
+  emoji: string;
+  title: string;
+  sub: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="card card-row"
+      style={{
+        border: "none",
+        cursor: "pointer",
+        textAlign: "left",
+        alignItems: "center",
+        background: "var(--warm-container)",
+      }}
+    >
+      <span className="emoji" style={{ fontSize: 26 }}>{emoji}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="card-title">{title}</div>
+        <div className="card-sub">{sub}</div>
+      </div>
+      <span style={{ color: "var(--tg-warm)", fontWeight: 700, fontSize: 18 }}>→</span>
+    </button>
+  );
 }

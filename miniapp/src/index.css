@@ -38,8 +38,8 @@ body,
 
 body {
   margin: 0;
-  background-color: var(--tg-theme-bg-color);
-  color: var(--tg-theme-text-color);
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
   font-family: var(--tg-font, "Roboto"), system-ui, -apple-system, "Segoe UI",
     sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -623,13 +623,25 @@ body {
    to the mock cards. (The gallery's warm-lib.mjs is the source of truth.)
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --tg-bg: var(--m3-surface);
-  --tg-text: var(--m3-on-surface);
-  --tg-hint: var(--m3-on-surface-variant);
+  /* R-warm surfaces/text are FIXED to the approved gallery palette — NOT derived
+     from Telegram's --tg-theme-secondary-bg-color, which in a dark Telegram theme
+     turns every card into a black pill. Telegram can't override these (different
+     var names); only light/dark flips via prefers-color-scheme below. */
+  --tg-bg: #ffffff;
+  --tg-text: #1c1c1e;
+  --tg-hint: #8a8a8e;
+  --tg-sec: #f2f2f7;
   --tg-button: var(--m3-primary);
   --tg-button-text: var(--m3-on-primary);
-  --tg-sec: var(--m3-surface-container);
   --tg-warm: var(--warm);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tg-bg: #1c1c1e;
+    --tg-text: #ffffff;
+    --tg-hint: #98989f;
+    --tg-sec: #2c2c2e;
+  }
 }
 
 /* — Spin (the date-wheel) — pointer + conic ring — */
