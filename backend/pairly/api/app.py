@@ -223,7 +223,7 @@ def create_app() -> FastAPI:
 
         pair_id = _require_pair(auth)
         idea = await pick_date_idea(session, pair_id=pair_id, category=category)
-        return DateIdeaOut(source=idea.source, title=idea.title, category=idea.category)
+        return DateIdeaOut(source=idea.source, title=idea.title, category=idea.category, reason=idea.reason)
 
     # --- love notes ---
     @app.get("/api/love-notes", response_model=list[LoveNoteOut])

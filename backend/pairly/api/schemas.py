@@ -100,6 +100,7 @@ class DateIdeaOut(_CamelModel):
     source: str  # "wishlist" | "default"
     title: str
     category: str | None = None
+    reason: str = ""  # warm "why this for you" line
 
 
 class LoveNoteCreate(_CamelModel):

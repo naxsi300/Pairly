@@ -108,6 +108,8 @@ export interface DateIdeaResponse {
   source: string;
   title: string;
   category: string | null;
+  /** Warm "why this for you" line. */
+  reason: string;
 }
 
 export interface LoveNoteItem {

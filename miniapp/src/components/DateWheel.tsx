@@ -89,6 +89,12 @@ export function DateWheel({ open, onClose }: { open: boolean; onClose: () => voi
                 {idea.source === "wishlist" ? "Из вашего списка желаний" : "Идея на сейчас"}
               </div>
             </div>
+            {idea.reason ? (
+              <div className="card" style={{ marginTop: 4 }}>
+                <div className="card-title">✨ Почему это для вас</div>
+                <div className="card-sub">{idea.reason}</div>
+              </div>
+            ) : null}
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={spin}>
                 🔄 Ещё

@@ -128,7 +128,7 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
           createdAt: new Date(now - 42 * 86_400_000).toISOString(),
         });
       case "/api/date-idea":
-        return json({ source: "wishlist", title: wishlist[0]?.title ?? "Прогулка по набережной", category: "do" });
+        return json({ source: "wishlist", title: wishlist[0]?.title ?? "Прогулка по набережной", category: "do", reason: "Это из вашего wishlist — давно хотели, пора воплотить ✨" });
       case "/api/love-notes":
         return json([
           { id: "ln1", body: "Доброе утро, любимый 🌅", deliverAt: "09:00", mine: false, readByRecipient: false, createdAt: new Date(now - 2 * 3600_000).toISOString() },

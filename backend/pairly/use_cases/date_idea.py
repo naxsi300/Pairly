@@ -20,6 +20,7 @@ class DateIdea:
     source: str  # "wishlist" | "default"
     title: str
     category: str | None
+    reason: str  # warm "why this for you" line, shown under the result
 
 
 # Canned ideas (no-DB fallback). Warm, couple-appropriate, no geo.
@@ -45,6 +46,12 @@ async def _open_items(
     return list(result.scalars().all())
 
 
+def _category_label(category: str | None) -> str:
+    return {
+        "eat": "еды", "do": "прогулки", "watch": "кино", "stay": "уютного дома", "buy": "покупок"
+    }.get(category or "", "совместных идей")
+
+
 async def pick_date_idea(
     session: AsyncSession, *, pair_id: str, category: str | None
 ) -> DateIdea:
@@ -52,6 +59,9 @@ async def pick_date_idea(
     items = await _open_items(session, pair_id, category)
     if items:
         chosen = secrets.choice(items)
-        return DateIdea(source="wishlist", title=chosen.title, category=chosen.category)
+        reason = f"Это из вашего wishlist — давно хотели, пора воплотить ✨"
+        return DateIdea(source="wishlist", title=chosen.title, category=chosen.category, reason=reason)
     title, cat = _DEFAULT_IDEAS[secrets.randbelow(len(_DEFAULT_IDEAS))]
-    return DateIdea(source="default", title=title, category=cat)
+    label = _category_label(cat)
+    reason = f"В вишлисте пока пусто в категории «{label}» — вот тёплая идея на сейчас 💛"
+    return DateIdea(source="default", title=title, category=cat, reason=reason)
