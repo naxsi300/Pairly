@@ -1,5 +1,36 @@
 # Pairly — аудит фич и roadmap (AI-verified)
 
+## ✅✅ R-warm design rewrite + ALL approved features shipped (2026-06-20)
+
+The earlier "design port" only added tokens; screens still rendered in M3. A
+full frontend rewrite made the Mini App **pixel-match the static gallery**
+(warm-lib.mjs is now the canonical toolkit: `.card`, `.btn-warm`, `.hero-warm`,
+`.chip`, `.pair-bar`, `.mood-opt`, the spinning conic `.spin`, floating glass
+`.nav-rw`, etc. — pasted verbatim, aliased onto the app's M3 vars). Every
+screen (Home, Wishlist, Countdowns, Mood, QOTD, Gifts, Bucket, Notes) restyled.
+
+**Every approved feature is now implemented + deployed:**
+- ✅ R-warm design (1:1 gallery)
+- ✅ Home dashboard + 3-tab nav + floating glass nav
+- ✅ 🎡 Date-wheel — real spinning conic ring + filter chips + "why this for you" reason card
+- ✅ Mood (warm tiles, latest-only)
+- ✅ Wishlist "Хочу повторить" (reopen in place, not duplicate)
+- ✅ QOTD coupling to Home (reveal-state hint)
+- ✅ Occasion warm-hero nudge (≤3 days)
+- ✅ Rituals (weekly checklist)
+- ✅ Couple-challenge (weekly, progress bar)
+- ✅ Gratitude (daily note)
+- ✅ Love-notes (backend table + bot delivery + Mini App inbox)
+- ✅ **Two-tap consent** — forwarded items land PENDING, partner approves (bot keyboard or Mini App 👍) before OPEN
+- ⏸ Mood-history — deferred (conflicts with the privacy-by-design latest-only model)
+
+Tests: 80 backend pytest + 8 frontend vitest. E2e screenshots verified against
+the gallery mocks (Home/wheel/wishlist/mood all render 1:1).
+
+---
+
+
+
 Сгенерировано: workflow-аудит 18 мок-фич + маппинг реального кода Pairly.
 Исходник моков: `/tmp/pairly_design/features.mjs`. Галерея: `http://localhost:8847/gallery/features.html`.
 
