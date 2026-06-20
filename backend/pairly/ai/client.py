@@ -40,7 +40,10 @@ async def chat_json(*, system: str, user: str) -> dict[str, Any]:
             {"role": "user", "content": user},
         ],
         "temperature": 0.9,
-        "response_format": {"type": "json_object"},
+        "stream": False,
+        # NOTE: no response_format=json_object — the DeepSeek upstream behind
+        # OmniRoute rejects it ("stream_options should be set along with stream").
+        # We instead enforce JSON in the prompt and extract it in _parse_json.
     }
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
