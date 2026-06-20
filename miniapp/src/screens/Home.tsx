@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import type { MoodResponse, QOTDResponse } from "../sdk/api";
 import type { Countdown } from "../types";
 import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
-import { useIsPro } from "../lib/useIsPro";
-import { DateWheel } from "../components/DateWheel";
-import { AdminMenu } from "../components/AdminMenu";
+import type { Tab } from "../components/NavBar";
 import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
@@ -18,36 +16,35 @@ import { haptic } from "../sdk/twa";
 export function Home({
   onOpen,
   onOpenTab,
+  openAdmin,
 }: {
   onOpen: (d: Destination) => void;
-  onOpenTab: (tab: "wishlist" | "mood") => void;
+  onOpenTab: (tab: Tab) => void;
+  openAdmin: () => void;
 }) {
   const mood = useApi<MoodResponse>(endpoints.getMood);
   const qotd = useApi<QOTDResponse>(endpoints.getQotd);
   const cds = useApi<Countdown[]>(endpoints.listCountdowns);
-  const { isPro, setPro, refresh } = useIsPro();
-  const [wheel, setWheel] = useState(false);
-  const [admin, setAdmin] = useState(false);
 
   // Hidden admin trigger: open via #admin deep link (on load OR hash change).
   useEffect(() => {
     const check = () => {
       if (window.location.hash.replace("#", "").toLowerCase() === "admin") {
-        setAdmin(true);
+        openAdmin();
       }
     };
     check();
     window.addEventListener("hashchange", check);
     return () => window.removeEventListener("hashchange", check);
-  }, []);
-  // Long-press on the 🎡 hero → admin menu (a normal tap still opens the wheel).
+  }, [openAdmin]);
+  // Long-press on the 🎡 hero → admin menu (a normal tap still opens the wheel tab).
   const longRef = useRef<number | null>(null);
   const didLong = useRef(false);
   const startLong = () => {
     didLong.current = false;
     longRef.current = window.setTimeout(() => {
       didLong.current = true;
-      setAdmin(true);
+      openAdmin();
       haptic("light");
     }, 600);
   };
@@ -75,10 +72,10 @@ export function Home({
         onClick={() => {
           if (didLong.current) {
             didLong.current = false;
-            return; // long-press already opened admin; don't also open the wheel
+            return; // long-press already opened admin; don't also switch tab
           }
           haptic("light");
-          setWheel(true);
+          onOpenTab("wheel");
         }}
         className="hero-warm"
         style={{ textAlign: "center", padding: "24px 20px", border: "none", cursor: "pointer" }}
@@ -92,7 +89,7 @@ export function Home({
       <CountdownStrip items={cds.data ?? []} />
 
       {/* Mood ambient */}
-      <button type="button" onClick={() => onOpenTab("mood")} className="card" style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
+      <button type="button" onClick={() => onOpen("mood")} className="card" style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
         <div className="section-label" style={{ margin: "0 0 4px" }}>{COPY.home.cardMoodTitle}</div>
         <MoodSummary mood={mood.data} />
       </button>
@@ -123,16 +120,7 @@ export function Home({
 
       {/* Section entries — everything that used to live behind "Ещё", now in the feed */}
       <EntryCard emoji="🌌" title="Мечты" sub="что хотите пережить вместе" onClick={() => onOpen("bucket")} />
-      <EntryCard emoji="🎁" title="Подарки" sub="добрые дела и сюрпризы" onClick={() => onOpen("gifts")} />
       <EntryCard emoji="💌" title="Записки" sub="тёплые слова для партнёра" onClick={() => onOpen("notes")} />
-
-      <DateWheel
-        open={wheel}
-        onClose={() => setWheel(false)}
-        isPro={isPro}
-        onOpenAdmin={() => setAdmin(true)}
-      />
-      <AdminMenu open={admin} onClose={() => setAdmin(false)} setPro={setPro} refresh={refresh} />
     </div>
   );
 }

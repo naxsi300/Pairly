@@ -12,6 +12,9 @@ import { LoveNotes } from "./screens/LoveNotes";
 import { MilestoneToast, type MilestoneEvent } from "./components/Toast";
 import { useMilestoneToast } from "./lib/milestoneBus";
 import { NavBar, type Tab } from "./components/NavBar";
+import { DateWheelScreen } from "./components/DateWheel";
+import { AdminMenu } from "./components/AdminMenu";
+import { useIsPro } from "./lib/useIsPro";
 import type { Destination } from "./components/MoreSheet";
 
 initTwa();
@@ -19,7 +22,10 @@ initTwa();
 export default function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [dest, setDest] = useState<Destination | null>(null);
+  const [admin, setAdmin] = useState(false);
   const [milestone, dismissMilestone] = useMilestoneToast();
+  // Pro status is app-global: the wheel (a tab) and the admin menu both read/flip it.
+  const { isPro, setPro, refresh } = useIsPro();
 
   return (
     <div className="relative z-[1] flex min-h-full flex-col">
@@ -37,14 +43,25 @@ export default function App() {
           <DestinationView dest={dest} onBack={() => setDest(null)} />
         ) : (
           <>
-            {tab === "home" ? <Home onOpen={(d) => setDest(d)} onOpenTab={(t) => setTab(t)} /> : null}
+            {tab === "home" ? (
+              <Home
+                onOpen={(d) => setDest(d)}
+                onOpenTab={(t) => setTab(t)}
+                openAdmin={() => setAdmin(true)}
+              />
+            ) : null}
             {tab === "wishlist" ? <Wishlist /> : null}
-            {tab === "mood" ? <Mood /> : null}
+            {tab === "wheel" ? (
+              <DateWheelScreen isPro={isPro} onOpenAdmin={() => setAdmin(true)} />
+            ) : null}
+            {tab === "gifts" ? <Gifts /> : null}
           </>
         )}
       </main>
 
       <NavBar tab={tab} onTabChange={(t) => { setTab(t); setDest(null); }} />
+
+      <AdminMenu open={admin} onClose={() => setAdmin(false)} setPro={setPro} refresh={refresh} />
     </div>
   );
 }
@@ -55,7 +72,7 @@ function DestinationView({ dest, onBack }: { dest: Destination; onBack: () => vo
       <button onClick={onBack} className="mb-2 text-sm" style={{ color: "var(--m3-primary)" }}>← Назад</button>
       {dest === "bucket" ? <Bucket /> : null}
       {dest === "countdowns" ? <Countdowns /> : null}
-      {dest === "gifts" ? <Gifts /> : null}
+      {dest === "mood" ? <Mood /> : null}
       {dest === "qotd" ? <QuestionOfTheDay /> : null}
       {dest === "notes" ? <LoveNotes /> : null}
     </div>

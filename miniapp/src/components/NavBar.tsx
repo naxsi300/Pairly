@@ -1,6 +1,6 @@
 import { COPY } from "../copy";
 
-export type Tab = "home" | "wishlist" | "mood";
+export type Tab = "home" | "wishlist" | "wheel" | "gifts";
 
 interface NavBarProps {
   tab: Tab;
@@ -10,7 +10,8 @@ interface NavBarProps {
 const TABS: { id: Tab; label: string; emoji: string }[] = [
   { id: "home", label: COPY.nav.home, emoji: "🏠" },
   { id: "wishlist", label: COPY.nav.wishlist, emoji: "🗒" },
-  { id: "mood", label: COPY.nav.mood, emoji: "🙂" },
+  { id: "wheel", label: COPY.nav.wheel, emoji: "🎡" },
+  { id: "gifts", label: COPY.nav.gifts, emoji: "🎁" },
 ];
 
 /** Floating glass-pill bottom nav — 1:1 with the R-warm gallery's nav. */

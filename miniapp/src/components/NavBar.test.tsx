@@ -3,14 +3,15 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { NavBar } from "./NavBar";
 
 describe("NavBar", () => {
-  it("renders exactly 3 tabs: Home, Wishlist, Mood", () => {
+  it("renders exactly 4 tabs: Home, Wishlist, Wheel, Gifts", () => {
     render(<NavBar tab="home" onTabChange={() => {}} />);
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(3);
+    expect(buttons).toHaveLength(4);
     expect(buttons.map((b) => b.textContent)).toEqual([
       "🏠Главная",
       "🗒Вишлист",
-      "🙂Настроение",
+      "🎡Колесо",
+      "🎁Подарки",
     ]);
   });
 
@@ -24,7 +25,7 @@ describe("NavBar", () => {
   it("calls onTabChange on click", () => {
     const onTabChange = vi.fn();
     render(<NavBar tab="home" onTabChange={onTabChange} />);
-    fireEvent.click(screen.getByText("Настроение"));
-    expect(onTabChange).toHaveBeenCalledWith("mood");
+    fireEvent.click(screen.getByText("Колесо"));
+    expect(onTabChange).toHaveBeenCalledWith("wheel");
   });
 });

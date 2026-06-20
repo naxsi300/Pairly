@@ -18,6 +18,7 @@ export const COPY = {
     mood: "Настроение",
     qotd: "Вопрос дня",
     gifts: "Подарки",
+    wheel: "Колесо",
   },
   home: {
     greeting: (days: number) =>

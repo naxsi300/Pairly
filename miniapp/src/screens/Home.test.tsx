@@ -30,7 +30,7 @@ vi.mock("../sdk/api", async () => {
 
 describe("Home", () => {
   it("renders wheel CTA + question + dynamic countdown strip (no heading)", async () => {
-    render(<Home onOpen={() => {}} onOpenTab={() => {}} />);
+    render(<Home onOpen={() => {}} onOpenTab={() => {}} openAdmin={() => {}} />);
     expect(screen.getByText(/Крутить свидание/)).toBeTruthy();
     await waitFor(() => {
       expect(screen.getByText("О чём мечтаем?")).toBeTruthy();
