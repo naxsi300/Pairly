@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.db.models import LoveNote
 from pairly.repositories.base import _require_membership
+from pairly.bot.text import truncate_graphemes
 
 _MAX_BODY = 1000
 _MAX_DELIVER_LEN = 5  # "HH:MM"
@@ -26,7 +27,7 @@ async def create_note(
 ) -> LoveNote:
     """Create a love note. ``deliver_at`` is an optional 'HH:MM' hint."""
     await _require_membership(session, pair_id, user_id)
-    clean = body.strip()[:_MAX_BODY]
+    clean = truncate_graphemes(body.strip(), _MAX_BODY)
     da = None
     if deliver_at:
         da = deliver_at.strip()[:_MAX_DELIVER_LEN] or None

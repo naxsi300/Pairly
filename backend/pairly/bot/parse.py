@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from pairly.bot.text import truncate_graphemes
+
 # Category keyword banks (Russian + common English). Matched against lowercased text.
 _CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "eat": (
@@ -80,8 +82,8 @@ def _pick_title(lines: list[str]) -> str | None:
         return None
     for ln in lines:
         if not _looks_like_junk_title(ln):
-            return ln[:256]
-    return lines[0][:256]
+            return truncate_graphemes(ln, 256)
+    return truncate_graphemes(lines[0], 256)
 
 
 def parse_forwarded_text(text: str) -> ParsedPost:

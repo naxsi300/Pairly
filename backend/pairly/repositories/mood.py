@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.db.models import MoodEntry
+from pairly.bot.text import truncate_graphemes
 from pairly.repositories.base import _require_membership, pair_members
 
 # 8 moods (Russian, gender-neutral adverbial) — a 4×2 valence gradient.
@@ -52,7 +53,7 @@ async def set_mood(
     if mood not in VALID_MOODS:
         raise InvalidMoodError(mood)
     if note is not None:
-        note = note.strip()[:60] or None
+        note = truncate_graphemes(note.strip(), 60) or None
 
     # Latest-only: replace any existing row for this user in the pair.
     existing = await session.scalar(
