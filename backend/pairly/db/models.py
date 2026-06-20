@@ -217,7 +217,9 @@ class Countdown(Base):
     pair_id: Mapped[str] = mapped_column(ForeignKey("pairs.id", ondelete="CASCADE"), index=True)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     label: Mapped[str] = mapped_column(String(128))
-    emoji: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Up to 4 grapheme clusters. A ZWJ-family emoji (👨‍👩‍👧‍👦) is 1 grapheme but 11
+    # code points; String(16) is too tight — widen to 32 so 4 family-style clusters fit.
+    emoji: Mapped[str | None] = mapped_column(String(32), nullable=True)
     target_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Recurrence rule: 'annual' | 'monthly' | 'milestone' | None.
     # 'annual'/'monthly': the next occurrence is computed at read time (client-side)

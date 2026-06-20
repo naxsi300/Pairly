@@ -28,10 +28,18 @@ function parseRuDate(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   // Accept dd.mm.yyyy, dd.mm.yyyy HH:mm, ISO, or anything Date can parse.
+  // IMPORTANT: when the user types a bare date like "25.12.2026", we want it to
+  // mean the user's LOCAL midnight on that day — not UTC midnight. ECMA-262
+  // treats "YYYY-MM-DD" as UTC, so for non-UTC users this would silently
+  // shift the countdown to the previous (or next) day. Append "T00:00:00" so
+  // Date parses it as local time.
   const m = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(.*)$/);
   let iso: string;
   if (m) {
-    iso = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}${m[4] ?? ""}`;
+    const tail = m[4] ?? "";
+    // Date-only form (no time fragment) → local midnight. With a time fragment
+    // (e.g. "25.12.2026 14:00") the existing "T…" interpolation handles it.
+    iso = `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}${tail || "T00:00:00"}`;
   } else {
     iso = trimmed;
   }
@@ -86,7 +94,27 @@ export function Countdowns() {
     setDateErr(false);
   }
 
+  /** Cap the emoji field at 4 grapheme clusters using Intl.Segmenter.
+   * We can't use maxLength (it counts UTF-16 code units) — a family emoji
+   * (👨‍👩‍👧‍👦) is 1 grapheme but breaks under that, and a single grapheme with
+   * skin-tone modifiers would be counted as 2. */
+  const EMOJI_MAX_GRAPHEMES = 4;
+  const segmenter =
+    typeof Intl !== "undefined" && "Segmenter" in Intl
+      ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+      : null;
+  const capEmoji = (value: string): string => {
+    if (!segmenter) return value;
+    const segs = Array.from(segmenter.segment(value), (s) => s.segment);
+    return segs.length > EMOJI_MAX_GRAPHEMES ? segs.slice(0, EMOJI_MAX_GRAPHEMES).join("") : value;
+  };
+
   async function submit() {
+    // Synchronous busy guard: drop rapid second submits (Enter key, double-click
+    // before re-render, or programmatic requestSubmit) before we start a duplicate
+    // request. The button's `disabled` attribute is the user-facing safety net,
+    // but it doesn't cover Enter-on-input or programmatic submits — this guard does.
+    if (busy) return;
     if (!label.trim()) return;
     const target = parseRuDate(date);
     if (!target) {
@@ -237,8 +265,7 @@ export function Countdowns() {
         <TextInput
           placeholder={COPY.countdowns.emojiPlaceholder}
           value={emoji}
-          maxLength={4}
-          onChange={(e) => setEmoji(e.target.value)}
+          onChange={(e) => setEmoji(capEmoji(e.target.value))}
         />
         <button
           type="button"
