@@ -41,6 +41,9 @@ export function Wishlist() {
   };
 
   async function submit() {
+    // Synchronous busy guard: button `disabled` doesn't cover programmatic
+    // submit (Enter key inside a TextInput, requestSubmit, etc.).
+    if (busy) return;
     if (!title.trim()) return;
     setBusy(true);
     try {

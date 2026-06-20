@@ -8,6 +8,7 @@ export function useIsPro() {
   /** Optimistically flip the cached value, then refetch to confirm against the server. */
   function setPro(next: boolean) {
     setData((prev) => (prev ? { ...prev, isPro: next } : prev));
+    refetch();
   }
   return { isPro, refresh: refetch, setPro };
 }

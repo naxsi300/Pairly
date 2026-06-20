@@ -35,6 +35,7 @@ export function Gifts() {
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sendError, setSendError] = useState(false);
 
   const items = data?.items ?? [];
   const partnerName = data?.partnerName ?? "Партнёр";
@@ -43,7 +44,9 @@ export function Gifts() {
   const goodDeeds = items.filter((g) => g.status === "complete");
 
   async function send(gesture: string, description?: string | null) {
+    if (busy) return;
     setBusy(true);
+    setSendError(false);
     try {
       const item = (await endpoints.sendGift({
         gesture,
@@ -54,10 +57,16 @@ export function Gifts() {
         items: [item, ...(prev?.items ?? [])],
       }));
       haptic("success");
+      // Close both pickers only on success — on failure we keep them open so
+      // the user can retry without re-picking the gesture.
+      setPicking(false);
+      setCustomOpen(false);
+      setCustom("");
       for (const m of item.newMilestones ?? []) {
         emitMilestone({ kind: m.kind, value: m.value });
       }
     } catch {
+      setSendError(true);
       refetch();
     } finally {
       setBusy(false);
@@ -164,7 +173,7 @@ export function Gifts() {
       )}
 
       {/* Gift picker: catalog grid + custom entry. */}
-      <Modal open={picking} onClose={() => setPicking(false)} title={COPY.gifts.sendPrompt(partnerName)}>
+      <Modal open={picking} onClose={() => { if (!busy) setPicking(false); }} title={COPY.gifts.sendPrompt(partnerName)}>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {GIFT_CATALOG.map((g) => (
             <button
@@ -172,8 +181,9 @@ export function Gifts() {
               type="button"
               disabled={busy}
               onClick={() => {
+                // send() closes the picker only on success; on failure it
+                // stays open and surfaces an inline error.
                 void send(g.gesture, g.description);
-                setPicking(false);
               }}
               className="card-m3 p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
             >
@@ -182,6 +192,9 @@ export function Gifts() {
             </button>
           ))}
         </div>
+        {sendError ? (
+          <p className="text-sm text-red-500">{COPY.common.sendFailed}</p>
+        ) : null}
         <Button
           variant="secondary"
           full
@@ -197,12 +210,11 @@ export function Gifts() {
       <Modal
         open={customOpen}
         title={COPY.gifts.customPrompt}
-        onClose={() => setCustomOpen(false)}
+        onClose={() => { if (!busy) setCustomOpen(false); }}
         onSubmit={() => {
           if (custom.trim()) {
+            // send() closes the picker only on success.
             void send(custom.trim(), null);
-            setCustom("");
-            setCustomOpen(false);
           }
         }}
         submitDisabled={!custom.trim() || busy}
@@ -213,6 +225,9 @@ export function Gifts() {
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
         />
+        {sendError ? (
+          <p className="text-sm text-red-500">{COPY.common.sendFailed}</p>
+        ) : null}
       </Modal>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { endpoints, type DateIdeaResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { CATEGORIES, categoryEmoji } from "../lib/categories";
@@ -35,6 +35,10 @@ export function DateWheelScreen({
   const [mode, setMode] = useState<Mode>("random");
   const [idea, setIdea] = useState<DateIdeaResponse | null>(null);
   const [paywall, setPaywall] = useState(false);
+  /** Handle for the post-fetch 1100ms "phase → result" flip. Stored so rapid
+   * re-spins and unmounts cancel the previous timer instead of letting a
+   * stale handle call setState (potentially with the wrong idea). */
+  const spinTimerRef = useRef<number | null>(null);
 
   function pickMode(m: Mode) {
     if (m === mode) return;
@@ -50,12 +54,20 @@ export function DateWheelScreen({
   }
 
   async function spin() {
+    // Cancel any pending post-fetch phase flip from a previous spin — without
+    // this, rapid re-spins could fire a stale handle that flips phase to
+    // "result" with an outdated idea.
+    if (spinTimerRef.current !== null) {
+      clearTimeout(spinTimerRef.current);
+      spinTimerRef.current = null;
+    }
     setPhase("spinning");
     haptic("light");
     try {
       const result = await endpoints.getDateIdea(cat || undefined, mode);
       setIdea(result);
-      setTimeout(() => {
+      spinTimerRef.current = window.setTimeout(() => {
+        spinTimerRef.current = null;
         setPhase("result");
         haptic("success");
       }, 1100);
@@ -63,6 +75,17 @@ export function DateWheelScreen({
       setPhase("filters");
     }
   }
+
+  // Clear any pending spin timer on unmount so we don't setState on a dead
+  // component if the user navigates away during the 1100ms window.
+  useEffect(() => {
+    return () => {
+      if (spinTimerRef.current !== null) {
+        clearTimeout(spinTimerRef.current);
+        spinTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Hidden admin entry: long-press the heading.
   const longRef = useRef<number | null>(null);

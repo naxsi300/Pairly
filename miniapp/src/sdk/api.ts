@@ -93,14 +93,14 @@ import type {
 export interface MoodResponse {
   self: MoodEntry | null;
   partner: MoodEntry | null;
-  partnerName: string;
+  partnerName: string | null;
 }
 export interface GiftsResponse {
   items: GiftItem[];
-  partnerName: string;
+  partnerName: string | null;
 }
 export interface QOTDResponse extends QOTDState {
-  partnerName: string;
+  partnerName: string | null;
 }
 
 export interface DateIdeaResponse {
@@ -204,8 +204,16 @@ export const endpoints = {
   clearMood: () => request<{ ok: boolean }>("/api/mood", { method: "DELETE" }),
 
   getQotd: () => request<QOTDResponse>("/api/qotd"),
+  /** Narrower shape: backend's POST /api/qotd/answer returns ONLY
+   *  { myAnswer, partnerAnswered, partnerAnswer, newMilestones } — no
+   *  `question` field. The caller spreads this into its QOTDResponse. */
   answerQotd: (b: { answer: string }) =>
-    request<QOTDState>("/api/qotd/answer", { method: "POST", body: b }),
+    request<{
+      myAnswer: string | null;
+      partnerAnswered: boolean;
+      partnerAnswer: string | null;
+      newMilestones?: { kind: string; value: number }[];
+    }>("/api/qotd/answer", { method: "POST", body: b }),
 
   listGifts: () => request<GiftsResponse>("/api/gifts"),
   sendGift: (b: { gesture: string; description?: string | null }) =>

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi, type QOTDResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
-import type { QOTDState } from "../types";
 import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -32,9 +31,12 @@ export function QuestionOfTheDay() {
     if (!draft.trim()) return;
     setBusy(true);
     try {
-      const next = (await endpoints.answerQotd({
+      // answerQotd returns { myAnswer, partnerAnswered, partnerAnswer,
+      // newMilestones } — no `question` field. Spread into the existing
+      // QOTDResponse so the question from the initial GET stays intact.
+      const next = await endpoints.answerQotd({
         answer: draft.trim().slice(0, MAX_ANSWER),
-      })) as QOTDState & { newMilestones?: { kind: string; value: number }[] };
+      });
       setData((prev) => ({ ...(prev ?? ({} as QOTDResponse)), ...next }));
       setAnswering(false);
       setDraft("");

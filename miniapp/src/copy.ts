@@ -85,6 +85,7 @@ export const COPY = {
     upgradePro: "Оформить Pro",
     deleteOld: "Убрать старое",
     deleteOldShort: "Отпустить старое",
+    sendFailed: "Не отправилось. Попробуйте ещё раз.",
   },
   wishlist: {
     heading: "Ваш wishlist",
