@@ -733,6 +733,45 @@ body {
   color: var(--tg-button-text);
 }
 
+/* — Card action row (gallery-consistent inline actions) — */
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.card-act {
+  border: none;
+  border-radius: 18px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.card-act.primary {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--tg-button) 30%, transparent);
+}
+.card-act.warm {
+  background: var(--tg-warm);
+  color: #fff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--tg-warm) 30%, transparent);
+}
+.card-act.danger {
+  background: none;
+  color: var(--m3-error);
+  border: 1px solid color-mix(in srgb, var(--m3-error) 30%, transparent);
+  padding: 10px 12px;
+}
+.card-act:disabled {
+  opacity: 0.5;
+}
+
 /* — Section label — */
 .section-label {
   font-size: 12px;
@@ -976,4 +1015,150 @@ body {
   font-size: 12px;
   color: var(--tg-hint);
   margin-top: 2px;
+}
+
+/* ─── MISSING gallery primitives (these were referenced but never defined) ─── */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.emoji-opt {
+  background: var(--tg-sec);
+  border: none;
+  border-radius: 20px;
+  padding: 14px 4px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+}
+.emoji-opt .emoji {
+  font-size: 30px;
+  display: block;
+  margin-bottom: 4px;
+}
+.emoji-opt .label {
+  font-size: 11px;
+  color: var(--tg-hint);
+  font-weight: 500;
+}
+.emoji-opt.active {
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+}
+.emoji-opt.active .label {
+  color: var(--tg-button-text);
+  font-weight: 600;
+}
+.emoji-opt.active .emoji {
+  transform: scale(1.1);
+}
+
+/* Inputs (gallery) */
+.input {
+  width: 100%;
+  background: var(--tg-sec);
+  border: 1px solid transparent;
+  border-radius: 16px;
+  padding: 14px;
+  font-size: 15px;
+  color: var(--tg-text);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--tg-button);
+}
+textarea.input {
+  min-height: 100px;
+  resize: none;
+  line-height: 1.5;
+}
+
+/* Countdown (gallery) */
+.timer {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  text-align: center;
+  color: var(--tg-button);
+}
+.countdown {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.cd-unit {
+  background: var(--tg-sec);
+  border-radius: 16px;
+  padding: 14px 10px;
+  text-align: center;
+  min-width: 64px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+.cd-num {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.cd-label {
+  font-size: 11px;
+  color: var(--tg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Meta line (accent) */
+.meta {
+  font-size: 12px;
+  color: var(--tg-button);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* Step list (gallery) */
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--tg-sec);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+.step-num {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+.step-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Toast (gallery) */
+.toast {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  background: var(--tg-text);
+  color: var(--tg-bg);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  z-index: 50;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
 }

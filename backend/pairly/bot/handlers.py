@@ -330,7 +330,7 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
         notes = text.strip()[:4096] if text.strip() else None
 
         try:
-            await wishlist.create_item(
+            item = await wishlist.create_item(
                 session,
                 pair_id=pair.id,
                 user_id=user.id,

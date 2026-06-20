@@ -23,10 +23,16 @@ export function Wishlist() {
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
   const [category, setCategory] = useState<string>("");
+  const [filter, setFilter] = useState<"active" | "done">("active");
   const [busy, setBusy] = useState(false);
 
   const items = data ?? [];
-  const atLimit = items.length >= DEFAULT_LIMITS.wishlist;
+  // Gallery pattern: active vs done live in separate filter tabs, so a done
+  // item never shows its reopen/delete actions next to an active one.
+  const activeItems = items.filter((i) => i.status !== "done" && i.status !== "archived");
+  const doneItems = items.filter((i) => i.status === "done");
+  const shown = filter === "active" ? activeItems : doneItems;
+  const atLimit = activeItems.length >= DEFAULT_LIMITS.wishlist;
 
   async function submit() {
     if (!title.trim()) return;
@@ -62,16 +68,6 @@ export function Wishlist() {
     haptic("success");
     try {
       await endpoints.markDone(item.id);
-    } catch {
-      refetch();
-    }
-  }
-
-  async function undo(item: WishlistItem) {
-    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "open" } : w)));
-    haptic("light");
-    try {
-      await endpoints.setWishlistStatus(item.id, "open");
     } catch {
       refetch();
     }
@@ -146,8 +142,29 @@ export function Wishlist() {
       ) : items.length === 0 ? (
         <EmptyState emoji="🗒" text={COPY.wishlist.empty} />
       ) : (
+        <>
+        <div className="chip-row" style={{ marginBottom: 4 }}>
+          <button
+            type="button"
+            className={`chip ${filter === "active" ? "active" : ""}`}
+            onClick={() => setFilter("active")}
+          >
+            📋 Активные ({activeItems.length})
+          </button>
+          <button
+            type="button"
+            className={`chip ${filter === "done" ? "active" : ""}`}
+            onClick={() => setFilter("done")}
+          >
+            ✓ Сделано ({doneItems.length})
+          </button>
+        </div>
+
+        {shown.length === 0 ? (
+          <EmptyState emoji={filter === "done" ? "✅" : "🗒"} text={filter === "done" ? "Пока ничего не отмечено" : COPY.wishlist.empty} />
+        ) : (
         <ul className="flex flex-col gap-2">
-          {items.map((item) => (
+          {shown.map((item) => (
             <li key={item.id}>
               <div className={`card ${item.status === "done" ? "done" : ""}`}>
                 <div className="card-row">
@@ -169,7 +186,7 @@ export function Wishlist() {
                     onOpenSource={() => openSource(item)}
                   />
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                <div className="card-actions">
                   {item.status === "pending" ? (
                     item.mine ? (
                       <div className="banner banner-warm" style={{ flex: 1, padding: "8px 12px" }}>
@@ -182,26 +199,21 @@ export function Wishlist() {
                           <span className="emoji">👈</span>
                           <div style={{ flex: 1, fontSize: 13 }}>партнёр предлагает — подтвердите</div>
                         </div>
-                        <button type="button" className="btn-warm" style={{ width: "auto", padding: "10px 18px" }} onClick={() => approve(item)} disabled={busy}>
+                        <button type="button" className="card-act warm" onClick={() => approve(item)} disabled={busy}>
                           👍 Ок
                         </button>
                       </>
                     )
                   ) : item.status !== "done" ? (
-                    <button type="button" className="btn" style={{ width: "auto", padding: "10px 18px" }} onClick={() => markDone(item)}>
+                    <button type="button" className="card-act primary" onClick={() => markDone(item)}>
                       ✅ Сделано
                     </button>
                   ) : (
-                    <>
-                      <button type="button" className="btn-warm" style={{ width: "auto", padding: "10px 18px" }} onClick={() => repeat(item)} disabled={busy}>
-                        {COPY.wishlist.repeat}
-                      </button>
-                      <button type="button" className="btn-ghost" style={{ width: "auto", padding: "10px 18px" }} onClick={() => undo(item)}>
-                        ↶ Открыть
-                      </button>
-                    </>
+                    <button type="button" className="card-act warm" onClick={() => repeat(item)} disabled={busy}>
+                      ↶ {COPY.wishlist.repeat}
+                    </button>
                   )}
-                  <button type="button" className="btn-ghost" style={{ width: "auto", padding: "10px 18px", color: "var(--m3-error)", borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)" }} onClick={() => remove(item)}>
+                  <button type="button" className="card-act danger" aria-label="Удалить" onClick={() => remove(item)}>
                     🗑
                   </button>
                 </div>
@@ -209,6 +221,8 @@ export function Wishlist() {
             </li>
           ))}
         </ul>
+        )}
+        </>
       )}
 
       <Modal

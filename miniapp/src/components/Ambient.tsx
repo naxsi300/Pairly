@@ -80,17 +80,24 @@ function dayKey(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Daily gratitude — a one-line warm note, saved per day. */
+/** Daily gratitude — gallery-faithful: a warm banner prompt when empty, a tidy
+ * quote card when filled, and a compact form only while editing (per day). */
 export function Gratitude() {
   const day = dayKey();
   const [text, setText] = useState("");
   const [saved, setSaved] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem(`pairly.gratitude.${day}`);
     if (raw) {
       setText(JSON.parse(raw));
       setSaved(true);
+      setEditing(false);
+    } else {
+      setText("");
+      setSaved(false);
+      setEditing(false);
     }
   }, [day]);
 
@@ -98,33 +105,71 @@ export function Gratitude() {
     try {
       localStorage.setItem(`pairly.gratitude.${day}`, JSON.stringify(text));
       setSaved(true);
+      setEditing(false);
       haptic("success");
     } catch {
       /* ignore */
     }
   }
 
-  return (
-    <Card>
-      <div className="banner banner-warm" style={{ marginBottom: 8 }}>
+  // Filled today + not editing → a clean quote card (gallery .card.card-row).
+  if (saved && text.trim() && !editing) {
+    return (
+      <button
+        type="button"
+        className="card card-row"
+        style={{ border: "none", cursor: "pointer", textAlign: "left", background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))" }}
+        onClick={() => setEditing(true)}
+      >
+        <span className="emoji" style={{ fontSize: 28 }}>🙏</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="card-title" style={{ fontStyle: "italic" }}>«{text.trim()}»</div>
+          <div className="card-sub">сегодня · спасибо</div>
+        </div>
+      </button>
+    );
+  }
+
+  // Empty + not editing → warm banner prompt (gallery s1).
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="banner banner-warm"
+        style={{ border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+        onClick={() => setEditing(true)}
+      >
         <span className="emoji">🙏</span>
         <div style={{ flex: 1 }}>
           <strong>{COPY.home.gratitudeTitle}</strong>
           <br />
           <span style={{ fontSize: 12 }}>{COPY.home.gratitudeSub}</span>
         </div>
-      </div>
+      </button>
+    );
+  }
+
+  // Editing → compact form.
+  return (
+    <Card>
+      <div className="section-label" style={{ margin: "0 0 6px" }}>🙏 {COPY.home.gratitudeTitle}</div>
       <textarea
         className="input"
         placeholder={COPY.home.gratitudePlaceholder}
         maxLength={280}
         value={text}
-        onChange={(e) => { setText(e.target.value); setSaved(false); }}
-        style={{ minHeight: 90 }}
+        autoFocus
+        onChange={(e) => { setText(e.target.value); }}
+        style={{ minHeight: 80 }}
       />
-      <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={save} disabled={!text.trim()}>
-        {saved ? COPY.home.gratitudeSaved : COPY.common.save}
-      </button>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button type="button" className="btn-warm" style={{ flex: 1 }} onClick={save} disabled={!text.trim()}>
+          {COPY.common.save}
+        </button>
+        <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => { setEditing(false); if (!saved) setText(""); }}>
+          {COPY.common.skip}
+        </button>
+      </div>
     </Card>
   );
 }
