@@ -298,6 +298,7 @@ class PairStats(_CamelModel):
     total_qotd_answers: int = 0
     total_countdowns: int = 0
     created_at: datetime | None = None  # pair.created_at for "since" displays
+    is_pro: bool = Field(default=False, alias="isPro", serialization_alias="isPro")
 
 
 class GiftsResponse(_CamelModel):

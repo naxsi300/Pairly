@@ -151,3 +151,29 @@ async def test_gifts_get_emits_partner_name_camel(session):
     assert body["partnerName"] == "Bob"
     if body["items"]:
         assert "createdAt" in body["items"][0]
+
+
+@pytest.mark.asyncio
+async def test_admin_status_and_toggle_pro(session, monkeypatch):
+    import pairly.config as cfg
+
+    a, b = await _make_pair(session, 15, 16)
+    # Make user `a` (tg 15) an admin — patched BEFORE _client_for → create_app.
+    monkeypatch.setattr(cfg, "admin_tg_id_set", lambda: {15})
+    client = _client_for(a, session)
+
+    status = client.get("/api/admin/status")
+    assert status.status_code == 200, status.text
+    assert status.json()["tgId"] == 15
+    assert status.json()["isPro"] is False
+
+    # Toggle Pro on, then off; pair/stats mirrors isPro.
+    assert client.post("/api/admin/toggle-pro").json()["isPro"] is True
+    assert client.get("/api/pair/stats").json()["isPro"] is True
+    assert client.post("/api/admin/toggle-pro").json()["isPro"] is False
+
+    # A non-admin gets 404 (endpoint is invisible to regular users).
+    monkeypatch.setattr(cfg, "admin_tg_id_set", lambda: set())
+    client_b = _client_for(b, session)
+    assert client_b.get("/api/admin/status").status_code == 404
+    assert client_b.post("/api/admin/toggle-pro").status_code == 404

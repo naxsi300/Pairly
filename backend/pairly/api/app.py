@@ -152,6 +152,7 @@ def create_app() -> FastAPI:
             total_qotd_answers=qotd_n,
             total_countdowns=cd_n,
             created_at=created_at,
+            is_pro=bool(pair_obj and pair_obj.is_pro()),
         ).model_dump(by_alias=True)
         if td_ms:
             result["newMilestones"] = [
@@ -805,6 +806,59 @@ def create_app() -> FastAPI:
                 session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
             )
         return _to_gift_out(item, auth.user.id)
+
+    # --- admin (hidden) — gated by PAIRLY_ADMIN_TG_IDS. Non-admins get 404, so the
+    # endpoints are invisible to regular users (and the Mini App's hidden menu). ---
+    from pairly.config import admin_tg_id_set
+    from pairly.db.models import Pair
+    from pairly.repositories import admin as admin_repo
+
+    def _is_admin(auth: AuthContext) -> bool:
+        return auth.user.tg_id in admin_tg_id_set()
+
+    @app.get("/api/admin/status")
+    async def admin_status(
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        pair_id = _require_pair(auth)
+        pair_obj = await session.get(Pair, pair_id)
+        return {
+            "pairId": pair_id,
+            "userId": auth.user.id,
+            "tgId": auth.user.tg_id,
+            "tier": pair_obj.tier.value if pair_obj else None,
+            "isPro": bool(pair_obj and pair_obj.is_pro()),
+            "adminEnabled": True,
+        }
+
+    @app.post("/api/admin/toggle-pro")
+    async def admin_toggle_pro(
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> dict:
+        if not _is_admin(auth):
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        pair_id = _require_pair(auth)
+        pair_obj = await session.get(Pair, pair_id)
+        if pair_obj is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND)
+        try:
+            if pair_obj.is_pro():
+                await admin_repo.revoke_pro(
+                    session, actor_tg_id=auth.user.tg_id, target_pair_id=pair_id
+                )
+            else:
+                await admin_repo.grant_pro(
+                    session, actor_tg_id=auth.user.tg_id, target_pair_id=pair_id
+                )
+        except admin_repo.AdminError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        await session.commit()
+        pair_obj = await session.get(Pair, pair_id)
+        return {"isPro": bool(pair_obj and pair_obj.is_pro())}
 
     return app
 

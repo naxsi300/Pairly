@@ -222,8 +222,22 @@ export const endpoints = {
       totalQotdAnswers: number;
       totalCountdowns: number;
       createdAt: string | null;
+      isPro: boolean;
       newMilestones?: { kind: string; value: number }[];
     }>("/api/pair/stats"),
+
+  // --- admin (hidden) — 404 unless your TG id is in PAIRLY_ADMIN_TG_IDS ---
+  getAdminStatus: () =>
+    request<{
+      pairId: string;
+      userId: string;
+      tgId: number;
+      tier: string | null;
+      isPro: boolean;
+      adminEnabled: boolean;
+    }>("/api/admin/status"),
+  togglePro: () =>
+    request<{ isPro: boolean }>("/api/admin/toggle-pro", { method: "POST" }),
 };
 
 // ---------------------------------------------------------------------------

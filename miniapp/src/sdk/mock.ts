@@ -63,6 +63,9 @@ let qotd: QOTDState = {
 
 const partnerName = "Партнёр";
 
+// Demo-only Pro toggle (the hidden admin menu flips this in mock mode).
+let pro = false;
+
 /**
  * E2E SEAM: Playwright (or any test harness) can override mock state via
  * `window.__PAIRLY_E2E__` BEFORE the page loads app code. e.g.:
@@ -128,7 +131,11 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
           totalQotdAnswers: 3,
           totalCountdowns: countdowns.length,
           createdAt: new Date(now - 42 * 86_400_000).toISOString(),
+          isPro: pro,
         });
+      case "/api/admin/status":
+        // Mock: always admin-enabled in demo so the hidden menu works locally.
+        return json({ pairId: "demo-pair", userId: "demo-user", tgId: 0, tier: pro ? "pro" : "free", isPro: pro, adminEnabled: true });
       case "/api/date-idea":
         return json({ source: "wishlist", title: wishlist[0]?.title ?? "Прогулка по набережной", category: "do", reason: "Это из вашего wishlist — давно хотели, пора воплотить ✨" });
       case "/api/love-notes":
@@ -165,6 +172,9 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
       case "/api/qotd/answer":
         qotd = { ...qotd, myAnswer: body.answer as string };
         return json(qotd, 200);
+      case "/api/admin/toggle-pro":
+        pro = !pro;
+        return json({ isPro: pro }, 200);
       case "/api/love-notes":
         return json({ id: rid(), body: body.body, deliverAt: body.deliverAt ?? null, mine: true, readByRecipient: false, createdAt: new Date().toISOString() }, 201);
       case "/api/gift":

@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import type { MoodResponse, QOTDResponse } from "../sdk/api";
 import type { Countdown } from "../types";
 import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
+import { useIsPro } from "../lib/useIsPro";
 import { DateWheel } from "../components/DateWheel";
+import { AdminMenu } from "../components/AdminMenu";
 import { MoreSheet, type Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
@@ -23,8 +25,39 @@ export function Home({
   const mood = useApi<MoodResponse>(endpoints.getMood);
   const qotd = useApi<QOTDResponse>(endpoints.getQotd);
   const cds = useApi<Countdown[]>(endpoints.listCountdowns);
+  const { isPro, setPro, refresh } = useIsPro();
   const [wheel, setWheel] = useState(false);
   const [more, setMore] = useState(false);
+  const [admin, setAdmin] = useState(false);
+
+  // Hidden admin trigger: open via #admin deep link (on load OR hash change).
+  useEffect(() => {
+    const check = () => {
+      if (window.location.hash.replace("#", "").toLowerCase() === "admin") {
+        setAdmin(true);
+      }
+    };
+    check();
+    window.addEventListener("hashchange", check);
+    return () => window.removeEventListener("hashchange", check);
+  }, []);
+  // Long-press on the 🎡 hero → admin menu (a normal tap still opens the wheel).
+  const longRef = useRef<number | null>(null);
+  const didLong = useRef(false);
+  const startLong = () => {
+    didLong.current = false;
+    longRef.current = window.setTimeout(() => {
+      didLong.current = true;
+      setAdmin(true);
+      haptic("light");
+    }, 600);
+  };
+  const cancelLong = () => {
+    if (longRef.current !== null) {
+      clearTimeout(longRef.current);
+      longRef.current = null;
+    }
+  };
 
   const occasion = nearestOccasion(cds.data);
   const daysToOccasion = occasion
@@ -34,8 +67,23 @@ export function Home({
 
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
-      {/* Date-wheel warm hero CTA */}
-      <button type="button" onClick={() => { haptic("light"); setWheel(true); }} className="hero-warm" style={{ textAlign: "center", padding: "24px 20px", border: "none", cursor: "pointer" }}>
+      {/* Date-wheel warm hero CTA (long-press → hidden admin menu) */}
+      <button
+        type="button"
+        onPointerDown={startLong}
+        onPointerUp={cancelLong}
+        onPointerLeave={cancelLong}
+        onClick={() => {
+          if (didLong.current) {
+            didLong.current = false;
+            return; // long-press already opened admin; don't also open the wheel
+          }
+          haptic("light");
+          setWheel(true);
+        }}
+        className="hero-warm"
+        style={{ textAlign: "center", padding: "24px 20px", border: "none", cursor: "pointer" }}
+      >
         <div style={{ fontSize: 48, marginBottom: 8 }}>🎡</div>
         <div style={{ fontSize: 20, fontWeight: 700, color: "var(--tg-text)" }}>{COPY.home.wheelSub}</div>
         <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 4 }}>{COPY.home.wheelCta}</div>
@@ -77,7 +125,13 @@ export function Home({
       {/* More */}
       <button type="button" onClick={() => setMore(true)} className="btn-ghost">{COPY.home.more} →</button>
 
-      <DateWheel open={wheel} onClose={() => setWheel(false)} />
+      <DateWheel
+        open={wheel}
+        onClose={() => setWheel(false)}
+        isPro={isPro}
+        onOpenAdmin={() => setAdmin(true)}
+      />
+      <AdminMenu open={admin} onClose={() => setAdmin(false)} setPro={setPro} refresh={refresh} />
       <MoreSheet open={more} onClose={() => setMore(false)} onPick={(d) => { setMore(false); onOpen(d); }} />
     </div>
   );
