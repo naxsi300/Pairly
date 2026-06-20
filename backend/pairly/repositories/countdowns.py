@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.config import get_settings
-from pairly.db.models import Countdown
+from pairly.db.models import Countdown, Pair
 from pairly.repositories.base import _require_membership
 
 
@@ -41,6 +41,12 @@ async def create_item(
 ) -> Countdown:
     pair = await _require_membership(session, pair_id, user_id)
     if not pair.is_pro():
+        # Lock the parent Pair row to close the TOCTOU window between
+        # count_items and the eventual INSERT under concurrent traffic.
+        # A no-op on SQLite; serializes on Postgres.
+        await session.execute(
+            select(Pair).where(Pair.id == pair_id).with_for_update()
+        )
         cap = get_settings().free_countdown_limit
         if await count_items(session, pair_id) >= cap:
             raise CountdownLimitError(f"Лимит бесплатной версии: {cap} отсчётов.")
