@@ -42,8 +42,11 @@ class _CamelModel(BaseModel):
 
 class WishlistCreate(_CamelModel):
     title: str = Field(min_length=1, max_length=256)
-    address: str | None = None
-    category: str | None = None
+    # Widths mirror the DB columns (WishlistItem.address String(512),
+    # .category String(32)). Capping at the API layer turns an opaque
+    # Postgres DataError 500 into a clean Pydantic 422.
+    address: str | None = Field(default=None, max_length=512)
+    category: str | None = Field(default=None, max_length=32)
     notes: str | None = None
     event_date: datetime | None = None
 
@@ -130,7 +133,9 @@ class LoveNoteOut(_CamelModel):
 class BucketCreate(_CamelModel):
     title: str = Field(min_length=1, max_length=256)
     note: str | None = None
-    category: str | None = None
+    # BucketItem.category is String(32) in the DB — cap here for a clean 422
+    # instead of an opaque DB DataError 500.
+    category: str | None = Field(default=None, max_length=32)
 
 
 class BucketStatusUpdate(_CamelModel):
@@ -183,7 +188,10 @@ class CountdownUpdate(_CamelModel):
 
 class MoodSet(_CamelModel):
     mood: str
-    note: str | None = None
+    # MoodEntry.note is String(60) in the DB and the repo truncates to 60 chars;
+    # cap at the API layer so callers get a clean 422 instead of a silent truncate
+    # (or, on Postgres, an opaque DataError 500).
+    note: str | None = Field(default=None, max_length=60)
 
     @field_validator("mood", "note", mode="before")
     @classmethod
@@ -240,8 +248,11 @@ class QOTDAnswerIn(_CamelModel):
     # The client posts { answer: "..." } but the server needs question_id from
     # today's question. Accept both shapes; if no question_id, the server picks
     # today's question (cheaper client). Also accepts body + question_id.
-    answer: str | None = None
-    body: str | None = None
+    # Cap at ANSWER_MAX_CHARS (280, see repositories/qotd.py) so the API rejects
+    # oversized input with a clean 422 instead of letting it hit the DB and raise
+    # an opaque Postgres DataError 500 (QOTDAnswer.body is String(300) — ~280 + slack).
+    answer: str | None = Field(default=None, max_length=280)
+    body: str | None = Field(default=None, max_length=280)
     question_id: str | None = None
 
 

@@ -76,3 +76,67 @@ def test_wishlist_status_pattern_rejects_unknown():
 
     with pytest.raises(Exception):
         WishlistStatusUpdate.model_validate({"status": "what"})
+
+
+# --- Bounded-field max_length enforcement (Cluster 7) ---
+#
+# The DB columns are bounded (WishlistItem.address String(512), category String(32),
+# BucketItem.category String(32), MoodEntry.note String(60), QOTDAnswer.body
+# ANSWER_MAX_CHARS=280). Without a matching Pydantic max_length, a too-long value
+# passes validation and crashes the DB with an opaque 500 — we want a clean 422.
+
+
+def test_wishlist_create_rejects_oversized_address():
+    """address is String(512) — over-length must fail Pydantic validation, not DB."""
+    too_long = "a" * 513
+    with pytest.raises(Exception):
+        WishlistCreate.model_validate({"title": "Кафе", "address": too_long})
+
+
+def test_wishlist_create_accepts_address_at_limit():
+    """address exactly at the DB column width must be accepted."""
+    at_limit = "a" * 512
+    m = WishlistCreate.model_validate({"title": "Кафе", "address": at_limit})
+    assert m.address == at_limit
+
+
+def test_wishlist_create_rejects_oversized_category():
+    """category is String(32) — over-length must fail Pydantic validation, not DB."""
+    too_long = "c" * 33
+    with pytest.raises(Exception):
+        WishlistCreate.model_validate({"title": "Кафе", "category": too_long})
+
+
+def test_bucket_create_rejects_oversized_category():
+    """BucketItem.category is String(32) — over-length must fail Pydantic validation."""
+    too_long = "c" * 33
+    with pytest.raises(Exception):
+        BucketCreate.model_validate({"title": "Полёт", "category": too_long})
+
+
+def test_mood_set_rejects_oversized_note():
+    """MoodEntry.note is String(60) — over-length must fail Pydantic validation."""
+    too_long = "n" * 61
+    with pytest.raises(Exception):
+        MoodSet.model_validate({"mood": "хорошо", "note": too_long})
+
+
+def test_qotd_answer_in_rejects_oversized_answer():
+    """QOTDAnswerIn.answer must cap at ANSWER_MAX_CHARS=280 — clean 422, not DB 500."""
+    too_long = "a" * 281
+    with pytest.raises(Exception):
+        QOTDAnswerIn.model_validate({"answer": too_long})
+
+
+def test_qotd_answer_in_rejects_oversized_body():
+    """QOTDAnswerIn.body must cap at ANSWER_MAX_CHARS=280 — clean 422, not DB 500."""
+    too_long = "a" * 281
+    with pytest.raises(Exception):
+        QOTDAnswerIn.model_validate({"body": too_long})
+
+
+def test_qotd_answer_in_accepts_answer_at_limit():
+    """280-char answer must be accepted (boundary)."""
+    at_limit = "a" * 280
+    m = QOTDAnswerIn.model_validate({"answer": at_limit})
+    assert m.answer == at_limit
