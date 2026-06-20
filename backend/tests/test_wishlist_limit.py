@@ -40,3 +40,25 @@ async def test_pro_pair_unlimited(session):
 
     items = await wishlist.list_items(session, pair_id=pair.id, user_id=a.id)
     assert len(items) == 6
+
+
+@pytest.mark.asyncio
+async def test_manual_create_same_title_does_not_dedupe(session):
+    """Two create_item calls without source_message_id must BOTH persist.
+
+    Dedupe only applies to real forwards (message_id present). Manual /
+    Mini-App creates share the same title prefix but must not collide.
+    """
+    a, _b, pair = await _pair(session, 5, 6)
+    shared_title = "Ужин при свечах"  # both calls use the same title, no source_message_id
+    first = await wishlist.create_item(
+        session, pair_id=pair.id, user_id=a.id, title=shared_title
+    )
+    second = await wishlist.create_item(
+        session, pair_id=pair.id, user_id=a.id, title=shared_title
+    )
+    await session.commit()
+    # Both rows persisted, different ids.
+    assert first.id != second.id
+    items = await wishlist.list_items(session, pair_id=pair.id, user_id=a.id)
+    assert len(items) == 2

@@ -52,3 +52,24 @@ async def test_approve_is_idempotent(session):
     again = await wishlist.approve_item(session, pair_id=pair.id, user_id=b.id, item_id=item.id)
     await session.commit()
     assert again.status == WishlistStatus.OPEN  # stays open, no error
+
+
+@pytest.mark.asyncio
+async def test_author_self_approve_is_noop(session):
+    """Author approving their own PENDING item is a no-op — stays PENDING.
+
+    Without this guard, the author could bypass the two-tap partner-consent
+    requirement: forward a post → it's PENDING → call approve_item yourself →
+    it goes OPEN with no partner ack.
+    """
+    a, _b, pair = await _pair(session)
+    item = await wishlist.create_item(
+        session, pair_id=pair.id, user_id=a.id, title="Пицца", status=WishlistStatus.PENDING
+    )
+    await session.commit()
+    # The author tries to approve their own pending item — must stay PENDING.
+    result = await wishlist.approve_item(
+        session, pair_id=pair.id, user_id=a.id, item_id=item.id
+    )
+    await session.commit()
+    assert result.status == WishlistStatus.PENDING

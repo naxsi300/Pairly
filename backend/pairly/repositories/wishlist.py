@@ -11,8 +11,9 @@ import hashlib
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pairly.bot.text import truncate_graphemes
 from pairly.config import get_settings
-from pairly.db.models import PairTier, WishlistItem, WishlistStatus
+from pairly.db.models import Pair, PairTier, WishlistItem, WishlistStatus
 from pairly.repositories.base import _require_membership
 
 
@@ -20,9 +21,30 @@ class WishlistLimitError(Exception):
     """Raised when a free pair is at its wishlist cap."""
 
 
+class WishlistStateError(Exception):
+    """Raised on an illegal wishlist status transition (e.g. PENDING → DONE)."""
+
+
+# Allowed transitions: source status -> set of permitted target statuses.
+# PENDING is not in any source set — to leave PENDING, the partner must approve
+# (which moves the item to OPEN via approve_item). PENDING → DONE (skipping
+# partner consent) is therefore rejected.
+# ARCHIVED is terminal — no transition out.
+ALLOWED: dict[WishlistStatus, set[WishlistStatus]] = {
+    WishlistStatus.OPEN: {WishlistStatus.PLANNED, WishlistStatus.DONE, WishlistStatus.ARCHIVED},
+    WishlistStatus.PLANNED: {WishlistStatus.OPEN, WishlistStatus.DONE, WishlistStatus.ARCHIVED},
+    WishlistStatus.DONE: {WishlistStatus.ARCHIVED},
+    WishlistStatus.ARCHIVED: set(),
+}
+
+
 async def _source_hash(pair_id: str, message_id: int | str | None, text: str) -> str | None:
-    """Stable hash for deduping duplicate forwards within a pair."""
-    if message_id is None and not text:
+    """Stable hash for deduping duplicate forwards within a pair.
+
+    Returns None when there is no forwarded message id — manual / Mini-App
+    creates must NOT be deduped even if two share the same title prefix.
+    """
+    if message_id is None:
         return None
     raw = f"{pair_id}:{message_id}:{text[:200]}"
     return hashlib.sha256(raw.encode()).hexdigest()
@@ -58,6 +80,8 @@ async def create_item(
     pair = await _require_membership(session, pair_id, user_id)
 
     # Dedupe: same forwarded message already saved -> return the existing item.
+    # Only real forwards (message_id present) are deduped — manual / Mini-App
+    # creates share title prefixes and must not collide.
     src_hash = await _source_hash(pair_id, source_message_id, title)
     if src_hash is not None:
         existing = await session.scalar(
@@ -69,8 +93,13 @@ async def create_item(
         if existing is not None:
             return existing
 
-    # Free-tier cap. Pro pairs are unlimited.
+    # Free-tier cap. Pro pairs are unlimited. Lock the parent Pair row first to
+    # close the TOCTOU window between count_open and the eventual INSERT under
+    # concurrent traffic (a no-op on SQLite, serializes on Postgres).
     if not pair.is_pro():
+        await session.execute(
+            select(Pair).where(Pair.id == pair_id).with_for_update()
+        )
         cap = get_settings().free_wishlist_limit
         if await count_open(session, pair_id) >= cap:
             raise WishlistLimitError(f"Лимит бесплатной версии: {cap} пунктов вишлиста.")
@@ -120,8 +149,16 @@ async def get_item(
 async def set_status(
     session: AsyncSession, *, pair_id: str, user_id: str, item_id: str, status: WishlistStatus
 ) -> WishlistItem:
-    """Transition an item's status. Membership-enforced."""
+    """Transition an item's status. Membership-enforced. Enforces ALLOWED.
+
+    Raises WishlistStateError on illegal transitions (e.g. PENDING → DONE,
+    DONE → OPEN, ARCHIVED → *). PENDING is only exit-able via approve_item.
+    """
     item = await get_item(session, pair_id=pair_id, user_id=user_id, item_id=item_id)
+    if status not in ALLOWED.get(item.status, set()):
+        raise WishlistStateError(
+            f"illegal transition {item.status.value} -> {status.value} for item {item_id}"
+        )
     item.status = status
     await session.flush()
     return item
@@ -133,9 +170,13 @@ async def approve_item(
     """Partner consents to a PENDING forwarded item → OPEN (two-tap).
 
     Only the non-author (the partner) can approve. The author approving their
-    own item is a no-op idempotent ack (kept open/pending). Membership-enforced.
+    own item is a no-op idempotent ack (item stays PENDING) — this prevents
+    self-bypassing the partner-consent requirement. Membership-enforced.
     """
     item = await get_item(session, pair_id=pair_id, user_id=user_id, item_id=item_id)
+    # Guard: author cannot approve their own PENDING item. Idempotent no-op.
+    if item.created_by == user_id:
+        return item
     if item.status == WishlistStatus.PENDING:
         item.status = WishlistStatus.OPEN
         await session.flush()
@@ -145,9 +186,9 @@ async def approve_item(
 async def rename_item(
     session: AsyncSession, *, pair_id: str, user_id: str, item_id: str, title: str
 ) -> WishlistItem:
-    """Rename an item's title. Membership-enforced. Title is truncated to 256 chars."""
+    """Rename an item's title. Membership-enforced. Title is truncated to 256 graphemes."""
     item = await get_item(session, pair_id=pair_id, user_id=user_id, item_id=item_id)
-    item.title = title.strip()[:256]
+    item.title = truncate_graphemes(title.strip(), 256)
     await session.flush()
     return item
 
@@ -157,6 +198,7 @@ __all__ = [
     "PairTier",
     "WishlistItem",
     "WishlistLimitError",
+    "WishlistStateError",
     "approve_item",
     "count_open",
     "create_item",
