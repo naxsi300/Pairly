@@ -46,10 +46,25 @@ async def _open_items(
     return list(result.scalars().all())
 
 
+# Canonical category → Russian label (genitive/description for prompt + reasons).
+# Covers the new date-oriented set AND the legacy do/buy codes.
+_CATEGORY_LABELS: dict[str, str] = {
+    "eat": "еды",
+    "walk": "прогулки",
+    "active": "активного отдыха",
+    "watch": "кино или театра",
+    "culture": "культуры (выставка, музей)",
+    "relax": "расслабления (спа, массаж)",
+    "stay": "уютного дома",
+    "trip": "поездки",
+    "do": "активности",
+    "buy": "покупок",
+}
+_VALID_CATEGORIES: set[str] = set(_CATEGORY_LABELS)
+
+
 def _category_label(category: str | None) -> str:
-    return {
-        "eat": "еды", "do": "прогулки", "watch": "кино", "stay": "уютного дома", "buy": "покупок"
-    }.get(category or "", "совместных идей")
+    return _CATEGORY_LABELS.get(category or "", "совместных идей")
 
 
 async def pick_date_idea(
@@ -75,7 +90,9 @@ async def pick_date_idea(
     """
     if mode in ("smart", "lucky"):
         try:
-            return await _ai_pick(session, pair_id=pair_id, mode=mode, user_id=user_id)
+            return await _ai_pick(
+                session, pair_id=pair_id, mode=mode, user_id=user_id, category=category
+            )
         except Exception:
             # AI not configured / errored → degrade gracefully to the random path.
             pass
@@ -94,27 +111,33 @@ _SYSTEM_PROMPT = (
     "Ты — тёплый помощник для пары, предлагаешь идеи для свиданий. "
     "ОТВЕЧАЙ ИСКЛЮЧИТЕЛЬНО НА РУССКОМ ЯЗЫКЕ — никакого английского. "
     "Формат ответа — ТОЛЬКО валидный JSON без markdown и без обёртки: "
-    '{"title": строка, "category": "eat"|"do"|"watch"|"stay"|"buy"|null, "reason": строка}. '
+    '{"title": строка, "category": "eat"|"walk"|"active"|"watch"|"culture"|"relax"|"stay"|"trip"|null, "reason": строка}. '
     "title — короткое название свидания по-русски (до 60 символов). "
-    "reason — одно тёплое предложение по-русски, почему это отлично подойдёт паре сейчас."
+    "category — код категории свидания. "
+    "reason — одно тёплое предложение по-русски, почему это отлично подойдёт паре сейчас. "
+    "ЕСЛИ В ЗАДАНИИ УКАЗАНА КАТЕГОРИЯ — свидание ОБЯЗАТЕЛЬНО должно быть в ней, "
+    "и верни именно этот код в поле category."
 )
 
 
-async def _build_context(session: AsyncSession, *, pair_id: str, user_id: str) -> str:
-    """Wishlist + current moods + time-of-day, as a plain context block for the prompt."""
+async def _build_context(
+    session: AsyncSession, *, pair_id: str, user_id: str, include_wishlist: bool = True
+) -> str:
+    """Wishlist (optional) + current moods + time-of-day, as a prompt block."""
     from datetime import datetime
 
     from pairly.repositories import mood as mood_repo
 
-    items = await _open_items(session, pair_id, None)
     lines: list[str] = []
-    if items:
-        lines.append("Их список желаний (вишлист):")
-        for it in items[:30]:
-            cat = f" [{it.category}]" if it.category else ""
-            lines.append(f"- {it.title}{cat}")
-    else:
-        lines.append("Вишлист пока пуст.")
+    if include_wishlist:
+        items = await _open_items(session, pair_id, None)
+        if items:
+            lines.append("Их список желаний (вишлист):")
+            for it in items[:30]:
+                cat = f" [{it.category}]" if it.category else ""
+                lines.append(f"- {it.title}{cat}")
+        else:
+            lines.append("Вишлист пока пуст.")
     try:
         moods = await mood_repo.current_moods(session, pair_id=pair_id, user_id=user_id)
         parts = []
@@ -132,25 +155,39 @@ async def _build_context(session: AsyncSession, *, pair_id: str, user_id: str) -
 
 
 async def _ai_pick(
-    session: AsyncSession, *, pair_id: str, mode: str, user_id: str
+    session: AsyncSession, *, pair_id: str, mode: str, user_id: str, category: str | None
 ) -> DateIdea:
     from pairly.ai import AIError, chat_json
 
-    context = await _build_context(session, pair_id=pair_id, user_id=user_id)
+    # Category constraint FIRST and emphatic so it isn't drowned out by context.
+    cat_hint = (
+        f"ВАЖНО: пара хочет свидание именно в категории «{_category_label(category)}» "
+        f"(код: {category}). Предложи именно такое и верни код {category} в category.\n\n"
+        if category
+        else ""
+    )
+
     if mode == "smart":
-        items = await _open_items(session, pair_id, None)
+        # Prefer wishlist items of the chosen category; fall back to all if none.
+        items = await _open_items(session, pair_id, category)
+        if not items and category:
+            items = await _open_items(session, pair_id, None)
         if not items:
             raise AIError("empty wishlist for smart pick")
+        context = await _build_context(session, pair_id=pair_id, user_id=user_id, include_wishlist=True)
         user_msg = (
             "Выбери ОДНО свидание ИХ ЖЕ списка желаний (можно переформулировать "
             "красивее, но суть — из вишлиста) и объясни, почему оно подходит сейчас.\n\n"
+            + cat_hint
             + context
         )
         source = "wishlist"
-    else:  # lucky
+    else:  # lucky — do NOT bias with the wishlist; it's "any idea".
+        context = await _build_context(session, pair_id=pair_id, user_id=user_id, include_wishlist=False)
         user_msg = (
-            "Предложи ОДНО новое свидание для этой пары — не обязательно из их списка, "
-            "просто отличная идея на сейчас, и объясни, почему.\n\n"
+            "Предложи ОДНО новое свидание для этой пары — не из их списка, а свежую идею. "
+            "Объясни, почему.\n\n"
+            + cat_hint
             + context
         )
         source = "ai"
@@ -160,7 +197,7 @@ async def _ai_pick(
     if not title:
         raise AIError("empty title in AI response")
     cat = obj.get("category")
-    if cat not in ("eat", "do", "watch", "stay", "buy"):
-        cat = None
+    if cat not in _VALID_CATEGORIES:
+        cat = category if category in _VALID_CATEGORIES else None
     reason = str(obj.get("reason") or "").strip()[:300]
     return DateIdea(source=source, title=title, category=cat, reason=reason)

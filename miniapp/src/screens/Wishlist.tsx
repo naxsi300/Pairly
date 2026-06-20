@@ -2,20 +2,15 @@ import { useState } from "react";
 import { COPY } from "../copy";
 import { ApiError, endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
-import { DEFAULT_LIMITS, type WishlistCategory, type WishlistItem } from "../types";
-import { wishlistCategoryLabel } from "../lib/format";
+import { DEFAULT_LIMITS, type WishlistItem } from "../types";
+import { CATEGORIES, categoryEmoji, categoryLabel } from "../lib/categories";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
 import { TextInput } from "../components/Field";
 
-const CAT_EMOJI: Record<string, string> = { eat: "🍽", do: "🎉", stay: "🛌", watch: "🎬", buy: "🛍" };
-function categoryEmoji(cat?: WishlistCategory | null): string {
-  return (cat && CAT_EMOJI[cat]) || "📌";
-}
-
-const CATS = ["eat", "do", "stay", "watch", "buy"] as const;
+const CATS = CATEGORIES.map((c) => c.id);
 
 export function Wishlist() {
   const { data, loading, error, refetch, setData } = useApi(endpoints.listWishlist);
@@ -271,7 +266,7 @@ export function Wishlist() {
                   : "var(--m3-on-surface)",
               }}
             >
-              {wishlistCategoryLabel(c)}
+              {categoryEmoji(c)} {categoryLabel(c)}
             </button>
           ))}
         </div>

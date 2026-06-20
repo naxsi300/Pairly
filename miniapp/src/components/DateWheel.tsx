@@ -1,18 +1,15 @@
 import { useRef, useState } from "react";
 import { endpoints, type DateIdeaResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
+import { CATEGORIES, categoryEmoji } from "../lib/categories";
 import { Paywall } from "./Paywall";
 
 type Phase = "filters" | "spinning" | "result";
-type Cat = "" | "eat" | "do" | "watch" | "stay";
 type Mode = "random" | "smart" | "lucky";
 
-const CATEGORIES: { id: Cat; label: string }[] = [
+const CATS: { id: string; label: string }[] = [
   { id: "", label: "🎲 Любая" },
-  { id: "eat", label: "🍜 Еда" },
-  { id: "do", label: "🚶 Прогулка" },
-  { id: "watch", label: "🎬 Кино" },
-  { id: "stay", label: "🛌 Дом" },
+  ...CATEGORIES.map((c) => ({ id: c.id, label: `${c.emoji} ${c.label}` })),
 ];
 
 const MODES: { id: Mode; label: string; locked: boolean }[] = [
@@ -34,7 +31,7 @@ export function DateWheelScreen({
   onOpenAdmin: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("filters");
-  const [cat, setCat] = useState<Cat>("");
+  const [cat, setCat] = useState<string>("");
   const [mode, setMode] = useState<Mode>("random");
   const [idea, setIdea] = useState<DateIdeaResponse | null>(null);
   const [paywall, setPaywall] = useState(false);
@@ -124,7 +121,7 @@ export function DateWheelScreen({
             <p className="sub" style={{ marginTop: 6 }}>Сузим варианты под вас</p>
             <p className="section-label">Категория</p>
             <div className="chip-row">
-              {CATEGORIES.map((c) => (
+              {CATS.map((c) => (
                 <button
                   key={c.id}
                   type="button"
@@ -154,7 +151,7 @@ export function DateWheelScreen({
         {phase === "result" && idea && (
           <>
             <div className="hero-warm" style={{ textAlign: "center", padding: "28px 20px", marginTop: 6 }}>
-              <div style={{ fontSize: 56, marginBottom: 10 }}>{ideaEmoji(idea)}</div>
+              <div style={{ fontSize: 56, marginBottom: 10 }}>{categoryEmoji(idea.category)}</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>{idea.title}</div>
               <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 6 }}>
                 {idea.source === "wishlist"
@@ -188,9 +185,4 @@ export function DateWheelScreen({
       />
     </div>
   );
-}
-
-function ideaEmoji(idea: DateIdeaResponse): string {
-  const map: Record<string, string> = { eat: "🍽️", do: "🚶", watch: "🎬", stay: "🛌", buy: "🛍️" };
-  return map[idea.category ?? ""] ?? "🎲";
 }
