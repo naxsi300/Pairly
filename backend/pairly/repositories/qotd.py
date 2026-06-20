@@ -8,7 +8,7 @@ Never raise here for the gate — return None so the caller shows "waiting for y
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,16 @@ from pairly.db.models import QOTDAnswer, QOTDQuestion
 from pairly.repositories.base import _require_membership
 
 ANSWER_MAX_CHARS = 280
+
+
+def utc_today_start() -> datetime:
+    """Return midnight (00:00:00) UTC for the current day.
+
+    Used as a UTC-day window boundary for QOTD answer queries so a 30-day
+    recurring question does not surface last month's answer as "today's".
+    """
+    now = datetime.now(UTC)
+    return datetime.combine(now.date(), time.min, tzinfo=UTC)
 
 
 class AnswerTooLongError(Exception):
@@ -59,11 +69,15 @@ async def post_answer(
         raise AnswerTooLongError(len(body))
 
     today = datetime.now(UTC)
+    today_start = utc_today_start()
     existing = await session.scalar(
         select(QOTDAnswer).where(
             QOTDAnswer.pair_id == pair_id,
             QOTDAnswer.user_id == user_id,
             QOTDAnswer.question_id == question_id,
+            # Day-scope: same-day re-answer updates in place; on a new day
+            # no row is found and a fresh one is inserted (history preserved).
+            QOTDAnswer.answer_date >= today_start,
         )
     )
     if existing is not None:
@@ -93,6 +107,7 @@ async def my_answer(
             QOTDAnswer.pair_id == pair_id,
             QOTDAnswer.user_id == user_id,
             QOTDAnswer.question_id == question_id,
+            QOTDAnswer.answer_date >= utc_today_start(),
         )
     )
 
@@ -124,6 +139,9 @@ async def partner_answer(
             QOTDAnswer.pair_id == pair_id,
             QOTDAnswer.user_id == partner_id,
             QOTDAnswer.question_id == question_id,
+            # Day-scope: keeps the reveal gate closed against the partner's
+            # 30-day-old body when the same question recurs.
+            QOTDAnswer.answer_date >= utc_today_start(),
         )
     )
 
@@ -152,6 +170,7 @@ async def partner_has_answered(
             QOTDAnswer.pair_id == pair_id,
             QOTDAnswer.user_id == partner_id,
             QOTDAnswer.question_id == question_id,
+            QOTDAnswer.answer_date >= utc_today_start(),
         )
     )
     return found is not None

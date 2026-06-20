@@ -199,7 +199,14 @@ class QOTDAnswer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
-        UniqueConstraint("pair_id", "question_id", "answer_date", name="uq_qotd_pair_q_day"),
+        # One answer per (pair, user, question, UTC-day). Same-day re-answers UPDATE
+        # in place via post_answer(); on a new day a fresh row is inserted, so the
+        # tuple is unique. user_id is required — without it two partners sharing a
+        # (pair, question, day) would collide.
+        UniqueConstraint(
+            "pair_id", "user_id", "question_id", "answer_date",
+            name="uq_qotd_answer_pair_user_q_day",
+        ),
     )
 
 
