@@ -1,0 +1,130 @@
+import { useEffect, useState } from "react";
+import { COPY } from "../copy";
+import { Card } from "./Card";
+import { haptic } from "../sdk/twa";
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Couple-challenge + Gratitude — ambient weekly/daily pair cards (R-warm).
+   Both are localStorage-backed (per ISO week / per day) like Rituals. No
+   backend: these are gentle nudges, not persisted history.
+   ──────────────────────────────────────────────────────────────────────── */
+
+function weekKey(d = new Date()): string {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${week}`;
+}
+
+// Rotating weekly challenges keyed deterministically by week (so both partners
+// who land on the same week see the same prompt — no sync needed).
+const CHALLENGES: { emoji: string; title: string; desc: string }[] = [
+  { emoji: "📵", title: "Свидание без телефонов", desc: "Уберите гаджеты на 2 часа и побудьте только вдвоём" },
+  { emoji: "🍳", title: "Ужин своими руками", desc: "Приготовьте что-то новое вместе, по рецепту или на глаз" },
+  { emoji: "🚶", title: "Прогулка без маршрута", desc: "Идите куда глаза глядят целый час" },
+  { emoji: "💬", title: "Глубокий разговор", desc: "Спросите то, что давно хотели узнать друг о друге" },
+  { emoji: "🌅", title: "Встретить закат", desc: "Найдите точку и проводите солнце вместе" },
+];
+
+/** Weekly couple-challenge — a warm hero with an accept/progress toggle. */
+export function CoupleChallenge() {
+  const week = weekKey();
+  const idx = (() => {
+    // simple stable hash of week string → index
+    let h = 0;
+    for (const c of week) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return h % CHALLENGES.length;
+  })();
+  const ch = CHALLENGES[idx];
+
+  const [steps, setSteps] = useState(0);
+  useEffect(() => {
+    const raw = localStorage.getItem(`pairly.challenge.${week}`);
+    setSteps(raw ? Number(JSON.parse(raw)) : 0);
+  }, [week]);
+
+  function bump() {
+    setSteps((prev) => {
+      const next = prev >= 1 ? 0 : 1; // toggle accepted↔done
+      try {
+        localStorage.setItem(`pairly.challenge.${week}`, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      haptic(next ? "success" : "light");
+      return next;
+    });
+  }
+
+  return (
+    <div className="hero-warm" style={{ textAlign: "center", padding: "20px" }}>
+      <div style={{ fontSize: 13, color: "var(--tg-warm)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+        {COPY.home.challengeTitle}
+      </div>
+      <div style={{ fontSize: 42, margin: "8px 0" }}>{ch.emoji}</div>
+      <div style={{ fontSize: 20, fontWeight: 700 }}>{ch.title}</div>
+      <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 6 }}>{ch.desc}</div>
+      <div className="progress" style={{ marginTop: 14 }}>
+        <div className="progress-fill" style={{ width: steps ? "100%" : "0%", background: steps ? "var(--tg-warm)" : "var(--tg-button)" }} />
+      </div>
+      <button type="button" className="btn-warm" style={{ marginTop: 12 }} onClick={bump}>
+        {steps ? COPY.home.challengeDone : COPY.home.challengeAccept}
+      </button>
+    </div>
+  );
+}
+
+function dayKey(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Daily gratitude — a one-line warm note, saved per day. */
+export function Gratitude() {
+  const day = dayKey();
+  const [text, setText] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(`pairly.gratitude.${day}`);
+    if (raw) {
+      setText(JSON.parse(raw));
+      setSaved(true);
+    }
+  }, [day]);
+
+  function save() {
+    try {
+      localStorage.setItem(`pairly.gratitude.${day}`, JSON.stringify(text));
+      setSaved(true);
+      haptic("success");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <Card>
+      <div className="banner banner-warm" style={{ marginBottom: 8 }}>
+        <span className="emoji">🙏</span>
+        <div style={{ flex: 1 }}>
+          <strong>{COPY.home.gratitudeTitle}</strong>
+          <br />
+          <span style={{ fontSize: 12 }}>{COPY.home.gratitudeSub}</span>
+        </div>
+      </div>
+      <textarea
+        className="input"
+        placeholder={COPY.home.gratitudePlaceholder}
+        maxLength={280}
+        value={text}
+        onChange={(e) => { setText(e.target.value); setSaved(false); }}
+        style={{ minHeight: 90 }}
+      />
+      <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={save} disabled={!text.trim()}>
+        {saved ? COPY.home.gratitudeSaved : COPY.common.save}
+      </button>
+    </Card>
+  );
+}

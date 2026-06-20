@@ -7,6 +7,7 @@ import { countdownDisplay, countdownEmoji } from "../lib/format";
 import { DateWheel } from "../components/DateWheel";
 import { MoreSheet, type Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
+import { CoupleChallenge, Gratitude } from "../components/Ambient";
 import { haptic } from "../sdk/twa";
 
 /** Home — 1:1 with the R-warm gallery "Ваш уголок": heading + warm hero CTA +
@@ -92,6 +93,12 @@ export function Home({
 
       {/* Rituals */}
       <Rituals />
+
+      {/* Weekly couple-challenge */}
+      <CoupleChallenge />
+
+      {/* Daily gratitude */}
+      <Gratitude />
 
       {/* Wishlist glance → Wishlist tab */}
       <button type="button" onClick={() => onOpenTab("wishlist")} className="card" style={{ border: "none", cursor: "pointer", textAlign: "left" }}>
