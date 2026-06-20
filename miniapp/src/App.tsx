@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IS_MOCK } from "./sdk/api";
 import { initTwa } from "./sdk/twa";
 import { Wishlist } from "./screens/Wishlist";
@@ -27,6 +27,16 @@ export default function App() {
   // Pro status is app-global: the wheel (a tab) and the admin menu both read/flip it.
   const { isPro, setPro, refresh } = useIsPro();
 
+  // Hidden admin entry: #admin deep link works from any screen.
+  useEffect(() => {
+    const check = () => {
+      if (window.location.hash.replace("#", "").toLowerCase() === "admin") setAdmin(true);
+    };
+    check();
+    window.addEventListener("hashchange", check);
+    return () => window.removeEventListener("hashchange", check);
+  }, []);
+
   return (
     <div className="relative z-[1] flex min-h-full flex-col">
       {IS_MOCK ? (
@@ -43,18 +53,11 @@ export default function App() {
           <DestinationView dest={dest} onBack={() => setDest(null)} />
         ) : (
           <>
-            {tab === "home" ? (
-              <Home
-                onOpen={(d) => setDest(d)}
-                onOpenTab={(t) => setTab(t)}
-                openAdmin={() => setAdmin(true)}
-              />
-            ) : null}
+            {tab === "home" ? <Home onOpen={(d) => setDest(d)} /> : null}
             {tab === "wishlist" ? <Wishlist /> : null}
             {tab === "wheel" ? (
               <DateWheelScreen isPro={isPro} onOpenAdmin={() => setAdmin(true)} />
             ) : null}
-            {tab === "gifts" ? <Gifts /> : null}
           </>
         )}
       </main>
@@ -72,6 +75,7 @@ function DestinationView({ dest, onBack }: { dest: Destination; onBack: () => vo
       <button onClick={onBack} className="mb-2 text-sm" style={{ color: "var(--m3-primary)" }}>← Назад</button>
       {dest === "bucket" ? <Bucket /> : null}
       {dest === "countdowns" ? <Countdowns /> : null}
+      {dest === "gifts" ? <Gifts /> : null}
       {dest === "mood" ? <Mood /> : null}
       {dest === "qotd" ? <QuestionOfTheDay /> : null}
       {dest === "notes" ? <LoveNotes /> : null}

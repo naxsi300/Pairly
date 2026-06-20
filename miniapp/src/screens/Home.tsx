@@ -1,59 +1,20 @@
-import { useEffect, useRef } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import type { MoodResponse, QOTDResponse } from "../sdk/api";
 import type { Countdown } from "../types";
 import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
-import type { Tab } from "../components/NavBar";
 import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
 import { CoupleChallenge, Gratitude } from "../components/Ambient";
-import { haptic } from "../sdk/twa";
 
-/** Home — R-warm dashboard: warm hero CTA + dynamic countdown strip (the pair's
- * "together since" timeline) + ambient cards (mood, next occasion, QOTD, rituals). */
-export function Home({
-  onOpen,
-  onOpenTab,
-  openAdmin,
-}: {
-  onOpen: (d: Destination) => void;
-  onOpenTab: (tab: Tab) => void;
-  openAdmin: () => void;
-}) {
+/** Home — R-warm dashboard: dynamic countdown strip (the pair's "together since"
+ * timeline) + ambient cards (mood, next occasion, QOTD, rituals) + section entries.
+ * The wheel lives in its own nav tab; admin entry is on the wheel screen + #admin. */
+export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const mood = useApi<MoodResponse>(endpoints.getMood);
   const qotd = useApi<QOTDResponse>(endpoints.getQotd);
   const cds = useApi<Countdown[]>(endpoints.listCountdowns);
-
-  // Hidden admin trigger: open via #admin deep link (on load OR hash change).
-  useEffect(() => {
-    const check = () => {
-      if (window.location.hash.replace("#", "").toLowerCase() === "admin") {
-        openAdmin();
-      }
-    };
-    check();
-    window.addEventListener("hashchange", check);
-    return () => window.removeEventListener("hashchange", check);
-  }, [openAdmin]);
-  // Long-press on the 🎡 hero → admin menu (a normal tap still opens the wheel tab).
-  const longRef = useRef<number | null>(null);
-  const didLong = useRef(false);
-  const startLong = () => {
-    didLong.current = false;
-    longRef.current = window.setTimeout(() => {
-      didLong.current = true;
-      openAdmin();
-      haptic("light");
-    }, 600);
-  };
-  const cancelLong = () => {
-    if (longRef.current !== null) {
-      clearTimeout(longRef.current);
-      longRef.current = null;
-    }
-  };
 
   const occasion = nearestOccasion(cds.data);
   const daysToOccasion = occasion
@@ -63,28 +24,6 @@ export function Home({
 
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
-      {/* Date-wheel warm hero CTA (long-press → hidden admin menu) */}
-      <button
-        type="button"
-        onPointerDown={startLong}
-        onPointerUp={cancelLong}
-        onPointerLeave={cancelLong}
-        onClick={() => {
-          if (didLong.current) {
-            didLong.current = false;
-            return; // long-press already opened admin; don't also switch tab
-          }
-          haptic("light");
-          onOpenTab("wheel");
-        }}
-        className="hero-warm"
-        style={{ textAlign: "center", padding: "24px 20px", border: "none", cursor: "pointer" }}
-      >
-        <div style={{ fontSize: 48, marginBottom: 8 }}>🎡</div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--tg-text)" }}>{COPY.home.wheelSub}</div>
-        <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 4 }}>{COPY.home.wheelCta}</div>
-      </button>
-
       {/* Dynamic countdown strip — the pair's elapsed-time timeline */}
       <CountdownStrip items={cds.data ?? []} />
 
@@ -120,6 +59,7 @@ export function Home({
 
       {/* Section entries — everything that used to live behind "Ещё", now in the feed */}
       <EntryCard emoji="🌌" title="Мечты" sub="что хотите пережить вместе" onClick={() => onOpen("bucket")} />
+      <EntryCard emoji="🎁" title="Подарки" sub="добрые дела и сюрпризы" onClick={() => onOpen("gifts")} />
       <EntryCard emoji="💌" title="Записки" sub="тёплые слова для партнёра" onClick={() => onOpen("notes")} />
     </div>
   );

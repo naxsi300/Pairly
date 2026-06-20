@@ -136,8 +136,16 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
       case "/api/admin/status":
         // Mock: always admin-enabled in demo so the hidden menu works locally.
         return json({ pairId: "demo-pair", userId: "demo-user", tgId: 0, tier: pro ? "pro" : "free", isPro: pro, adminEnabled: true });
-      case "/api/date-idea":
+      case "/api/date-idea": {
+        const m = url.searchParams.get("mode");
+        if (m === "smart") {
+          return json({ source: "wishlist", title: wishlist[0]?.title ?? "Уютный киновечер", category: "watch", reason: "По вашему настроению и вишлисту — отличный выбор на вечер ✨" });
+        }
+        if (m === "lucky") {
+          return json({ source: "ai", title: "Сварить какао и строить подушечный форт", category: "stay", reason: "Что-то новое и тёплое — просто потому что повезёт 🍀" });
+        }
         return json({ source: "wishlist", title: wishlist[0]?.title ?? "Прогулка по набережной", category: "do", reason: "Это из вашего wishlist — давно хотели, пора воплотить ✨" });
+      }
       case "/api/love-notes":
         return json([
           { id: "ln1", body: "Доброе утро, любимый 🌅", deliverAt: "09:00", mine: false, readByRecipient: false, createdAt: new Date(now - 2 * 3600_000).toISOString() },

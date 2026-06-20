@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { endpoints, type DateIdeaResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { Paywall } from "./Paywall";
@@ -56,7 +56,7 @@ export function DateWheelScreen({
     setPhase("spinning");
     haptic("light");
     try {
-      const result = await endpoints.getDateIdea(cat || undefined);
+      const result = await endpoints.getDateIdea(cat || undefined, mode);
       setIdea(result);
       setTimeout(() => {
         setPhase("result");
@@ -67,9 +67,32 @@ export function DateWheelScreen({
     }
   }
 
+  // Hidden admin entry: long-press the heading.
+  const longRef = useRef<number | null>(null);
+  const startLong = () => {
+    longRef.current = window.setTimeout(() => {
+      onOpenAdmin();
+      haptic("light");
+    }, 600);
+  };
+  const cancelLong = () => {
+    if (longRef.current !== null) {
+      clearTimeout(longRef.current);
+      longRef.current = null;
+    }
+  };
+
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">🎡 Колесо свиданий</h1>
+      <h1
+        className="heading"
+        onPointerDown={startLong}
+        onPointerUp={cancelLong}
+        onPointerLeave={cancelLong}
+        style={{ userSelect: "none" }}
+      >
+        🎡 Колесо свиданий
+      </h1>
       <div className="sub">Крутаните — и вечером есть план</div>
 
       <div className="flex flex-col gap-2 py-2">
@@ -88,16 +111,12 @@ export function DateWheelScreen({
             </button>
           ))}
         </div>
-
         {mode !== "random" && isPro ? (
-          <div className="card" style={{ marginTop: 4 }}>
-            <div className="card-title">🚧 Скоро</div>
-            <div className="card-sub">
-              {mode === "smart"
-                ? "Здесь нейросеть будет выбирать из вишлиста по городу, погоде и вашему настроению."
-                : "Здесь нейросеть предложит свидание — даже не из вашего списка."}
-            </div>
-          </div>
+          <p className="sub" style={{ marginTop: 2 }}>
+            {mode === "smart"
+              ? "Нейросеть выберет из вашего вишлиста по настроению."
+              : "Нейросеть предложит свидание — даже не из вашего списка."}
+          </p>
         ) : null}
 
         {phase === "filters" && (
@@ -116,13 +135,8 @@ export function DateWheelScreen({
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              className="btn-warm mt-2"
-              onClick={spin}
-              disabled={mode !== "random"}
-            >
-              {mode === "random" ? "🎡 Крутить! →" : "Выберите «Случайное» чтобы крутить"}
+            <button type="button" className="btn-warm mt-2" onClick={spin}>
+              🎡 Крутить! →
             </button>
           </>
         )}
@@ -143,7 +157,11 @@ export function DateWheelScreen({
               <div style={{ fontSize: 56, marginBottom: 10 }}>{ideaEmoji(idea)}</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>{idea.title}</div>
               <div style={{ fontSize: 14, color: "var(--tg-hint)", marginTop: 6 }}>
-                {idea.source === "wishlist" ? "Из вашего списка желаний" : "Идея на сейчас"}
+                {idea.source === "wishlist"
+                  ? "Из вашего списка желаний"
+                  : idea.source === "ai"
+                    ? "Идея от нейросети 🍀"
+                    : "Идея на сейчас"}
               </div>
             </div>
             {idea.reason ? (

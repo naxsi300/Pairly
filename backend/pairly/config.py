@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     dev_auth: bool = False
     # Admin gating: comma-separated Telegram user ids that may use /admin. Empty disables the menu.
     admin_tg_ids: str = ""
+    # OmniRoute (OpenAI-compatible) LLM endpoint for the wheel's «Умный»/«Мне повезёт»
+    # modes. Empty base_url → AI disabled (the wheel falls back to random). Point
+    # this at your local OmniRoute and set a model it routes to.
+    omnirout_base_url: str = ""
+    omnirout_api_key: str = ""
+    omnirout_model: str = "gpt-4o-mini"
     # Public URL of the Mini App. Must be the SAME domain that is registered with
     # @BotFather (/setdomain) so WebAppInfo can open it from a button in the bot.
     # Examples:

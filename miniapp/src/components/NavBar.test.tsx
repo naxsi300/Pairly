@@ -3,23 +3,22 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { NavBar } from "./NavBar";
 
 describe("NavBar", () => {
-  it("renders exactly 4 tabs: Home, Wishlist, Wheel, Gifts", () => {
+  it("renders exactly 3 tabs: Home, Wishlist, Wheel", () => {
     render(<NavBar tab="home" onTabChange={() => {}} />);
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(3);
     expect(buttons.map((b) => b.textContent)).toEqual([
       "🏠Главная",
       "🗒Вишлист",
       "🎡Колесо",
-      "🎁Подарки",
     ]);
   });
 
   it("marks the active tab", () => {
-    render(<NavBar tab="wishlist" onTabChange={() => {}} />);
+    render(<NavBar tab="wheel" onTabChange={() => {}} />);
     const buttons = screen.getAllByRole("button");
     const active = buttons.find((b) => b.getAttribute("aria-pressed") === "true");
-    expect(active?.textContent).toContain("Вишлист");
+    expect(active?.textContent).toContain("Колесо");
   });
 
   it("calls onTabChange on click", () => {

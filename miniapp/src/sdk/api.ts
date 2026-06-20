@@ -128,8 +128,13 @@ export const endpoints = {
     request<WishlistItem>("/api/wishlist", { method: "POST", body: b }),
 
   /** Spin the date-wheel. category: "eat"|"do"|"stay"|"watch"|"buy"|undefined. */
-  getDateIdea: (category?: string) =>
-    request<DateIdeaResponse>(`/api/date-idea${category ? `?category=${category}` : ""}`),
+  getDateIdea: (category?: string, mode?: "random" | "smart" | "lucky") => {
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (mode) params.set("mode", mode);
+    const qs = params.toString();
+    return request<DateIdeaResponse>(`/api/date-idea${qs ? `?${qs}` : ""}`);
+  },
 
   listLoveNotes: () => request<LoveNoteItem[]>("/api/love-notes"),
   sendLoveNote: (b: { body: string; deliverAt?: string | null }) =>

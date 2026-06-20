@@ -222,14 +222,23 @@ def create_app() -> FastAPI:
     @app.get("/api/date-idea", response_model=DateIdeaOut)
     async def get_date_idea(
         category: str | None = None,
+        mode: str = "random",
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
     ) -> DateIdeaOut:
-        """Spin the date-wheel: a "what do we do" idea from the open wishlist."""
+        """Spin the date-wheel. mode=random (free) picks from the wishlist;
+        smart/lucky (Pro) use the OmniRoute AI. AI falls back to random if unset."""
+        from pairly.db.models import Pair
         from pairly.use_cases.date_idea import pick_date_idea
 
         pair_id = _require_pair(auth)
-        idea = await pick_date_idea(session, pair_id=pair_id, category=category)
+        if mode in ("smart", "lucky"):
+            pair_obj = await session.get(Pair, pair_id)
+            if not (pair_obj and pair_obj.is_pro()):
+                raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, detail="Pro feature")
+        idea = await pick_date_idea(
+            session, pair_id=pair_id, category=category, mode=mode, user_id=auth.user.id
+        )
         return DateIdeaOut(source=idea.source, title=idea.title, category=idea.category, reason=idea.reason)
 
     # --- love notes ---

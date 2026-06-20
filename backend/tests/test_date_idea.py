@@ -30,7 +30,7 @@ async def test_date_idea_picks_an_open_wishlist_item(session):
     )
     await session.commit()
 
-    idea = await pick_date_idea(session, pair_id=pair.id, category=None)
+    idea = await pick_date_idea(session, pair_id=pair.id, category=None, user_id=a.id)
     assert idea.title in {"Пицца на Маросейке", "Прогулка по набережной"}
     assert idea.source == "wishlist"
 
@@ -48,7 +48,7 @@ async def test_date_idea_filters_by_category(session):
     )
     await session.commit()
 
-    idea = await pick_date_idea(session, pair_id=pair.id, category="eat")
+    idea = await pick_date_idea(session, pair_id=pair.id, category="eat", user_id=a.id)
     assert idea.title == "Пицца"
     assert idea.category == "eat"
 
@@ -61,6 +61,50 @@ async def test_date_idea_fallback_to_canned_when_empty(session):
     a, _b, pair = await _pair(session)
     await session.commit()
 
-    idea = await pick_date_idea(session, pair_id=pair.id, category=None)
+    idea = await pick_date_idea(session, pair_id=pair.id, category=None, user_id=a.id)
     assert idea.source == "default"
     assert idea.title  # non-empty canned string
+
+
+@pytest.mark.asyncio
+async def test_smart_mode_uses_ai_when_configured(session, monkeypatch):
+    """smart mode routes through the OmniRoute client when it returns a pick."""
+    from pairly import ai
+    from pairly.use_cases.date_idea import pick_date_idea
+
+    async def fake_chat_json(*, system, user):
+        assert "списка желаний" in user  # smart prompt references the wishlist
+        return {"title": "Та самая пицца на Маросейке", "category": "eat", "reason": "Давно хотели"}
+
+    monkeypatch.setattr(ai, "chat_json", fake_chat_json)
+    a, _b, pair = await _pair(session)
+    await wishlist.create_item(
+        session, pair_id=pair.id, user_id=a.id, title="Пицца на Маросейке", category="eat"
+    )
+    await session.commit()
+
+    idea = await pick_date_idea(session, pair_id=pair.id, category=None, user_id=a.id, mode="smart")
+    assert idea.title == "Та самая пицца на Маросейке"
+    assert idea.source == "wishlist"
+    assert idea.reason == "Давно хотели"
+
+
+@pytest.mark.asyncio
+async def test_smart_mode_falls_back_when_ai_not_configured(session, monkeypatch):
+    """If OmniRoute raises (not configured), smart degrades to a random wishlist pick."""
+    from pairly import ai
+    from pairly.use_cases.date_idea import pick_date_idea
+
+    async def boom(*, system, user):
+        raise ai.AIError("not configured")
+
+    monkeypatch.setattr(ai, "chat_json", boom)
+    a, _b, pair = await _pair(session)
+    await wishlist.create_item(
+        session, pair_id=pair.id, user_id=a.id, title="Прогулка по набережной", category="do"
+    )
+    await session.commit()
+
+    idea = await pick_date_idea(session, pair_id=pair.id, category=None, user_id=a.id, mode="smart")
+    assert idea.title == "Прогулка по набережной"  # fell back to random
+    assert idea.source == "wishlist"

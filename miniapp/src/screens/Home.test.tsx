@@ -29,14 +29,15 @@ vi.mock("../sdk/api", async () => {
 });
 
 describe("Home", () => {
-  it("renders wheel CTA + question + dynamic countdown strip (no heading)", async () => {
-    render(<Home onOpen={() => {}} onOpenTab={() => {}} openAdmin={() => {}} />);
-    expect(screen.getByText(/Крутить свидание/)).toBeTruthy();
+  it("renders question + dynamic countdown strip + section entries", async () => {
+    render(<Home onOpen={() => {}} />);
     await waitFor(() => {
       expect(screen.getByText("О чём мечтаем?")).toBeTruthy();
       // the past "Знакомство" countdown surfaces in the elapsed-time strip
       expect(screen.getByText("Знакомство")).toBeTruthy();
       expect(screen.getByText("дней назад")).toBeTruthy();
     });
+    // section entries are in the feed (gifts is a destination again, not a tab)
+    expect(screen.getByText("Подарки")).toBeTruthy();
   });
 });
