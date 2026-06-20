@@ -299,6 +299,23 @@ def create_app() -> FastAPI:
             created_at=n.created_at,
         )
 
+    @app.post("/api/wishlist/{item_id}/approve", response_model=WishlistItemOut)
+    async def approve_wishlist_item(
+        item_id: str,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> WishlistItemOut:
+        """Two-tap consent: approve a pending forwarded item (partner action)."""
+        pair_id = _require_pair(auth)
+        try:
+            item = await wishlist.approve_item(
+                session, pair_id=pair_id, user_id=auth.user.id, item_id=item_id
+            )
+        except LookupError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="item not found") from exc
+        await session.commit()
+        return WishlistItemOut.model_validate(item)
+
     @app.post("/api/wishlist")
     async def post_wishlist(
         payload: WishlistCreate,

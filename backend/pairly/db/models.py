@@ -49,6 +49,7 @@ class PairTier(enum.StrEnum):
 
 
 class WishlistStatus(enum.StrEnum):
+    PENDING = "pending"  # awaiting partner consent (two-tap) before becoming open
     OPEN = "open"
     PLANNED = "planned"
     DONE = "done"

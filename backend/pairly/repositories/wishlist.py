@@ -51,6 +51,7 @@ async def create_item(
     notes: str | None = None,
     source_message_id: int | str | None = None,
     telegram_file_id: str | None = None,
+    status: WishlistStatus = WishlistStatus.OPEN,
 ) -> WishlistItem:
     """Create a wishlist item, enforcing membership + free-tier limit + dedupe."""
     pair = await _require_membership(session, pair_id, user_id)
@@ -83,6 +84,7 @@ async def create_item(
         notes=notes,
         source_message_hash=src_hash,
         telegram_file_id=telegram_file_id,
+        status=status,
     )
     session.add(item)
     await session.flush()
@@ -123,6 +125,21 @@ async def set_status(
     return item
 
 
+async def approve_item(
+    session: AsyncSession, *, pair_id: str, user_id: str, item_id: str
+) -> WishlistItem:
+    """Partner consents to a PENDING forwarded item → OPEN (two-tap).
+
+    Only the non-author (the partner) can approve. The author approving their
+    own item is a no-op idempotent ack (kept open/pending). Membership-enforced.
+    """
+    item = await get_item(session, pair_id=pair_id, user_id=user_id, item_id=item_id)
+    if item.status == WishlistStatus.PENDING:
+        item.status = WishlistStatus.OPEN
+        await session.flush()
+    return item
+
+
 async def rename_item(
     session: AsyncSession, *, pair_id: str, user_id: str, item_id: str, title: str
 ) -> WishlistItem:
@@ -138,6 +155,7 @@ __all__ = [
     "PairTier",
     "WishlistItem",
     "WishlistLimitError",
+    "approve_item",
     "count_open",
     "create_item",
     "get_item",

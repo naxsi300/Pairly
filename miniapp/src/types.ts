@@ -15,7 +15,7 @@ export type WishlistCategory =
   | "buy"
   | string;
 
-export type WishlistStatus = "open" | "planned" | "done" | "archived";
+export type WishlistStatus = "pending" | "open" | "planned" | "done" | "archived";
 
 export interface WishlistItem {
   id: ID;

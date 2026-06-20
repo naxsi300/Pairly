@@ -18,6 +18,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from pairly.db.base import SessionLocal
+from pairly.db.models import WishlistStatus
 from pairly.repositories import base, pairs, users, wishlist
 from pairly.repositories.base import NotPairedError
 from pairly.repositories.pairs import InviteError
@@ -320,6 +321,7 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
                 category=parsed.category,
                 notes=notes,
                 telegram_file_id=telegram_file_id,
+                status=WishlistStatus.PENDING,  # two-tap: partner must approve
             )
             await session.commit()
         except WishlistLimitError:
@@ -332,17 +334,19 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
             )
             return
 
-        # Poke the partner that the shared list grew (best-effort; silent if blocked).
-        from pairly.bot.notify import notify_wishlist_added
+        # Two-tap consent: notify the partner, who must approve before the item
+        # becomes open. Best-effort; silent if blocked.
+        from pairly.bot.notify import notify_wishlist_pending
 
-        await notify_wishlist_added(
-            session, pair_id=pair.id, actor_id=user.id, title=title
+        await notify_wishlist_pending(
+            session, pair_id=pair.id, actor_id=user.id, title=title, item_id=item.id
         )
 
     from pairly.bot.keyboards import wishlist_saved_kb
 
     await message.answer(
-        f"Готово — добавил в вишлист: «{html.escape(title)}»",
+        f"Готово — отправил партнёру на согласие: «{html.escape(title)}». "
+        "Как только подтвердит — появится в общем списке.",
         reply_markup=wishlist_saved_kb(item.id),
     )
 
@@ -402,6 +406,51 @@ async def cb_wish_edit(call: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(item_id=item_id)
     await call.message.answer("Напишите новое название — и я сохраню.")
     await call.answer()
+
+
+@router.callback_query(F.data.startswith("wish:approve:"))
+async def cb_wish_approve(call: CallbackQuery) -> None:
+    """Partner taps «👍 Ок» on a pending forwarded item → two-tap consent."""
+    item_id = call.data.split(":", 2)[-1] if call.data else ""
+    if not item_id:
+        await call.answer("Не нашёл пункт.", show_alert=True)
+        return
+    user = call.from_user
+    if user is None:
+        await call.answer()
+        return
+    async with SessionLocal() as session:
+        me = await users.get_or_create_user(session, user.id, tg_username=user.username)
+        try:
+            pair = await base.get_user_pair(session, me.id)
+        except NotPairedError:
+            await session.commit()
+            await call.answer("Сначала объединитесь в пару.", show_alert=True)
+            return
+        try:
+            item = await wishlist.approve_item(
+                session, pair_id=pair.id, user_id=me.id, item_id=item_id
+            )
+            await session.commit()
+        except LookupError:
+            await session.rollback()
+            await call.answer("Не нашёл пункт.", show_alert=True)
+            return
+    await call.answer("👍 Добавил в общий список!" if item.status == WishlistStatus.OPEN else "Уже добавлено.")
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@router.callback_query(F.data == "wish:approve:skip")
+async def cb_wish_approve_skip(call: CallbackQuery) -> None:
+    """Partner defers consent — dismiss the approve keyboard. The item stays pending."""
+    await call.answer("Ок, отложили.")
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @router.message(StateFilter(WishEdit.waiting_for_new_title), F.text)

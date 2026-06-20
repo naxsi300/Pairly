@@ -58,6 +58,15 @@ def wishlist_category_kb() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def wishlist_approve_kb(item_id: str) -> InlineKeyboardMarkup:
+    """Two-tap consent: shown to the partner on a pending forwarded item."""
+    kb = InlineKeyboardBuilder()
+    kb.button(text="👍 Ок, добавляем", callback_data=f"wish:approve:{item_id}")
+    kb.button(text="🙅 Не сейчас", callback_data="wish:approve:skip")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 def wishlist_saved_kb(item_id: str) -> InlineKeyboardMarkup:
     """Post-forward affordances: edit the title (inline) + open the Mini App.
 

@@ -23,7 +23,13 @@ export function wishlistCategoryLabel(cat?: WishlistCategory | null): string | n
 }
 
 export function wishlistStatusLabel(s: WishlistStatus): string {
-  return { open: "открыто", planned: "запланировано", done: "сделано", archived: "в архиве" }[s];
+  return {
+    pending: "ждёт согласия",
+    open: "открыто",
+    planned: "запланировано",
+    done: "сделано",
+    archived: "в архиве",
+  }[s];
 }
 
 export function bucketStatusLabel(s: BucketStatus): string {

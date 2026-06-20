@@ -77,6 +77,17 @@ export function Wishlist() {
     }
   }
 
+  /** Two-tap consent: approve a pending forwarded item (partner action). */
+  async function approve(item: WishlistItem) {
+    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "open" } : w)));
+    haptic("success");
+    try {
+      await endpoints.approveWishlist(item.id);
+    } catch {
+      refetch();
+    }
+  }
+
   /** "Хочу повторить": reopen THIS item in place (back to open) so you can do
    * it again. Does NOT spawn a duplicate — the same row becomes actionable. */
   async function repeat(item: WishlistItem) {
@@ -150,7 +161,17 @@ export function Wishlist() {
                   </div>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-                  {item.status !== "done" ? (
+                  {item.status === "pending" ? (
+                    <>
+                      <div className="banner banner-warm" style={{ flex: 1, padding: "8px 12px" }}>
+                        <span className="emoji">⏳</span>
+                        <div style={{ flex: 1, fontSize: 13 }}>ждёт согласия партнёра</div>
+                      </div>
+                      <button type="button" className="btn-warm" style={{ width: "auto", padding: "10px 18px" }} onClick={() => approve(item)} disabled={busy}>
+                        👍 Ок
+                      </button>
+                    </>
+                  ) : item.status !== "done" ? (
                     <button type="button" className="btn" style={{ width: "auto", padding: "10px 18px" }} onClick={() => markDone(item)}>
                       ✅ Сделано
                     </button>

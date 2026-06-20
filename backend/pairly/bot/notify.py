@@ -206,6 +206,29 @@ async def notify_wishlist_added(
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
 
 
+async def notify_wishlist_pending(
+    session: AsyncSession, *, pair_id: str, actor_id: str, title: str, item_id: str
+) -> None:
+    """Two-tap consent: partner must approve a forwarded item before it's open.
+
+    Sends an inline approve keyboard. Best-effort + silent on failure.
+    """
+    from pairly.bot.keyboards import wishlist_approve_kb
+
+    partner = await _partner(session, pair_id=pair_id, actor_id=actor_id)
+    if partner is None:
+        return
+    actor = await session.get(User, actor_id)
+    name = _actor_label(actor) if actor else "Партнёр"
+    text = f"{name} переслал(а) в общий список: «{title}» 📌\nПодтвердите, чтобы добавить:"
+    try:
+        await _get_bot().send_message(
+            partner.tg_id, text, reply_markup=wishlist_approve_kb(item_id)
+        )
+    except Exception:  # noqa: BLE001 — best-effort
+        log.exception("notify_wishlist_pending failed; ignored")
+
+
 async def notify_love_note(
     session: AsyncSession, *, pair_id: str, actor_id: str, body: str
 ) -> None:

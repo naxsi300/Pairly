@@ -159,6 +159,9 @@ export const endpoints = {
       method: "POST",
       body: { status },
     }),
+  /** Two-tap consent: partner approves a pending forwarded item. */
+  approveWishlist: (id: string) =>
+    request<WishlistItem>(`/api/wishlist/${id}/approve`, { method: "POST" }),
   deleteWishlist: (id: string) => request<{ ok: true }>(`/api/wishlist/${id}`, { method: "DELETE" }),
 
   listBucket: () => request<BucketItem[]>("/api/bucket"),
