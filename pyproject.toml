@@ -17,6 +17,8 @@ dependencies = [
     # API
     "fastapi>=0.111,<0.116",
     "uvicorn[standard]>=0.30",
+    # AI (OmniRoute client for the date-wheel's smart/lucky modes)
+    "httpx>=0.27",
     # Config
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
