@@ -69,11 +69,18 @@ export function countdownDisplay(c: Countdown, now: Date = new Date()): string {
       const hours = Math.max(1, Math.round(diffMs / 3600_000));
       return `через ${hours} ч`;
     }
-    const days = Math.round(diffMs / 86_400_000);
+    // Use the TZ-safe local-midnight delta for the rolled-forward occurrence
+    // (or the raw target for one-shot / milestone countdowns).
+    const days = localDayDelta(targetDate, now);
     return `через ${days} дн.`;
   }
-  const daysAgo = Math.max(1, Math.round(-diffMs / 86_400_000));
-  return `${daysAgo} дн. назад`;
+  // Past event. Count whole LOCAL days elapsed so "1 дн. назад" actually
+  // means "yesterday" — a sub-day event is already caught by isSameDay
+  // (same local day → "сегодня!"). The Math.max(1, ...) floor is gone so a
+  // just-passed event doesn't lie about being "1 day ago".
+  const daysAgo = localDayDelta(targetDate, now);
+  if (daysAgo === 0) return "сегодня!";
+  return `${-daysAgo} дн. назад`;
 }
 
 /** Pluck the emoji prefix or default. */
@@ -81,10 +88,24 @@ export function countdownEmoji(c: Countdown): string {
   return c.emoji?.trim() || "📅";
 }
 
+/** Whole-day delta between two instants, anchored to LOCAL midnight on both
+ * ends so the result is robust to the creator's vs. viewer's TZ: a target
+ * whose local day is "tomorrow" reads as +1 even when its UTC instant would
+ * otherwise round to 0 or -1 against now. Pure helper — no React. */
+function localDayDelta(target: Date, now: Date): number {
+  const t = Number.isNaN(target.getTime()) ? now : target;
+  const targetStart = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const delta = Math.round(
+    (targetStart.getTime() - nowStart.getTime()) / 86_400_000,
+  );
+  // Avoid -0 leaking out (Object.is semantics trip on negative zero).
+  return delta === 0 ? 0 : delta;
+}
+
 /** Whole-day delta from now to a countdown's target (negative = past). */
 export function countdownDays(c: Countdown, now: Date = new Date()): number {
-  const diff = new Date(c.targetDate).getTime() - now.getTime();
-  return Math.round(diff / 86_400_000);
+  return localDayDelta(new Date(c.targetDate), now);
 }
 
 /** Russian pluralization for years: 1 год / 2–4 года / 5+ лет. */
@@ -172,7 +193,10 @@ export function nextMilestone(
   if (!first) return null;
   return {
     date: first.date,
-    daysUntil: Math.max(0, Math.round((first.date.getTime() - now.getTime()) / 86_400_000)),
+    // Local-midnight anchoring: today's local day vs the candidate's local
+    // day, not raw ms between candidate-instant and now. Matches how the
+    // candidate filter (>= todayStart) is also expressed in local terms.
+    daysUntil: Math.max(0, localDayDelta(first.date, now)),
     label: first.label,
   };
 }
