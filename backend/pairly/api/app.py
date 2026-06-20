@@ -57,7 +57,7 @@ from pairly.repositories.countdowns import CountdownLimitError
 from pairly.repositories.gifts import GiftStateError
 from pairly.repositories.mood import InvalidMoodError
 from pairly.repositories.qotd import AnswerTooLongError
-from pairly.repositories.wishlist import WishlistLimitError
+from pairly.repositories.wishlist import WishlistLimitError, WishlistStateError
 
 
 def _require_pair(auth: AuthContext) -> str:
@@ -103,11 +103,11 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # --- pair stats (ambient shared-counters, not goals/streaks) ---
-    @app.get("/api/pair/stats", response_model=PairStats)
+    @app.get("/api/pair/stats")
     async def pair_stats(
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> PairStats:
+    ) -> dict:
         pair_id = _require_pair(auth)
         now = __import__("datetime").datetime.now(__import__("datetime").UTC)
 
@@ -237,7 +237,12 @@ def create_app() -> FastAPI:
             if not (pair_obj and pair_obj.is_pro()):
                 raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, detail="Pro feature")
         idea = await pick_date_idea(
-            session, pair_id=pair_id, category=category, mode=mode, user_id=auth.user.id
+            session,
+            pair_id=pair_id,
+            category=category,
+            mode=mode,
+            user_id=auth.user.id,
+            timezone=getattr(auth.user, "timezone", None),
         )
         return DateIdeaOut(source=idea.source, title=idea.title, category=idea.category, reason=idea.reason)
 
@@ -361,26 +366,27 @@ def create_app() -> FastAPI:
         except WishlistLimitError as exc:
             raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, detail=str(exc)) from exc
         out = WishlistItemOut.model_validate(item).model_dump(by_alias=True)
+        out["mine"] = item.created_by == auth.user.id
         out["newMilestones"] = [
             MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True) for m in new_ms
         ]
         return out
 
-    @app.post("/api/mark-done", response_model=WishlistItemOut)
+    @app.post("/api/mark-done")
     async def mark_done(
         payload: WishlistStatusUpdate,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> WishlistItemOut:
+    ) -> dict:
         return await _wishlist_set_status(session, auth, payload.item_id, "done")
 
-    @app.post("/api/wishlist/{item_id}/status", response_model=WishlistItemOut)
+    @app.post("/api/wishlist/{item_id}/status")
     async def wishlist_status(
         item_id: str,
         payload: WishlistStatusUpdate,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> WishlistItemOut:
+    ) -> dict:
         return await _wishlist_set_status(session, auth, item_id, payload.status)
 
     @app.delete("/api/wishlist/{item_id}")
@@ -564,7 +570,7 @@ def create_app() -> FastAPI:
             ),
         )
 
-    @app.post("/api/mood", response_model=MoodEntryOut)
+    @app.post("/api/mood")
     async def post_mood(
         payload: MoodSet,
         auth: AuthContext = Depends(current_auth),
@@ -760,13 +766,13 @@ def create_app() -> FastAPI:
         ]
         return out
 
-    @app.post("/api/gifts/{gift_id}/transition", response_model=GiftItemOut)
+    @app.post("/api/gifts/{gift_id}/transition")
     async def gift_transition(
         gift_id: str,
         payload: GiftTransition,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
-    ) -> GiftItemOut:
+    ) -> dict:
         pair_id = _require_pair(auth)
         try:
             item = await gifts.transition(
@@ -794,13 +800,17 @@ def create_app() -> FastAPI:
             new_ms_c = await milestones.check_gift_completed(
                 session, pair_id=pair_id, count=completed_count
             )
+            # Commit the milestone row so it survives the request. Without this,
+            # the milestone stays flushed-but-uncommitted and is rolled back when
+            # the session tears down at end-of-request — invisible to subsequent
+            # fetches.
+            await session.commit()
             if new_ms_c:
-                out_ms = [
+                result = _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
+                result["newMilestones"] = [
                     MilestoneOut(kind=m.kind, value=m.value).model_dump(by_alias=True)
                     for m in new_ms_c
                 ]
-                result = _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
-                result["newMilestones"] = out_ms
                 return result
         elif item.status == GiftStatus.CLAIMED:
             from pairly.bot.notify import notify_gift_accepted
@@ -814,7 +824,7 @@ def create_app() -> FastAPI:
             await notify_gift_declined(
                 session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
             )
-        return _to_gift_out(item, auth.user.id)
+        return _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
 
     # --- admin (hidden) — gated by PAIRLY_ADMIN_TG_IDS. Non-admins get 404, so the
     # endpoints are invisible to regular users (and the Mini App's hidden menu). ---
@@ -992,7 +1002,7 @@ def create_app() -> FastAPI:
 
 async def _wishlist_set_status(
     session: AsyncSession, auth: AuthContext, item_id: str, status_str: str
-) -> WishlistItemOut:
+) -> dict:
     pair_id = _require_pair(auth)
     from pairly.db.models import WishlistStatus
 
@@ -1007,7 +1017,13 @@ async def _wishlist_set_status(
         await session.commit()
     except LookupError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="not found") from exc
-    return WishlistItemOut.model_validate(item)
+    except WishlistStateError as exc:
+        # Illegal transition (e.g. PENDING -> DONE, DONE -> OPEN, ARCHIVED -> *).
+        # Map to 409 Conflict — the client's state is out of sync with the server.
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    out = WishlistItemOut.model_validate(item).model_dump(by_alias=True)
+    out["mine"] = item.created_by == auth.user.id
+    return out
 
 
 def _to_countdown_out(item) -> CountdownOut:

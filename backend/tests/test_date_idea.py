@@ -108,3 +108,49 @@ async def test_smart_mode_falls_back_when_ai_not_configured(session, monkeypatch
     idea = await pick_date_idea(session, pair_id=pair.id, category=None, user_id=a.id, mode="smart")
     assert idea.title == "Прогулка по набережной"  # fell back to random
     assert idea.source == "wishlist"
+
+
+@pytest.mark.asyncio
+async def test_pick_date_idea_accepts_timezone(session, monkeypatch):
+    """Cluster 10: pick_date_idea now takes a timezone kwarg and routes it into the AI prompt.
+
+    Random mode ignores TZ, but the kwarg must be accepted without raising —
+    the API layer (cluster 10) forwards auth.user.timezone into every call.
+    """
+    from pairly.use_cases.date_idea import pick_date_idea
+
+    a, _b, pair = await _pair(session)
+    await wishlist.create_item(
+        session, pair_id=pair.id, user_id=a.id, title="Пицца", category="eat"
+    )
+    await session.commit()
+
+    # Random mode: timezone is accepted but unused (no AI prompt).
+    idea = await pick_date_idea(
+        session, pair_id=pair.id, category=None, user_id=a.id, timezone="Asia/Tokyo"
+    )
+    assert idea.title == "Пицца"
+
+    # Smart mode: timezone is forwarded into the AI user message (time-of-day label).
+    captured: dict[str, str] = {}
+
+    async def fake_chat_json(*, system, user):
+        captured["system"] = system
+        captured["user"] = user
+        return {"title": "Суши", "category": "eat", "reason": "Вечер"}
+
+    from pairly import ai
+    monkeypatch.setattr(ai, "chat_json", fake_chat_json)
+    await pick_date_idea(
+        session,
+        pair_id=pair.id,
+        category=None,
+        user_id=a.id,
+        mode="smart",
+        timezone="Asia/Tokyo",
+    )
+    # The timezone changes the time-of-day label (morning/day/evening/night) but the
+    # IANA name itself isn't echoed in the prompt — what matters is that the call
+    # accepts and uses the kwarg without raising. We assert a non-empty user msg
+    # was constructed (the smart prompt that references the wishlist).
+    assert "списка желаний" in captured["user"]
