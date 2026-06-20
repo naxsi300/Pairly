@@ -79,12 +79,10 @@ export function Bucket() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <header className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-tg-text">{COPY.bucket.heading}</h1>
-        <Button onClick={() => setAdding(true)} disabled={atLimit}>
-          + {COPY.common.add}
-        </Button>
-      </header>
+      <h1 className="heading">{COPY.bucket.heading}</h1>
+      <Button variant="warm" onClick={() => setAdding(true)} disabled={atLimit} style={{ marginBottom: 12 }}>
+        + {COPY.common.add}
+      </Button>
 
       {atLimit ? (
         <div className="mb-3">

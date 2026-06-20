@@ -5,12 +5,22 @@ import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
 import { countdownDisplay, countdownEmoji } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
 import { TextInput } from "../components/Field";
+
+/** Split a countdown into day/hour/min blocks for the gallery `.countdown` layout.
+ * Returns null when the target has passed (caller falls back to countdownDisplay). */
+function cdBlocks(c: Countdown, now: Date = new Date()): { num: string; label: string }[] | null {
+  const diff = new Date(c.targetDate).getTime() - now.getTime();
+  if (diff <= 0) return null;
+  const d = Math.floor(diff / 86_400_000);
+  const h = Math.floor((diff % 86_400_000) / 3_600_000);
+  const m = Math.floor((diff % 3_600_000) / 60_000);
+  if (d >= 1) return [{ num: String(d), label: "дней" }, { num: String(h), label: "часов" }];
+  return [{ num: String(h), label: "часов" }, { num: String(m), label: "минут" }];
+}
 
 function parseRuDate(input: string): string | null {
   const trimmed = input.trim();
@@ -82,12 +92,10 @@ export function Countdowns() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <header className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-tg-text">{COPY.countdowns.heading}</h1>
-        <Button onClick={() => setAdding(true)} disabled={atLimit}>
-          + {COPY.common.add}
-        </Button>
-      </header>
+      <h1 className="heading">{COPY.countdowns.heading}</h1>
+      <button type="button" className="btn-warm" onClick={() => setAdding(true)} disabled={atLimit} style={{ marginBottom: 12 }}>
+        + {COPY.common.add}
+      </button>
 
       {atLimit ? (
         <div className="mb-3">
@@ -109,32 +117,34 @@ export function Countdowns() {
         <EmptyState emoji="📅" text={COPY.countdowns.empty} />
       ) : (
         <ul className="flex flex-col gap-2">
-          {items.map((c) => (
-            <li key={c.id}>
-              <Card>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-[15px] font-medium text-tg-text">
-                      {countdownEmoji(c)} {c.label}
-                    </p>
-                    {c.recurrence ? (
-                      <p className="mt-0.5 text-xs text-tg-hint">
-                        {c.recurrence === "annual" ? "каждый год" : "каждый месяц"}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="shrink-0 text-sm font-medium text-tg-link">
-                    {countdownDisplay(c)}
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <Button variant="danger" onClick={() => remove(c)}>
+          {items.map((c) => {
+            const blocks = cdBlocks(c);
+            return (
+              <li key={c.id}>
+                <div className="card" style={{ alignItems: "center", textAlign: "center" }}>
+                  <div className="card-title">{countdownEmoji(c)} {c.label}</div>
+                  {c.recurrence ? (
+                    <div className="card-sub">{c.recurrence === "annual" ? "каждый год" : "каждый месяц"}</div>
+                  ) : null}
+                  {blocks ? (
+                    <div className="countdown" style={{ marginTop: 4 }}>
+                      {blocks.map((b) => (
+                        <div className="cd-unit" key={b.label}>
+                          <div className="cd-num">{b.num}</div>
+                          <div className="cd-label">{b.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 28, fontWeight: 700, color: "var(--tg-button)", marginTop: 4 }}>{countdownDisplay(c)}</div>
+                  )}
+                  <button type="button" className="btn-ghost" style={{ width: "auto", padding: "8px 16px", color: "var(--m3-error)", borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)", marginTop: 4 }} onClick={() => remove(c)}>
                     🗑 {COPY.common.delete}
-                  </Button>
+                  </button>
                 </div>
-              </Card>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 

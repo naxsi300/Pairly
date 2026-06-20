@@ -68,7 +68,7 @@ export function QuestionOfTheDay() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="mb-3 text-xl font-semibold text-tg-text">{COPY.qotd.heading}</h1>
+      <h1 className="heading">{COPY.qotd.heading}</h1>
 
       <Card className="mb-3">
         <p className="text-xs uppercase tracking-wide text-tg-hint">{data.question.category}</p>

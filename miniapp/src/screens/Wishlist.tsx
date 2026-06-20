@@ -2,15 +2,18 @@ import { useState } from "react";
 import { COPY } from "../copy";
 import { ApiError, endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
-import { DEFAULT_LIMITS, type WishlistItem } from "../types";
-import { wishlistCategoryLabel, wishlistStatusLabel } from "../lib/format";
+import { DEFAULT_LIMITS, type WishlistCategory, type WishlistItem } from "../types";
+import { wishlistCategoryLabel } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
 import { TextInput } from "../components/Field";
+
+const CAT_EMOJI: Record<string, string> = { eat: "🍽", do: "🎉", stay: "🛌", watch: "🎬", buy: "🛍" };
+function categoryEmoji(cat?: WishlistCategory | null): string {
+  return (cat && CAT_EMOJI[cat]) || "📌";
+}
 
 const CATS = ["eat", "do", "stay", "watch", "buy"] as const;
 
@@ -98,12 +101,10 @@ export function Wishlist() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <header className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-tg-text">{COPY.wishlist.heading}</h1>
-        <Button onClick={() => setAdding(true)} disabled={atLimit}>
-          + {COPY.common.add}
-        </Button>
-      </header>
+      <h1 className="heading">{COPY.wishlist.heading}</h1>
+      <button type="button" className="btn-warm" onClick={() => setAdding(true)} disabled={atLimit} style={{ marginBottom: 12 }}>
+        + {COPY.common.add}
+      </button>
 
       {atLimit ? (
         <div className="mb-3">
@@ -127,56 +128,47 @@ export function Wishlist() {
         <ul className="flex flex-col gap-2">
           {items.map((item) => (
             <li key={item.id}>
-              <Card>
-                <div className="flex items-start gap-3">
+              <div className={`card ${item.status === "done" ? "done" : ""}`}>
+                <div className="card-row">
                   {item.hasPhoto ? (
                     <img
                       src={endpoints.wishlistPhotoUrl(item.id)}
                       alt=""
                       loading="lazy"
                       onError={(e) => {
-                        // Telegram temp URL expired or lookup failed — hide cleanly.
                         (e.currentTarget as HTMLImageElement).style.display = "none";
                       }}
-                      className="h-16 w-16 flex-shrink-0 rounded-xl object-cover"
+                      style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", flexShrink: 0 }}
                     />
-                  ) : null}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-medium leading-snug text-tg-text">{item.title}</p>
-                    {item.address ? (
-                      <p className="mt-0.5 truncate text-sm text-tg-hint">📍 {item.address}</p>
-                    ) : null}
-                    {item.notes ? (
-                      <p className="mt-1 line-clamp-2 text-xs text-tg-hint">{item.notes}</p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-tg-hint">
-                      {[wishlistCategoryLabel(item.category), wishlistStatusLabel(item.status)]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
+                  ) : (
+                    <span className="emoji" style={{ fontSize: 28 }}>{categoryEmoji(item.category)}</span>
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="card-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
+                    {item.address ? <div className="card-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {item.address}</div> : null}
+                    {item.notes ? <div className="card-sub" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.notes}</div> : null}
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
                   {item.status !== "done" ? (
-                    <Button variant="secondary" onClick={() => markDone(item)}>
+                    <button type="button" className="btn" style={{ width: "auto", padding: "10px 18px" }} onClick={() => markDone(item)}>
                       ✅ Сделано
-                    </Button>
+                    </button>
                   ) : (
                     <>
-                      <span className="self-center text-sm text-tg-hint">✅ сделано</span>
-                      <Button variant="ghost" onClick={() => repeat(item)} disabled={busy}>
+                      <button type="button" className="btn-warm" style={{ width: "auto", padding: "10px 18px" }} onClick={() => repeat(item)} disabled={busy}>
                         {COPY.wishlist.repeat}
-                      </Button>
-                      <Button variant="ghost" onClick={() => undo(item)}>
-                        ↶ Отменить
-                      </Button>
+                      </button>
+                      <button type="button" className="btn-ghost" style={{ width: "auto", padding: "10px 18px" }} onClick={() => undo(item)}>
+                        ↶ Открыть
+                      </button>
                     </>
                   )}
-                  <Button variant="danger" onClick={() => remove(item)}>
-                    🗑 {COPY.common.delete}
-                  </Button>
+                  <button type="button" className="btn-ghost" style={{ width: "auto", padding: "10px 18px", color: "var(--m3-error)", borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)" }} onClick={() => remove(item)}>
+                    🗑
+                  </button>
                 </div>
-              </Card>
+              </div>
             </li>
           ))}
         </ul>

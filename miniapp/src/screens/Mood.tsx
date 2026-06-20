@@ -81,7 +81,7 @@ export function Mood() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="mb-3 text-xl font-semibold text-tg-text">{COPY.mood.heading}</h1>
+      <h1 className="heading">{COPY.mood.heading}</h1>
 
       {neverSet && !picked ? (
         <EmptyState emoji="🙂" text={COPY.mood.empty} />

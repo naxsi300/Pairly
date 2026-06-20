@@ -88,12 +88,10 @@ export function Gifts() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <header className="mb-3 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-tg-text">{COPY.gifts.heading}</h1>
-        <Button onClick={() => setPicking(true)} disabled={busy}>
-          🎁 {COPY.common.add}
-        </Button>
-      </header>
+      <h1 className="heading">{COPY.gifts.heading}</h1>
+      <Button variant="warm" onClick={() => setPicking(true)} disabled={busy}>
+        🎁 {COPY.common.add}
+      </Button>
 
       {loading ? (
         <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
