@@ -4,7 +4,7 @@
 As a partner, I want to set a one-tap mood my partner can see, so that we have a gentle, no-words way to signal "I'm great today" or "I'm a bit low" without turning every feeling into a conversation.
 
 ## Acceptance criteria
-- [ ] Each partner can set a current mood from a small fixed set of 5, with Russian labels: сияю / хорошо / ровно / так себе / паршиво (one emoji per label). One tap, optionally with a short optional note (≤60 chars).
+- [ ] Each partner can set a current mood from a small fixed set of 8, with Russian labels: сияю / радостно / хорошо / спокойно / ровно / так себе / грустно / паршиво (one emoji per label). One tap, optionally with a short optional note (≤60 chars).
 - [ ] The other partner sees the current mood on the shared home view. It is the *latest* mood only — there is no history graph, no trend, no score.
 - [ ] Setting a mood updates instantly for the partner (within the Mini App session; bot shows it on next interaction).
 - [ ] A mood, once set, is valid until the setter changes it or 24h pass — after which it fades to "no mood set" rather than persisting stale.

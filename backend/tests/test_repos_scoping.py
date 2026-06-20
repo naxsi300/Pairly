@@ -95,4 +95,4 @@ async def test_gift_must_be_claimed_before_redeemed(session):
 async def test_invalid_mood_rejected(session):
     a, b, pair = await _pair(session, 7, 8)
     with pytest.raises(mood.InvalidMoodError):
-        await mood.set_mood(session, pair_id=pair.id, user_id=a.id, mood="счастлив")  # not in the 5
+        await mood.set_mood(session, pair_id=pair.id, user_id=a.id, mood="счастлив")  # not one of the 8

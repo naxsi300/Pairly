@@ -10,6 +10,7 @@ field accepts both casings on the way in.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
@@ -153,7 +154,9 @@ class CountdownCreate(_CamelModel):
     # populate_by_name=True needs the field to know both names.
     target_date: datetime = Field(alias="targetDate", validation_alias="targetDate")
     emoji: str | None = None
-    recurrence: str | None = None
+    # 'annual'/'monthly' roll forward conceptually; 'milestone' marks a reference
+    # date (e.g. дата знакомства) whose round anniversaries are synthesized client-side.
+    recurrence: Literal["annual", "monthly", "milestone"] | None = None
 
 
 class CountdownOut(_CamelModel):

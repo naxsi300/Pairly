@@ -92,6 +92,17 @@ function ruYears(n: number): string {
   return `${n} лет`;
 }
 
+/** Add N years to a date, clamping Feb 29 → Feb 28 on non-leap years (the JS
+ * Date constructor would otherwise silently overflow to Mar 1). */
+function addYears(d: Date, years: number): Date {
+  const res = new Date(d.getFullYear() + years, d.getMonth(), d.getDate());
+  if (res.getDate() !== d.getDate()) {
+    // day rolled over (Feb 29 target on a non-leap year) → last day of target month
+    return new Date(d.getFullYear() + years, d.getMonth() + 1, 0);
+  }
+  return res;
+}
+
 // Round "together" day-count milestones generated from a reference date.
 const DAY_MILESTONES = [
   100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000,
@@ -115,7 +126,7 @@ export function nextMilestone(
   }
   for (let y = 1; y <= 100; y++) {
     candidates.push({
-      date: new Date(ref.getFullYear() + y, ref.getMonth(), ref.getDate()),
+      date: addYears(ref, y),
       label: `${ruYears(y)} вместе`,
     });
   }

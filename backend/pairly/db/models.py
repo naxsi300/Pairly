@@ -212,7 +212,9 @@ class Countdown(Base):
     label: Mapped[str] = mapped_column(String(128))
     emoji: Mapped[str | None] = mapped_column(String(16), nullable=True)
     target_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    # Recurrence rule: 'annual' | 'monthly' | None. Day-after passing -> roll to next.
+    # Recurrence rule: 'annual' | 'monthly' | 'milestone' | None.
+    # 'annual'/'monthly' roll conceptually; 'milestone' marks a reference date
+    # (e.g. дата знакомства) whose round anniversaries are synthesized client-side.
     recurrence: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -225,7 +227,7 @@ class MoodEntry(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
     pair_id: Mapped[str] = mapped_column(ForeignKey("pairs.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    # One of: сияю / хорошо / ровно / так себе / паршиво
+    # One of 8: сияю / радостно / хорошо / спокойно / ровно / так себе / грустно / паршиво
     mood: Mapped[str] = mapped_column(String(32))
     note: Mapped[str | None] = mapped_column(String(60), nullable=True)
     set_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)

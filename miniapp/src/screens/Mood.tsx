@@ -53,6 +53,8 @@ export function Mood() {
     setBusy(true);
     try {
       setData((prev) => ({ ...(prev ?? ({} as MoodResponse)), self: null }));
+      setPicked(null);
+      setNote("");
       haptic("light");
       await endpoints.clearMood();
     } catch {
@@ -120,7 +122,7 @@ export function Mood() {
             <button type="button" className="btn-warm" style={{ flex: 1 }} onClick={save} disabled={busy}>
               {COPY.common.save}
             </button>
-            <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => setPicked(null)}>
+            <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => { setPicked(null); setNote(""); }}>
               {COPY.common.skip}
             </button>
           </div>

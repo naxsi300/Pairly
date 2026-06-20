@@ -50,6 +50,20 @@ export function Countdowns() {
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
 
+  /** Clear all add-modal fields — on close/cancel AND after a successful save —
+   * so the next open starts fresh (no stale milestone toggle, title, or date error). */
+  function resetForm() {
+    setLabel("");
+    setDate("");
+    setEmoji("");
+    setMilestone(false);
+    setDateErr(false);
+  }
+  const closeAdd = () => {
+    resetForm();
+    setAdding(false);
+  };
+
   async function submit() {
     if (!label.trim()) return;
     const target = parseRuDate(date);
@@ -68,10 +82,7 @@ export function Countdowns() {
       })) as Countdown & { newMilestones?: { kind: string; value: number }[] };
       setData((prev) => [item, ...(prev ?? [])]);
       setAdding(false);
-      setLabel("");
-      setDate("");
-      setEmoji("");
-      setMilestone(false);
+      resetForm();
       haptic("success");
       for (const m of item.newMilestones ?? []) {
         emitMilestone({ kind: m.kind, value: m.value });
@@ -163,7 +174,7 @@ export function Countdowns() {
       <Modal
         open={adding}
         title={COPY.countdowns.addPrompt}
-        onClose={() => setAdding(false)}
+        onClose={closeAdd}
         onSubmit={submit}
         submitDisabled={!label.trim() || !date.trim() || busy}
       >

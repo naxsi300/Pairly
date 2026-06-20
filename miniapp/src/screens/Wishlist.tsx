@@ -34,6 +34,17 @@ export function Wishlist() {
   const shown = filter === "active" ? activeItems : doneItems;
   const atLimit = activeItems.length >= DEFAULT_LIMITS.wishlist;
 
+  /** Reset add-modal fields on close/cancel and after a successful save. */
+  function resetForm() {
+    setTitle("");
+    setAddress("");
+    setCategory("");
+  }
+  const closeAdd = () => {
+    resetForm();
+    setAdding(false);
+  };
+
   async function submit() {
     if (!title.trim()) return;
     setBusy(true);
@@ -46,9 +57,7 @@ export function Wishlist() {
       }) as WishlistItem & { newMilestones?: { kind: string; value: number }[] };
       setData((prev) => [item, ...(prev ?? [])]);
       setAdding(false);
-      setTitle("");
-      setAddress("");
-      setCategory("");
+      resetForm();
       haptic("success");
       for (const m of item.newMilestones ?? []) {
         emitMilestone({ kind: m.kind, value: m.value });
@@ -230,7 +239,7 @@ export function Wishlist() {
       <Modal
         open={adding}
         title={COPY.wishlist.addPrompt}
-        onClose={() => setAdding(false)}
+        onClose={closeAdd}
         onSubmit={submit}
         submitDisabled={!title.trim() || busy}
       >

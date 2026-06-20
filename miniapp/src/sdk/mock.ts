@@ -156,7 +156,7 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
       case "/api/bucket":
         bucket = [{ id: rid(), status: "dreaming", completedAt: null, ...body }, ...bucket];
         return json(bucket[0], 201);
-      case "/api/countdown":
+      case "/api/countdowns":
         countdowns = [{ id: rid(), recurrence: null, ...body }, ...countdowns];
         return json(countdowns[0], 201);
       case "/api/mood":
@@ -201,6 +201,10 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
   }
 
   if (method === "DELETE") {
+    if (path === "/api/mood") {
+      moodSelf = null;
+      return json({ ok: true });
+    }
     if (path.startsWith("/api/wishlist/")) {
       const id = path.split("/")[3];
       wishlist = wishlist.filter((w) => w.id !== id);

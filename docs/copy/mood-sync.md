@@ -2,11 +2,14 @@
 
 All copy in Russian. Source: docs/user-stories/mood-sync.md. Lowest-data feature — resist adding fields.
 
-## Mood labels (exactly these 5, one emoji each)
+## Mood labels (exactly these 8, one emoji each)
 - 😊 сияю
+- 😄 радостно
 - 🙂 хорошо
+- 😌 спокойно
 - 😐 ровно
 - 🙁 так себе
+- 😔 грустно
 - 😢 паршиво
 
 ## Set mood
