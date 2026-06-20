@@ -123,24 +123,26 @@ export interface LoveNoteItem {
 }
 
 export const endpoints = {
-  listWishlist: () => request<WishlistItem[]>("/api/wishlist"),
-  addWishlist: (b: { title: string; address?: string | null; category?: string | null }) =>
-    request<WishlistItem>("/api/wishlist", { method: "POST", body: b }),
+  listWishlist: (signal?: AbortSignal) =>
+    request<WishlistItem[]>("/api/wishlist", { signal }),
+  addWishlist: (b: { title: string; address?: string | null; category?: string | null }, signal?: AbortSignal) =>
+    request<WishlistItem>("/api/wishlist", { method: "POST", body: b, signal }),
 
   /** Spin the date-wheel. category: "eat"|"do"|"stay"|"watch"|"buy"|undefined. */
-  getDateIdea: (category?: string, mode?: "random" | "smart" | "lucky") => {
+  getDateIdea: (category?: string, mode?: "random" | "smart" | "lucky", signal?: AbortSignal) => {
     const params = new URLSearchParams();
     if (category) params.set("category", category);
     if (mode) params.set("mode", mode);
     const qs = params.toString();
-    return request<DateIdeaResponse>(`/api/date-idea${qs ? `?${qs}` : ""}`);
+    return request<DateIdeaResponse>(`/api/date-idea${qs ? `?${qs}` : ""}`, { signal });
   },
 
-  listLoveNotes: () => request<LoveNoteItem[]>("/api/love-notes"),
-  sendLoveNote: (b: { body: string; deliverAt?: string | null }) =>
-    request<LoveNoteItem>("/api/love-notes", { method: "POST", body: b }),
-  readLoveNote: (id: string) =>
-    request<LoveNoteItem>(`/api/love-notes/${id}/read`, { method: "POST" }),
+  listLoveNotes: (signal?: AbortSignal) =>
+    request<LoveNoteItem[]>("/api/love-notes", { signal }),
+  sendLoveNote: (b: { body: string; deliverAt?: string | null }, signal?: AbortSignal) =>
+    request<LoveNoteItem>("/api/love-notes", { method: "POST", body: b, signal }),
+  readLoveNote: (id: string, signal?: AbortSignal) =>
+    request<LoveNoteItem>(`/api/love-notes/${id}/read`, { method: "POST", signal }),
 
   /**
    * On-demand forwarded-photo URL for an item. <img src> can't send the auth
@@ -156,36 +158,40 @@ export const endpoints = {
     if (devUid) params.set("dev_user_id", devUid);
     return `${API_URL}/api/wishlist/${id}/photo?${params.toString()}`;
   },
-  markDone: (item_id: string) =>
-    request<WishlistItem>("/api/mark-done", { method: "POST", body: { item_id } }),
+  markDone: (item_id: string, signal?: AbortSignal) =>
+    request<WishlistItem>("/api/mark-done", { method: "POST", body: { item_id }, signal }),
   /** Set explicit status. body.status is one of "open"|"planned"|"done"|"archived". */
-  setWishlistStatus: (id: string, status: string) =>
+  setWishlistStatus: (id: string, status: string, signal?: AbortSignal) =>
     request<WishlistItem>(`/api/wishlist/${id}/status`, {
       method: "POST",
       body: { status },
+      signal,
     }),
   /** Two-tap consent: partner approves a pending forwarded item. */
-  approveWishlist: (id: string) =>
-    request<WishlistItem>(`/api/wishlist/${id}/approve`, { method: "POST" }),
-  deleteWishlist: (id: string) => request<{ ok: true }>(`/api/wishlist/${id}`, { method: "DELETE" }),
+  approveWishlist: (id: string, signal?: AbortSignal) =>
+    request<WishlistItem>(`/api/wishlist/${id}/approve`, { method: "POST", signal }),
+  deleteWishlist: (id: string, signal?: AbortSignal) =>
+    request<{ ok: true }>(`/api/wishlist/${id}`, { method: "DELETE", signal }),
 
-  listBucket: () => request<BucketItem[]>("/api/bucket"),
-  addBucket: (b: { title: string; note?: string | null; category?: string | null }) =>
-    request<BucketItem>("/api/bucket", { method: "POST", body: b }),
-  setBucketStatus: (id: string, status: string) =>
+  listBucket: (signal?: AbortSignal) => request<BucketItem[]>("/api/bucket", { signal }),
+  addBucket: (b: { title: string; note?: string | null; category?: string | null }, signal?: AbortSignal) =>
+    request<BucketItem>("/api/bucket", { method: "POST", body: b, signal }),
+  setBucketStatus: (id: string, status: string, signal?: AbortSignal) =>
     request<BucketItem>(`/api/bucket/${id}/status`, {
       method: "POST",
       body: { status },
+      signal,
     }),
-  deleteBucket: (id: string) => request<{ ok: true }>(`/api/bucket/${id}`, { method: "DELETE" }),
+  deleteBucket: (id: string, signal?: AbortSignal) =>
+    request<{ ok: true }>(`/api/bucket/${id}`, { method: "DELETE", signal }),
 
-  listCountdowns: () => request<Countdown[]>("/api/countdowns"),
+  listCountdowns: (signal?: AbortSignal) => request<Countdown[]>("/api/countdowns", { signal }),
   addCountdown: (b: {
     label: string;
     targetDate: string;
     emoji?: string | null;
     recurrence?: Countdown["recurrence"];
-  }) => request<Countdown>("/api/countdowns", { method: "POST", body: b }),
+  }, signal?: AbortSignal) => request<Countdown>("/api/countdowns", { method: "POST", body: b, signal }),
   updateCountdown: (
     id: string,
     b: Partial<{
@@ -194,38 +200,40 @@ export const endpoints = {
       emoji: string | null;
       recurrence: Countdown["recurrence"];
     }>,
-  ) => request<Countdown>(`/api/countdowns/${id}`, { method: "PATCH", body: b }),
-  deleteCountdown: (id: string) =>
-    request<{ ok: true }>(`/api/countdowns/${id}`, { method: "DELETE" }),
+    signal?: AbortSignal,
+  ) => request<Countdown>(`/api/countdowns/${id}`, { method: "PATCH", body: b, signal }),
+  deleteCountdown: (id: string, signal?: AbortSignal) =>
+    request<{ ok: true }>(`/api/countdowns/${id}`, { method: "DELETE", signal }),
 
-  getMood: () => request<MoodResponse>("/api/mood"),
-  setMood: (b: { mood: string; note?: string | null }) =>
-    request<MoodEntry>("/api/mood", { method: "POST", body: b }),
-  clearMood: () => request<{ ok: boolean }>("/api/mood", { method: "DELETE" }),
+  getMood: (signal?: AbortSignal) => request<MoodResponse>("/api/mood", { signal }),
+  setMood: (b: { mood: string; note?: string | null }, signal?: AbortSignal) =>
+    request<MoodEntry>("/api/mood", { method: "POST", body: b, signal }),
+  clearMood: (signal?: AbortSignal) => request<{ ok: boolean }>("/api/mood", { method: "DELETE", signal }),
 
-  getQotd: () => request<QOTDResponse>("/api/qotd"),
+  getQotd: (signal?: AbortSignal) => request<QOTDResponse>("/api/qotd", { signal }),
   /** Narrower shape: backend's POST /api/qotd/answer returns ONLY
    *  { myAnswer, partnerAnswered, partnerAnswer, newMilestones } — no
    *  `question` field. The caller spreads this into its QOTDResponse. */
-  answerQotd: (b: { answer: string }) =>
+  answerQotd: (b: { answer: string }, signal?: AbortSignal) =>
     request<{
       myAnswer: string | null;
       partnerAnswered: boolean;
       partnerAnswer: string | null;
       newMilestones?: { kind: string; value: number }[];
-    }>("/api/qotd/answer", { method: "POST", body: b }),
+    }>("/api/qotd/answer", { method: "POST", body: b, signal }),
 
-  listGifts: () => request<GiftsResponse>("/api/gifts"),
-  sendGift: (b: { gesture: string; description?: string | null }) =>
-    request<GiftItem>("/api/gifts", { method: "POST", body: b }),
+  listGifts: (signal?: AbortSignal) => request<GiftsResponse>("/api/gifts", { signal }),
+  sendGift: (b: { gesture: string; description?: string | null }, signal?: AbortSignal) =>
+    request<GiftItem>("/api/gifts", { method: "POST", body: b, signal }),
   /** Transition a gift. status is one of "claimed"|"declined"|"redeemed"|"complete"|"archived". */
-  actOnGift: (id: string, status: string) =>
+  actOnGift: (id: string, status: string, signal?: AbortSignal) =>
     request<GiftItem>(`/api/gifts/${id}/transition`, {
       method: "POST",
       body: { status },
+      signal,
     }),
 
-  getPairStats: () =>
+  getPairStats: (signal?: AbortSignal) =>
     request<{
       togetherDays: number;
       totalWishlist: number;
@@ -237,10 +245,10 @@ export const endpoints = {
       createdAt: string | null;
       isPro: boolean;
       newMilestones?: { kind: string; value: number }[];
-    }>("/api/pair/stats"),
+    }>("/api/pair/stats", { signal }),
 
   // --- admin (hidden) — 404 unless your TG id is in PAIRLY_ADMIN_TG_IDS ---
-  getAdminStatus: () =>
+  getAdminStatus: (signal?: AbortSignal) =>
     request<{
       pairId: string;
       userId: string;
@@ -248,26 +256,28 @@ export const endpoints = {
       tier: string | null;
       isPro: boolean;
       adminEnabled: boolean;
-    }>("/api/admin/status"),
-  togglePro: () =>
-    request<{ isPro: boolean }>("/api/admin/toggle-pro", { method: "POST" }),
-  getAdminStats: () =>
+    }>("/api/admin/status", { signal }),
+  togglePro: (signal?: AbortSignal) =>
+    request<{ isPro: boolean }>("/api/admin/toggle-pro", { method: "POST", signal }),
+  getAdminStats: (signal?: AbortSignal) =>
     request<{ total: number; pro: number; free: number; dissolved: number }>(
       "/api/admin/stats",
+      { signal },
     ),
-  listAdminPairs: (limit = 20, offset = 0) =>
+  listAdminPairs: (limit = 20, offset = 0, signal?: AbortSignal) =>
     request<{ items: AdminPair[] }>(
       `/api/admin/pairs?limit=${limit}&offset=${offset}`,
+      { signal },
     ),
-  lookupPair: (tg: number) =>
-    request<AdminPair>(`/api/admin/lookup?tg=${tg}`),
-  setPairPro: (pairId: string, enable: boolean) =>
+  lookupPair: (tg: number, signal?: AbortSignal) =>
+    request<AdminPair>(`/api/admin/lookup?tg=${tg}`, { signal }),
+  setPairPro: (pairId: string, enable: boolean, signal?: AbortSignal) =>
     request<{ isPro: boolean }>(
       `/api/admin/pairs/${pairId}/pro`,
-      { method: enable ? "POST" : "DELETE" },
+      { method: enable ? "POST" : "DELETE", signal },
     ),
-  getAdminAudit: (limit = 20) =>
-    request<{ items: AdminAuditEntry[] }>(`/api/admin/audit?limit=${limit}`),
+  getAdminAudit: (limit = 20, signal?: AbortSignal) =>
+    request<{ items: AdminAuditEntry[] }>(`/api/admin/audit?limit=${limit}`, { signal }),
 };
 
 export type AdminPair = {
@@ -304,10 +314,18 @@ export interface UseApiResult<T> {
 /**
  * Run `fetcher` on mount and whenever `deps` change. Abortable.
  *
+ * The fetcher receives this hook's `AbortSignal` so it can cancel an
+ * in-flight request on unmount or when deps change. The `alive` guard below
+ * is defense-in-depth: even if a custom fetcher ignores the signal and keeps
+ * running, the post-unmount setState calls are dropped.
+ *
  * Note: we deliberately do NOT use react-query; the surface is small and the
  * hook stays readable. Add SWR later if we need polling/optimistic cache.
  */
-export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseApiResult<T> {
+export function useApi<T>(
+  fetcher: (signal: AbortSignal) => Promise<T>,
+  deps: unknown[] = [],
+): UseApiResult<T> {
   const [data, setDataState] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -323,7 +341,7 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
     setLoading(true);
     setError(null);
     fetcherRef
-      .current()
+      .current(ctrl.signal)
       .then((r) => {
         if (alive) {
           setDataState(r);
@@ -331,6 +349,9 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseA
         }
       })
       .catch((e: unknown) => {
+        // Aborted fetches intentionally resolve with no state change; the
+        // alive guard already prevents post-unmount writes. Swallow AbortError.
+        if (!alive || (e instanceof DOMException && e.name === "AbortError")) return;
         if (alive) {
           setError(e instanceof ApiError ? e : new ApiError(0, e instanceof Error ? e.message : "error"));
           setLoading(false);
