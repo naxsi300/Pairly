@@ -79,13 +79,23 @@ export function Wishlist() {
 
   /** Two-tap consent: approve a pending forwarded item (partner action). */
   async function approve(item: WishlistItem) {
-    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "open" } : w)));
+    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "open", mine: false } : w)));
     haptic("success");
     try {
       await endpoints.approveWishlist(item.id);
     } catch {
       refetch();
     }
+  }
+
+  /** Open the original Telegram post (t.me deep link) when available. */
+  function openSource(item: WishlistItem) {
+    if (!item.sourceUrl) return;
+    haptic("light");
+    // Telegram WebApp hosts an opener; fall back to window.open in a browser.
+    const tg = (window as unknown as { Telegram?: { WebApp?: { openLink?: (u: string) => void } } }).Telegram?.WebApp;
+    if (tg?.openLink) tg.openLink(item.sourceUrl);
+    else window.open(item.sourceUrl, "_blank", "noopener,noreferrer");
   }
 
   /** "Хочу повторить": reopen THIS item in place (back to open) so you can do
@@ -154,23 +164,29 @@ export function Wishlist() {
                   ) : (
                     <span className="emoji" style={{ fontSize: 28 }}>{categoryEmoji(item.category)}</span>
                   )}
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="card-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
-                    {item.address ? <div className="card-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {item.address}</div> : null}
-                    {item.notes ? <div className="card-sub" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.notes}</div> : null}
-                  </div>
+                  <ItemBody
+                    item={item}
+                    onOpenSource={() => openSource(item)}
+                  />
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
                   {item.status === "pending" ? (
-                    <>
+                    item.mine ? (
                       <div className="banner banner-warm" style={{ flex: 1, padding: "8px 12px" }}>
                         <span className="emoji">⏳</span>
                         <div style={{ flex: 1, fontSize: 13 }}>ждёт согласия партнёра</div>
                       </div>
-                      <button type="button" className="btn-warm" style={{ width: "auto", padding: "10px 18px" }} onClick={() => approve(item)} disabled={busy}>
-                        👍 Ок
-                      </button>
-                    </>
+                    ) : (
+                      <>
+                        <div className="banner banner-blue" style={{ flex: 1, padding: "8px 12px" }}>
+                          <span className="emoji">👈</span>
+                          <div style={{ flex: 1, fontSize: 13 }}>партнёр предлагает — подтвердите</div>
+                        </div>
+                        <button type="button" className="btn-warm" style={{ width: "auto", padding: "10px 18px" }} onClick={() => approve(item)} disabled={busy}>
+                          👍 Ок
+                        </button>
+                      </>
+                    )
                   ) : item.status !== "done" ? (
                     <button type="button" className="btn" style={{ width: "auto", padding: "10px 18px" }} onClick={() => markDone(item)}>
                       ✅ Сделано
@@ -235,6 +251,30 @@ export function Wishlist() {
           ))}
         </div>
       </Modal>
+    </div>
+  );
+}
+
+/** The clickable title/notes area of a wishlist card. Tapping opens the original
+ * Telegram post when one was captured at forward time (sourceUrl). */
+function ItemBody({ item, onOpenSource }: { item: WishlistItem; onOpenSource: () => void }) {
+  const clickable = !!item.sourceUrl;
+  return (
+    <div
+      style={{ minWidth: 0, flex: 1, cursor: clickable ? "pointer" : "default" }}
+      onClick={clickable ? onOpenSource : undefined}
+    >
+      <div className="card-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {item.title}
+        {clickable ? <span style={{ fontSize: 13, color: "var(--tg-button)", marginLeft: 6 }}>↗</span> : null}
+      </div>
+      {item.address ? (
+        <div className="card-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {item.address}</div>
+      ) : null}
+      {item.notes ? (
+        <div className="card-sub" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.notes}</div>
+      ) : null}
+      {clickable ? <div className="card-sub" style={{ marginTop: 2 }}>Открыть оригинал в Telegram ↗</div> : null}
     </div>
   );
 }

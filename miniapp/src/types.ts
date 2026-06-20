@@ -26,6 +26,10 @@ export interface WishlistItem {
   eventDate?: string | null;
   notes?: string | null;
   status: WishlistStatus;
+  /** Deep link to the original forwarded Telegram post (https://t.me/...). */
+  sourceUrl?: string | null;
+  /** True when the caller authored this item (two-tap: only partner approves). */
+  mine?: boolean;
   /** True when a forwarded photo's file_id was captured (resolved on demand). */
   hasPhoto?: boolean;
 }

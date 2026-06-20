@@ -51,6 +51,7 @@ async def create_item(
     notes: str | None = None,
     source_message_id: int | str | None = None,
     telegram_file_id: str | None = None,
+    source_url: str | None = None,
     status: WishlistStatus = WishlistStatus.OPEN,
 ) -> WishlistItem:
     """Create a wishlist item, enforcing membership + free-tier limit + dedupe."""
@@ -84,6 +85,7 @@ async def create_item(
         notes=notes,
         source_message_hash=src_hash,
         telegram_file_id=telegram_file_id,
+        source_url=source_url,
         status=status,
     )
     session.add(item)

@@ -26,9 +26,10 @@ const now = Date.now();
 const iso = (offsetDays: number) => new Date(now + offsetDays * 86_400_000).toISOString();
 
 let wishlist: WishlistItem[] = [
-  { id: "w1", title: "Пицца на Маросейке", address: "Маросейка 2/15", category: "eat", status: "open" },
-  { id: "w2", title: "Дора на Патриках", address: null, category: "eat", status: "planned", eventDate: iso(7) },
-  { id: "w3", title: "«Дюна» в кино", address: "Октябрь", category: "watch", status: "done" },
+  { id: "w1", title: "Пицца на Маросейке", address: "Маросейка 2/15", category: "eat", status: "open", mine: true, sourceUrl: "https://t.me/restochannel/1234" },
+  { id: "w2", title: "Дора на Патриках", address: null, category: "eat", status: "planned", eventDate: iso(7), mine: true },
+  { id: "w3", title: "«Дюна» в кино", address: "Октябрь", category: "watch", status: "done", mine: true },
+  { id: "w4", title: "Джаз-вечер в «Союзе»", address: null, category: "do", status: "pending", mine: false, sourceUrl: "https://t.me/afisha/5678", notes: "В субботу, 20:00. Билеты от 1500₽." },
 ];
 
 let bucket: BucketItem[] = [
@@ -172,6 +173,17 @@ export async function mockFetch(input: RequestInfo | URL, init?: RequestInit): P
         ];
         return json(gifts[0], 201);
       default:
+        if (path.startsWith("/api/wishlist/")) {
+          const [, , id, action] = path.split("/");
+          if (action === "approve") {
+            wishlist = wishlist.map((w) => (w.id === id ? { ...w, status: "open", mine: false } : w));
+            return json(wishlist.find((w) => w.id === id) ?? {}, 200);
+          }
+          if (action === "status") {
+            wishlist = wishlist.map((w) => (w.id === id ? { ...w, status: body.status } : w));
+            return json(wishlist.find((w) => w.id === id) ?? {}, 200);
+          }
+        }
         if (path.startsWith("/api/gift/")) {
           const [, , id, action] = path.split("/");
           const next: Record<string, GiftItem["status"]> = {

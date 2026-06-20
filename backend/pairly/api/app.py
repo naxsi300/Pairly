@@ -166,7 +166,12 @@ def create_app() -> FastAPI:
     ) -> list[WishlistItemOut]:
         pair_id = _require_pair(auth)
         items = await wishlist.list_items(session, pair_id=pair_id, user_id=auth.user.id)
-        return [WishlistItemOut.model_validate(i) for i in items]
+        out = []
+        for i in items:
+            o = WishlistItemOut.model_validate(i)
+            o.mine = i.created_by == auth.user.id
+            out.append(o)
+        return out
 
     @app.get("/api/wishlist/{item_id}/photo")
     async def get_wishlist_photo(
@@ -314,7 +319,9 @@ def create_app() -> FastAPI:
         except LookupError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="item not found") from exc
         await session.commit()
-        return WishlistItemOut.model_validate(item)
+        out = WishlistItemOut.model_validate(item)
+        out.mine = item.created_by == auth.user.id
+        return out
 
     @app.post("/api/wishlist")
     async def post_wishlist(

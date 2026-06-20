@@ -70,6 +70,11 @@ class WishlistItemOut(_CamelModel):
     # image on demand via GET /api/wishlist/{id}/photo (which 302s to a Telegram URL).
     telegram_file_id: str | None = None
     has_photo: bool = False
+    # Deep link to the original forwarded Telegram post (https://t.me/...).
+    source_url: str | None = None
+    # True when the caller authored this item (used by two-tap: only the partner
+    # sees the approve button). Set by the API at serialization time.
+    mine: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -89,6 +94,7 @@ class WishlistItemOut(_CamelModel):
                 "event_date": data.event_date,
                 "telegram_file_id": data.telegram_file_id,
                 "has_photo": bool(data.telegram_file_id),
+                "source_url": getattr(data, "source_url", None),
             }
         return data
 

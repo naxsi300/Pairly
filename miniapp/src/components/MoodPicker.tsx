@@ -7,10 +7,10 @@ interface MoodPickerProps {
   disabled?: boolean;
 }
 
-/** Mood selector — 1:1 with the gallery `.mood-grid` / `.mood-opt`. */
+/** Mood selector — 1:1 with the gallery `.emoji-grid` / `.emoji-opt`. */
 export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
   return (
-    <div className="mood-grid">
+    <div className="emoji-grid">
       {COPY.mood.moods.map((m) => {
         const active = value === m.value;
         return (
@@ -20,7 +20,7 @@ export function MoodPicker({ value, onPick, disabled }: MoodPickerProps) {
             disabled={disabled}
             onClick={() => onPick(m.value as MoodValue)}
             aria-pressed={active}
-            className={`mood-opt ${active ? "active" : ""}`}
+            className={`emoji-opt ${active ? "active" : ""}`}
           >
             <span className="emoji" aria-hidden>
               {m.emoji}

@@ -149,6 +149,9 @@ class WishlistItem(Base):
     # photo. We store ONLY the file_id and resolve it to a temp URL on demand —
     # no on-disk photo storage (no volume, no cleanup, survives container recreate).
     telegram_file_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Deep link to the original forwarded post (https://t.me/<channel>/<msg>) so the
+    # Mini App can open it. Null when not from a public-channel forward.
+    source_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow

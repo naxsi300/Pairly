@@ -38,13 +38,27 @@ _SEEN_ALBUM_TTL = 300  # seconds; albums arrive within seconds, keep margin.
 _seen_albums: dict[str, float] = {}
 
 
-def _is_album_followup(message: Message) -> bool:
-    """True if this message is NOT the first photo of its album.
+def _forward_source_url(origin) -> str | None:
+    """Build a t.me deep link to the original forwarded post, when possible.
 
-    Returns False for non-album messages (no media_group_id) and for the first
-    photo of an album. Side effect: records the group id so later photos in the
-    same group return True.
+    Only public-channel forwards expose a usable URL (chat.username + message_id).
+    Returns None for private forwards / hidden senders.
     """
+    if origin is None:
+        return None
+    try:
+        # MessageOriginChannel / MessageOriginChat have chat + message_id.
+        chat = getattr(origin, "chat", None)
+        msg_id = getattr(origin, "message_id", None)
+        username = getattr(chat, "username", None) if chat else None
+        if username and msg_id:
+            return f"https://t.me/{username}/{msg_id}"
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _is_album_followup(message: Message) -> bool:
     mgid = message.media_group_id
     if not mgid:
         return False
@@ -308,6 +322,10 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
         # (so no storage ops, no volume, and photos survive container recreate).
         telegram_file_id: str | None = message.photo[-1].file_id if message.photo else None
 
+        # Deep link to the original post (public channels only). The Mini App opens
+        # this when the user taps an item.
+        source_url = _forward_source_url(message.forward_origin)
+
         # Full description = the forwarded text beyond the title, capped to ~4 KB.
         notes = text.strip()[:4096] if text.strip() else None
 
@@ -321,6 +339,7 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
                 category=parsed.category,
                 notes=notes,
                 telegram_file_id=telegram_file_id,
+                source_url=source_url,
                 status=WishlistStatus.PENDING,  # two-tap: partner must approve
             )
             await session.commit()
