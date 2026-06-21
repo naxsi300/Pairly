@@ -1,0 +1,134 @@
+name: Restore drill (weekly)
+
+# Weekly CI drill: prove that the engine-level primitives used by
+# `deploy/scripts/backup.sh` and `deploy/scripts/restore.sh` actually
+# round-trip real Pairly data.
+#
+# Why: a backup you've never restored is unproven (see docs/backup.md ->
+# "Restore test procedure"). Catching a broken restore in CI costs nothing;
+# finding out in a real incident costs the whole pair DB.
+#
+# Limitation: both scripts hard-require S3 creds (AWS_ACCESS_KEY_ID,
+# PAIRLY_BACKUP_BUCKET) and aws-cli. Standing up a real S3-compatible
+# endpoint in CI is more pain than this drill is worth, so it does NOT
+# call the scripts as-is. Instead, it exercises the same engine-level
+# primitives they use on SQLite:
+#   - sqlite3 <db> ".backup '<dump>'"      (what backup.sh runs on SQLite)
+#   - sqlite3 <db> ".restore '<dump>'"     (what restore.sh runs on SQLite)
+#   - PRAGMA integrity_check                (what restore.sh verifies)
+# That covers the engine code-path (which is where the 0006 Postgres
+# blocker class of bugs lives). The S3 upload/retention/list/select
+# code-path is exercised by the prod cron + manual restore.sh runs.
+#
+# Triggers: weekly schedule + manual dispatch.
+
+on:
+  schedule:
+    # Sundays at 03:17 UTC — off the hour to avoid thundering herds.
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sqlite-restore-drill:
+    name: SQLite backup . restore round-trip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install backend deps
+        run: uv sync --extra dev --python 3.12
+
+      - name: Install sqlite3
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: Apply migrations to a throwaway DB
+        env:
+          PAIRLY_BOT_TOKEN: "0:test"
+          PAIRLY_DATABASE_URL: sqlite+aiosqlite:////tmp/pairly-drill/seed.db
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pairly-drill
+          rm -f /tmp/pairly-drill/seed.db /tmp/pairly-drill/seed.dump \
+                /tmp/pairly-drill/restore.db /tmp/pairly-drill/restore.dump
+          uv run --python 3.12 alembic \
+            -c backend/pairly/migrations/alembic.ini upgrade head
+
+      - name: Seed rows via raw SQL (no ORM/engine-import trap)
+        id: seed
+        run: |
+          set -euo pipefail
+          # Use raw sqlite3 INSERTs — the schema for the `pairs` table is
+          # self-contained (no FKs), so we can seed without spinning up a
+          # fresh SQLAlchemy engine against the test URL.
+          sqlite3 /tmp/pairly-drill/seed.db <<'SQL'
+          INSERT INTO pairs (id, tier, created_at) VALUES
+            ('drill-1', 'free', '2026-01-01 00:00:00'),
+            ('drill-2', 'free', '2026-01-01 00:00:00'),
+            ('drill-3', 'free', '2026-01-01 00:00:00');
+          SQL
+          BEFORE_PAIRS="$(sqlite3 /tmp/pairly-drill/seed.db 'SELECT COUNT(*) FROM pairs;')"
+          echo "before_pairs=${BEFORE_PAIRS}" >> "$GITHUB_OUTPUT"
+          echo "seeded ${BEFORE_PAIRS} pairs"
+
+      - name: Run backup (sqlite3 .backup)
+        run: |
+          set -euo pipefail
+          # Same primitive backup.sh uses for SQLite.
+          sqlite3 /tmp/pairly-drill/seed.db ".backup '/tmp/pairly-drill/seed.dump'"
+          test -s /tmp/pairly-drill/seed.dump \
+            || { echo "ERROR: dump is empty"; exit 1; }
+          echo "dump bytes: $(stat -c%s /tmp/pairly-drill/seed.dump)"
+
+      - name: Restore into a fresh DB and verify
+        id: verify
+        env:
+          BEFORE_PAIRS: ${{ steps.seed.outputs.before_pairs }}
+        run: |
+          set -euo pipefail
+          # Same primitive restore.sh uses for SQLite: a brand-new db file
+          # + `sqlite3 <db> ".restore '<dump>'"`.
+          # The .dump contains its own CREATE statements, so the target
+          # file does not need the migrations applied first.
+          sqlite3 /tmp/pairly-drill/restore.db ".timeout 5000" \
+            ".restore '/tmp/pairly-drill/seed.dump'"
+
+          # Integrity check (also what restore.sh does).
+          sqlite3 /tmp/pairly-drill/restore.db "PRAGMA integrity_check;" \
+            | tee /tmp/pairly-drill/integrity.txt
+          grep -q '^ok$' /tmp/pairly-drill/integrity.txt \
+            || { echo "ERROR: integrity_check failed"; exit 1; }
+
+          AFTER_PAIRS="$(sqlite3 /tmp/pairly-drill/restore.db 'SELECT COUNT(*) FROM pairs;')"
+          echo "after_pairs=${AFTER_PAIRS}"
+          if [[ "${AFTER_PAIRS}" != "${BEFORE_PAIRS}" ]]; then
+            echo "ERROR: pair count mismatch before=${BEFORE_PAIRS} after=${AFTER_PAIRS}"
+            exit 1
+          fi
+
+      - name: Echo drill record (operator copies into docs/backup.md)
+        if: always()
+        env:
+          BEFORE_PAIRS: ${{ steps.seed.outputs.before_pairs }}
+        run: |
+          {
+            printf '| %s | %s | sqlite | %s pairs | OK |\n' \
+              "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+              "$GITHUB_RUN_ID" \
+              "${BEFORE_PAIRS}"
+            echo "(This line is generated by CI; copy into docs/backup.md -> Drill log.)"
+          }

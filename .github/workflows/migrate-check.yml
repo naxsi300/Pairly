@@ -1,0 +1,147 @@
+name: Migration up/down check
+
+# CI safety net for the bug class that shipped the 0006 Postgres blocker:
+# a migration that applies cleanly on SQLite (dev) but breaks on Postgres
+# (prod), or that goes up but not cleanly back down.
+#
+# For every push + PR, and weekly, this workflow proves that the head
+# revision:
+#   1. applies cleanly on a fresh SQLite DB   (matches local dev)
+#   2. applies cleanly on a fresh Postgres DB  (matches prod)
+#   3. downgrades cleanly to base on both
+#   4. upgrades cleanly back to head on both
+#
+# Any non-zero exit fails the job.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Tuesdays at 04:23 UTC.
+    - cron: "23 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- SQLite leg (no service container needed) -------------------------
+  migrate-sqlite:
+    name: Alembic up/down (sqlite)
+    runs-on: ubuntu-latest
+    env:
+      PAIRLY_BOT_TOKEN: "0:test"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install backend deps
+        run: uv sync --extra dev --python 3.12
+
+      - name: Install sqlite3
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: Alembic up . down . up
+        env:
+          PAIRLY_DATABASE_URL: sqlite+aiosqlite:////tmp/pairly-migrate-sqlite.db
+        run: |
+          set -euo pipefail
+          rm -f /tmp/pairly-migrate-sqlite.db
+          for cmd in 'upgrade head' 'downgrade base' 'upgrade head'; do
+            # word-split into argv so alembic sees e.g. `upgrade head`
+            # rather than a single argument "upgrade head".
+            # shellcheck disable=SC2086
+            set -- ${cmd}
+            echo "=== alembic $* ==="
+            uv run --python 3.12 alembic \
+              -c backend/pairly/migrations/alembic.ini "$@" \
+              || { echo "ERROR: ${cmd} failed on sqlite"; exit 1; }
+          done
+          sqlite3 /tmp/pairly-migrate-sqlite.db \
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;" \
+            | head -20
+
+  # --- Postgres leg (postgres:16 service container) ---------------------
+  migrate-postgres:
+    name: Alembic up/down (postgres)
+    runs-on: ubuntu-latest
+    env:
+      PAIRLY_BOT_TOKEN: "0:test"
+      PG_DB: pairly_migrate_check
+      PG_USER: pairly
+      PG_PASS: pairly_test
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ${{ env.PG_DB }}
+          POSTGRES_USER: ${{ env.PG_USER }}
+          POSTGRES_PASSWORD: ${{ env.PG_PASS }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ${{ env.PG_USER }}"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install backend deps
+        run: uv sync --extra dev --python 3.12
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Wait for postgres ready
+        env:
+          PGPASSWORD: ${{ env.PG_PASS }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if psql -h localhost -U "$PG_USER" -d "$PG_DB" \
+                 -c "SELECT 1;" >/dev/null 2>&1; then
+              echo "postgres ready after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: postgres not ready after 30s"; exit 1
+
+      - name: Alembic up . down . up
+        env:
+          PAIRLY_DATABASE_URL: postgresql+asyncpg://${{ env.PG_USER }}:${{ env.PG_PASS }}@localhost:5432/${{ env.PG_DB }}
+        run: |
+          set -euo pipefail
+          for cmd in 'upgrade head' 'downgrade base' 'upgrade head'; do
+            # word-split into argv so alembic sees e.g. `upgrade head`
+            # rather than a single argument "upgrade head".
+            # shellcheck disable=SC2086
+            set -- ${cmd}
+            echo "=== alembic $* ==="
+            uv run --python 3.12 alembic \
+              -c backend/pairly/migrations/alembic.ini "$@" \
+              || { echo "ERROR: ${cmd} failed on postgres"; exit 1; }
+          done
+          PGPASSWORD="$PG_PASS" psql -h localhost -U "$PG_USER" -d "$PG_DB" \
+            -c "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;" \
+            | head -20
