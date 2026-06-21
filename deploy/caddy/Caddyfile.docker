@@ -10,6 +10,13 @@
 #   https://<domain>/telegram-webhook -> aiogram webhook (service: bot:8080)
 #   /.well-known/telegram-bot-app.json -> manifest for @BotFather /setdomain check
 
+# Global options: ACME email for Let's Encrypt registration/renewal.
+# TODO(operator): change to a real mailbox you monitor; Caddy uses it for
+# expiry warnings and account recovery.
+{
+    email ops@pairly.mnepo.fyi
+}
+
 pairly.mnepo.fyi {
     encode zstd gzip
 
@@ -60,6 +67,36 @@ pairly.mnepo.fyi {
         file_server
     }
 
+    # Cache hashed /assets/* forever (filename includes content hash);
+    # never cache /index.html so the SW autoUpdate hot-fix path works.
+    @assets path /assets/*
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+
+    @html path /index.html
+    header @html Cache-Control "no-cache, must-revalidate"
+
+    # Reasonable security headers; Mini App is a PWA served to Telegram clients.
+    header {
+        # HSTS: 1 year, include subdomains. Deliberately NO `preload` —
+        # submission to the browser preload list is irreversible without
+        # shipping an HTTP response with `preload` removed, which is easy
+        # to miss. Leave it off until the operator confirms intent.
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        # CSP: allow Telegram WebApp scripts + self. 'unsafe-inline' was
+        # removed from script-src after a sweep of miniapp/index.html and
+        # miniapp/src found NO inline scripts, dangerouslySetInnerHTML, or
+        # eval(). Tighten further after audit.
+        Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org"
+    }
+
+    # Health endpoint for uptime monitors (over HTTPS).
+    handle /health {
+        respond "ok" 200
+    }
+
     # Access log with PII redaction.
     #
     # `/api/wishlist/*/photo` accepts `init_data` + `dev_user_id` as query
@@ -92,10 +129,7 @@ pairly.mnepo.fyi {
 # here. Until then, the app-side limiter from cluster 5 is the primary
 # defense.
 
-# Health endpoint on plain HTTP for uptime monitors.
-:80 {
-    handle /health {
-        respond "ok" 200
-    }
-    respond "not found" 404
-}
+# Note: port 80 is intentionally NOT bound by a bare :80 site block. Caddy
+# listens on :80 implicitly for the ACME http-01 challenge only — that's
+# enough to issue/renew Let's Encrypt certs. /health is served over HTTPS
+# inside the pairly.mnepo.fyi block above so probes get a real cert chain.

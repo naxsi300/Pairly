@@ -9,6 +9,13 @@
 #   /var/www/pairly        -> built Mini App (miniapp/dist), owned readable by caddy
 #   127.0.0.1:8000         -> pairly-api.service (uvicorn)
 
+# Global options: ACME email for Let's Encrypt registration/renewal.
+# TODO(operator): change to a real mailbox you monitor; Caddy uses it for
+# expiry warnings and account recovery.
+{
+    email ops@pairly.mnepo.fyi
+}
+
 app.example.com {
 	encode zstd gzip
 
@@ -44,14 +51,34 @@ app.example.com {
 	try_files {path} /index.html
 	file_server
 
+	# Cache hashed /assets/* forever (filename includes content hash);
+	# never cache /index.html so the SW autoUpdate hot-fix path works.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	@html path /index.html
+	header @html Cache-Control "no-cache, must-revalidate"
+
 	# Reasonable security headers; Mini App is a PWA served to Telegram clients.
 	header {
-		# Strict-Transport-Security is added automatically by Caddy on HTTPS.
+		# HSTS: 1 year, include subdomains. Deliberately NO `preload` —
+		# submission to the browser preload list is irreversible without
+		# shipping an HTTP response with `preload` removed, which is easy
+		# to miss. Leave it off until the operator confirms intent.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
-		Permissions-Policy geolocation=(), microphone=(), camera=()
-		# CSP: allow Telegram WebApp inline scripts/styles + self. Tighten after audit.
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		# CSP: allow Telegram WebApp scripts + self. 'unsafe-inline' was
+		# removed from script-src after a sweep of miniapp/index.html and
+		# miniapp/src found NO inline scripts, dangerouslySetInnerHTML, or
+		# eval(). Tighten further after audit.
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org"
+	}
+
+	# Health endpoint for uptime monitors (over HTTPS).
+	handle /health {
+		respond "ok" 200
 	}
 
 	# Access log with PII redaction.
