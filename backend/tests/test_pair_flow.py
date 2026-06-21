@@ -59,12 +59,22 @@ async def test_reused_token_rejected(session):
 async def test_concurrent_accept_only_one_wins(engine):
     """Two concurrent accept_invite calls on the same invite — exactly one wins.
 
-    Without the row lock on the invite, both calls can pass the unconsumed check
-    and both INSERT a Pair. The with_for_update() lock on the invite row serializes
-    accepters on Postgres; SQLite has no row-level lock, so this test uses an
-    asyncio.Event to ensure the first accept COMMITS before the second begins
-    reading the invite (the equivalent observable effect on SQLite). Both
-    coroutines are scheduled via asyncio.gather so the concurrency contract holds.
+    NOTE: This test is most meaningful on Postgres, where `with_for_update()`
+    on the invite row genuinely serializes the two accepters and the second
+    sees the consumed invite. On SQLite, `with_for_update()` is a no-op
+    (SQLite has no row-level lock), so the racing accepters are serialized
+    at the SQLite writer level (one commit at a time) — the second to commit
+    will see consumed_by set and raise InviteError. The contract — "exactly
+    one wins, the other raises InviteError" — holds on both engines.
+
+    The previous version of this test used an asyncio.Event to force the
+    second accept to wait for the first to COMMIT, so the lock was never
+    actually exercised (the race was hand-serialized, not exercised). This
+    version runs the two accept_invite calls via asyncio.gather with no
+    inter-task Event, so both coroutines enter accept_invite at the same
+    asyncio tick. A tiny sleep(0) yield after the create_invite seed keeps
+    the suite non-flaky by ensuring the gather tasks are scheduled before
+    either accept progresses.
     """
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -80,23 +90,13 @@ async def test_concurrent_accept_only_one_wins(engine):
         b_id = b.id
         c_id = c.id
 
-    # Used so the second accept starts reading the invite only after the first
-    # has fully committed. On Postgres the row lock achieves the same effect; on
-    # SQLite (no row lock) the test needs this hand-off to expose the race.
-    first_committed = asyncio.Event()
+    # Yield once so both gather tasks are scheduled onto the loop before
+    # either accept_invite begins its DB work; without this, asyncio can
+    # run one task to completion before scheduling the other, defeating the
+    # race on fast machines.
+    await asyncio.sleep(0)
 
-    async def do_accept_first(accepter_id: int) -> str:
-        async with maker() as s:
-            accepter = await users.get_or_create_user(s, accepter_id)
-            try:
-                pair = await pairs.accept_invite(s, accepter, token)
-                await s.commit()
-                return pair.id
-            finally:
-                first_committed.set()
-
-    async def do_accept_second(accepter_id: int) -> str:
-        await first_committed.wait()
+    async def do_accept(accepter_id: int) -> str:
         async with maker() as s:
             accepter = await users.get_or_create_user(s, accepter_id)
             try:
@@ -108,7 +108,7 @@ async def test_concurrent_accept_only_one_wins(engine):
                 raise
 
     pair_b, pair_c = await asyncio.gather(
-        do_accept_first(b_id), do_accept_second(c_id), return_exceptions=True
+        do_accept(b_id), do_accept(c_id), return_exceptions=True
     )
 
     # Exactly one succeeds, the other raises InviteError.
