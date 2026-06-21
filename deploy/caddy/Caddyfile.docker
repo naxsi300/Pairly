@@ -10,15 +10,15 @@
 #   https://<domain>/telegram-webhook -> aiogram webhook (service: bot:8080)
 #   /.well-known/telegram-bot-app.json -> manifest for @BotFather /setdomain check
 
-# Hard cap on request bodies at the edge. The app-side limiter from cluster 5
-# is the primary defense — this stops oversized payloads from even reaching
-# the upstream (1 MiB ≫ our largest legit payload, a <512 KiB photo upload).
-request_body {
-	max_size 1MB
-}
-
 pairly.mnepo.fyi {
     encode zstd gzip
+
+    # Hard cap on request bodies at the edge. The app-side limiter from cluster 5
+    # is the primary defense; this stops oversized payloads from reaching the
+    # upstream (1 MiB is well above our largest legit payload, a <512 KiB photo).
+    request_body {
+        max_size 1MB
+    }
 
     # Manifest for @BotFather /setdomain. Telegram pings this on register.
     @tgappfile path /.well-known/telegram-bot-app.json

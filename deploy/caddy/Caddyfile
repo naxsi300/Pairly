@@ -9,15 +9,15 @@
 #   /var/www/pairly        -> built Mini App (miniapp/dist), owned readable by caddy
 #   127.0.0.1:8000         -> pairly-api.service (uvicorn)
 
-# Hard cap on request bodies at the edge. The app-side limiter from cluster 5
-# is the primary defense — this stops oversized payloads from even reaching
-# the upstream (1 MiB ≫ our largest legit payload, a <512 KiB photo upload).
-request_body {
-	max_size 1MB
-}
-
 app.example.com {
 	encode zstd gzip
+
+	# Hard cap on request bodies at the edge. The app-side limiter from cluster 5
+	# is the primary defense; this stops oversized payloads from reaching the
+	# upstream (1 MiB is well above our largest legit payload, a <512 KiB photo).
+	request_body {
+		max_size 1MB
+	}
 
 	# API: FastAPI on uvicorn. Strip /api prefix? No — the app is mounted at /api/*.
 	# Keep the path so the router matches. Proxy headers so the app sees real client info.
