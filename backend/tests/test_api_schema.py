@@ -15,6 +15,8 @@ import pytest
 from pairly.api.schemas import (
     BucketCreate,
     CountdownCreate,
+    CountdownUpdate,
+    GiftCreate,
     MoodSet,
     QOTDAnswerIn,
     WishlistCreate,
@@ -140,6 +142,91 @@ def test_qotd_answer_in_accepts_answer_at_limit():
     at_limit = "a" * 280
     m = QOTDAnswerIn.model_validate({"answer": at_limit})
     assert m.answer == at_limit
+
+
+# --- Bounded-field max_length enforcement (Cluster 2) ---
+#
+# The DB columns are unbounded Text (WishlistItem.notes, GiftItem.description,
+# BucketItem.note) or have been widened to String(32) for Countdown.emoji. Without
+# a Pydantic max_length, an attacker (or a buggy client) can post an arbitrarily
+# large payload, get past validation, and either crash the DB with an opaque 500
+# on Postgres (DataError) or — worse — tie up server resources with a giant insert.
+# Capping at the API layer turns it into a clean 422.
+
+
+def test_wishlist_create_rejects_oversized_notes():
+    """notes is Text in DB — cap at 2000 to block unbounded inserts (DoS + 500)."""
+    too_long = "n" * 2001
+    with pytest.raises(Exception):
+        WishlistCreate.model_validate({"title": "Кафе", "notes": too_long})
+
+
+def test_wishlist_create_accepts_notes_at_limit():
+    """Boundary: 2000-char notes must be accepted."""
+    at_limit = "n" * 2000
+    m = WishlistCreate.model_validate({"title": "Кафе", "notes": at_limit})
+    assert m.notes == at_limit
+
+
+def test_bucket_create_rejects_oversized_note():
+    """note is Text in DB — cap at 2000 to block unbounded inserts."""
+    too_long = "n" * 2001
+    with pytest.raises(Exception):
+        BucketCreate.model_validate({"title": "Полёт", "note": too_long})
+
+
+def test_bucket_create_accepts_note_at_limit():
+    """Boundary: 2000-char note must be accepted."""
+    at_limit = "n" * 2000
+    m = BucketCreate.model_validate({"title": "Полёт", "note": at_limit})
+    assert m.note == at_limit
+
+
+def test_gift_create_rejects_oversized_description():
+    """description is Text in DB — cap at 1000 (smaller than notes because the
+    gift card surface is tighter)."""
+    too_long = "d" * 1001
+    with pytest.raises(Exception):
+        GiftCreate.model_validate({"gesture": "Завтрак", "description": too_long})
+
+
+def test_gift_create_accepts_description_at_limit():
+    """Boundary: 1000-char description must be accepted."""
+    at_limit = "d" * 1000
+    m = GiftCreate.model_validate({"gesture": "Завтрак", "description": at_limit})
+    assert m.description == at_limit
+
+
+def test_countdown_create_rejects_oversized_emoji():
+    """Countdown.emoji is String(32) (widened by migration 0011) — cap at API."""
+    too_long = "x" * 33
+    with pytest.raises(Exception):
+        CountdownCreate.model_validate(
+            {"label": "Годовщина", "targetDate": "2026-08-15T10:00:00Z", "emoji": too_long}
+        )
+
+
+def test_countdown_create_accepts_emoji_at_limit():
+    """Boundary: 32-char emoji must be accepted (a ZWJ family is well under)."""
+    at_limit = "x" * 32
+    m = CountdownCreate.model_validate(
+        {"label": "Годовщина", "targetDate": "2026-08-15T10:00:00Z", "emoji": at_limit}
+    )
+    assert m.emoji == at_limit
+
+
+def test_countdown_update_rejects_oversized_emoji():
+    """CountdownUpdate.emoji mirrors CountdownCreate — same String(32) cap."""
+    too_long = "x" * 33
+    with pytest.raises(Exception):
+        CountdownUpdate.model_validate({"emoji": too_long})
+
+
+def test_countdown_update_accepts_emoji_at_limit():
+    """Boundary: 32-char emoji must be accepted on update too."""
+    at_limit = "x" * 32
+    m = CountdownUpdate.model_validate({"emoji": at_limit})
+    assert m.emoji == at_limit
 
 
 # --- Cluster 10: api/app.py integration ---

@@ -43,11 +43,13 @@ class _CamelModel(BaseModel):
 class WishlistCreate(_CamelModel):
     title: str = Field(min_length=1, max_length=256)
     # Widths mirror the DB columns (WishlistItem.address String(512),
-    # .category String(32)). Capping at the API layer turns an opaque
-    # Postgres DataError 500 into a clean Pydantic 422.
+    # .category String(32), .notes Text). Capping at the API layer turns an
+    # opaque Postgres DataError 500 (or a giant insert used as DoS) into a
+    # clean Pydantic 422. notes is Text in the DB; 2000 is a sane cap that
+    # keeps room for forwarded-posts commentary without unbounded inserts.
     address: str | None = Field(default=None, max_length=512)
     category: str | None = Field(default=None, max_length=32)
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
     event_date: datetime | None = None
 
 
@@ -132,7 +134,9 @@ class LoveNoteOut(_CamelModel):
 
 class BucketCreate(_CamelModel):
     title: str = Field(min_length=1, max_length=256)
-    note: str | None = None
+    # BucketItem.note is Text in the DB; cap at 2000 so a buggy client (or a
+    # malicious one) gets a clean 422 instead of an unbounded insert.
+    note: str | None = Field(default=None, max_length=2000)
     # BucketItem.category is String(32) in the DB — cap here for a clean 422
     # instead of an opaque DB DataError 500.
     category: str | None = Field(default=None, max_length=32)
@@ -158,7 +162,10 @@ class CountdownCreate(_CamelModel):
     # The Mini App client uses `targetDate` (camelCase); Pydantic with
     # populate_by_name=True needs the field to know both names.
     target_date: datetime = Field(alias="targetDate", validation_alias="targetDate")
-    emoji: str | None = None
+    # Countdown.emoji is String(32) in the DB (widened by migration 0011 to fit
+    # up to 4 grapheme clusters — a ZWJ family is 1 grapheme but 11 code points).
+    # Mirror the column width at the API layer for a clean 422.
+    emoji: str | None = Field(default=None, max_length=32)
     # 'annual'/'monthly' roll forward conceptually; 'milestone' marks a reference
     # date (e.g. дата знакомства) whose round anniversaries are synthesized client-side.
     recurrence: Literal["annual", "monthly", "milestone"] | None = None
@@ -180,7 +187,8 @@ class CountdownUpdate(_CamelModel):
 
     label: str | None = Field(default=None, min_length=1, max_length=128)
     target_date: datetime | None = Field(default=None, alias="targetDate", validation_alias="targetDate")
-    emoji: str | None = None
+    # Mirror CountdownCreate — Countdown.emoji is String(32) (migration 0011).
+    emoji: str | None = Field(default=None, max_length=32)
     recurrence: Literal["annual", "monthly", "milestone"] | None = None
 
 
@@ -260,7 +268,10 @@ class QOTDAnswerIn(_CamelModel):
 
 class GiftCreate(_CamelModel):
     gesture: str = Field(min_length=1, max_length=256)
-    description: str | None = None
+    # GiftItem.description is Text in the DB; cap at 1000 (tighter than
+    # wishlist notes — the gift card surface is shorter). Stops unbounded
+    # inserts before they hit the DB.
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class GiftTransition(_CamelModel):
