@@ -39,8 +39,8 @@ def upgrade() -> None:
         ),
         sa.Column("body", sa.String(length=1000), nullable=False),
         sa.Column("deliver_at", sa.String(length=5), nullable=True),
-        sa.Column("delivered", sa.Boolean(), nullable=False, server_default=sa.text("0")),
-        sa.Column("read_by_recipient", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("delivered", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("read_by_recipient", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_index("ix_love_notes_pair_id", "love_notes", ["pair_id"])
