@@ -36,6 +36,36 @@ beforeEach(() => {
   listMock.mockResolvedValue([]);
 });
 
+describe("Countdowns — cluster 7 emoji fallback (no Intl.Segmenter)", () => {
+  it("emoji onChange still caps input length when Intl.Segmenter is unavailable", async () => {
+    // Cluster 7(b): the previous fallback returned the raw value untruncated.
+    // We now bound it with a code-point slice so the value can never run away
+    // (e.g. user pastes 200 emoji by mistake — the input must not accept all).
+    const origIntl = globalThis.Intl;
+    // Simulate a host without Segmenter.
+    (globalThis as { Intl: unknown }).Intl = {
+      DateTimeFormat: origIntl.DateTimeFormat,
+    } as unknown as typeof Intl;
+    try {
+      const huge = "🎉".repeat(200); // 200 code points
+      render(<Countdowns />);
+      const addBtn = await screen.findByText(/\+ Добавить/);
+      fireEvent.click(addBtn);
+      const emojiInput = (await screen.findAllByPlaceholderText(/Эмодзи/))[0] as HTMLInputElement;
+      fireEvent.change(emojiInput, { target: { value: huge } });
+      // Fallback slices to 32 code points, joined back. Should be 32 emoji.
+      expect([...emojiInput.value].length).toBeLessThanOrEqual(32);
+      // And the value is non-empty (we don't drop to "").
+      expect(emojiInput.value.length).toBeGreaterThan(0);
+      // Single emoji (e.g. 🎉🎊🎁🎂🎈 → 5 codepoints) survives uncut.
+      fireEvent.change(emojiInput, { target: { value: "🎉🎊🎁🎂🎈" } });
+      expect([...emojiInput.value].length).toBe(5);
+    } finally {
+      (globalThis as { Intl: unknown }).Intl = origIntl;
+    }
+  });
+});
+
 describe("Countdowns — cluster 12 fixes", () => {
   it("emoji onChange caps at 4 grapheme clusters (Intl.Segmenter)", async () => {
     // family-emoji: man + ZWJ + woman + ZWJ + girl + ZWJ + boy → 1 grapheme, many code units

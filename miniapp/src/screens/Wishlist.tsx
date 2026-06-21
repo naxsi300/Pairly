@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { COPY } from "../copy";
 import { ApiError, endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
@@ -11,6 +11,60 @@ import { Modal } from "../components/Modal";
 import { TextInput } from "../components/Field";
 
 const CATS = CATEGORIES.map((c) => c.id);
+
+/**
+ * Fetch a wishlist photo via the auth-header path and wrap the bytes in
+ * an object URL the <img> can use. The previous implementation built a
+ * `?init_data=…` URL — that leaked the Telegram-signed payload into any
+ * Referer, browser history, or access log (e.g. Caddy).
+ *
+ * The hook:
+ *   - calls `endpoints.wishlistPhotoBlob(itemId, signal)` on mount;
+ *   - creates a fresh object URL whenever the bytes arrive;
+ *   - revokes the previous URL before swapping and on unmount.
+ *
+ * `enabled=false` (default) means "do nothing" — useful when `item.hasPhoto`
+ * is false or the user is filtering. Returns "" when there's nothing to show.
+ */
+function usePhotoBlob(itemId: string | null, enabled: boolean): string {
+  const [url, setUrl] = useState<string>("");
+  useEffect(() => {
+    if (!enabled || !itemId) {
+      setUrl("");
+      return;
+    }
+    const ctrl = new AbortController();
+    let revoked = false;
+    let createdUrl = "";
+    (async () => {
+      try {
+        const blob = await endpoints.wishlistPhotoBlob(itemId, ctrl.signal);
+        if (revoked) return;
+        createdUrl = URL.createObjectURL(blob);
+        setUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return createdUrl;
+        });
+      } catch {
+        // Silent: the <img onError> handler hides the broken placeholder,
+        // and useApi's refetch keeps the rest of the row correct.
+        if (!revoked) setUrl("");
+      }
+    })();
+    return () => {
+      revoked = true;
+      ctrl.abort();
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      // Also revoke whatever is currently in state (covers the case where
+      // the effect re-runs before setUrl commits).
+      setUrl((prev) => {
+        if (prev && prev !== createdUrl) URL.revokeObjectURL(prev);
+        return "";
+      });
+    };
+  }, [itemId, enabled]);
+  return url;
+}
 
 export function Wishlist() {
   const { data, loading, error, refetch, setData } = useApi(endpoints.listWishlist);
@@ -177,19 +231,7 @@ export function Wishlist() {
             <li key={item.id}>
               <div className={`card ${item.status === "done" ? "done" : ""}`}>
                 <div className="card-row">
-                  {item.hasPhoto ? (
-                    <img
-                      src={endpoints.wishlistPhotoUrl(item.id)}
-                      alt=""
-                      loading="lazy"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = "none";
-                      }}
-                      style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", flexShrink: 0 }}
-                    />
-                  ) : (
-                    <span className="emoji" style={{ fontSize: 28 }}>{categoryEmoji(item.category)}</span>
-                  )}
+                  <PhotoThumb item={item} />
                   <ItemBody
                     item={item}
                     onOpenSource={() => openSource(item)}
@@ -299,5 +341,27 @@ function ItemBody({ item, onOpenSource }: { item: WishlistItem; onOpenSource: ()
       ) : null}
       {clickable ? <div className="card-sub" style={{ marginTop: 2 }}>Открыть оригинал в Telegram ↗</div> : null}
     </div>
+  );
+}
+
+/** Photo thumbnail for a wishlist row. Fetches the bytes via the auth
+ * header (never via a query param) and wraps them in an object URL. On
+ * unmount / item change the URL is revoked to avoid leaks. Falls back to
+ * the category emoji when the item has no photo or the fetch fails. */
+function PhotoThumb({ item }: { item: WishlistItem }) {
+  const url = usePhotoBlob(item.hasPhoto ? item.id : null, !!item.hasPhoto);
+  if (!item.hasPhoto || !url) {
+    return <span className="emoji" style={{ fontSize: 28 }}>{categoryEmoji(item.category)}</span>;
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).style.display = "none";
+      }}
+      style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", flexShrink: 0 }}
+    />
   );
 }

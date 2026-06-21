@@ -97,16 +97,29 @@ export function Countdowns() {
   /** Cap the emoji field at 4 grapheme clusters using Intl.Segmenter.
    * We can't use maxLength (it counts UTF-16 code units) — a family emoji
    * (👨‍👩‍👧‍👦) is 1 grapheme but breaks under that, and a single grapheme with
-   * skin-tone modifiers would be counted as 2. */
+   * skin-tone modifiers would be counted as 2.
+   *
+   * Cluster 7(b): if `Intl.Segmenter` is unavailable (older runtime / test
+   * sandbox), we still cap by code points so the value can never run away.
+   * Grapheme correctness is best-effort; the cap is the invariant.
+   */
   const EMOJI_MAX_GRAPHEMES = 4;
+  // 32 code points is a defensive upper bound — far above the 4-grapheme
+  // ceiling but still bounded so a paste of thousands of emoji can't blow up.
+  const EMOJI_MAX_CODEPOINTS_FALLBACK = 32;
   const segmenter =
     typeof Intl !== "undefined" && "Segmenter" in Intl
       ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
       : null;
   const capEmoji = (value: string): string => {
-    if (!segmenter) return value;
-    const segs = Array.from(segmenter.segment(value), (s) => s.segment);
-    return segs.length > EMOJI_MAX_GRAPHEMES ? segs.slice(0, EMOJI_MAX_GRAPHEMES).join("") : value;
+    if (segmenter) {
+      const segs = Array.from(segmenter.segment(value), (s) => s.segment);
+      return segs.length > EMOJI_MAX_GRAPHEMES ? segs.slice(0, EMOJI_MAX_GRAPHEMES).join("") : value;
+    }
+    const cps = Array.from(value);
+    return cps.length > EMOJI_MAX_CODEPOINTS_FALLBACK
+      ? cps.slice(0, EMOJI_MAX_CODEPOINTS_FALLBACK).join("")
+      : value;
   };
 
   async function submit() {

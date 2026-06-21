@@ -34,6 +34,45 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * Resolve the client's IANA timezone for the `X-Client-Timezone` header.
+ *
+ * Cluster 7(c): the server reads this to render QOTD at the right local
+ * time and to ground the date-wheel "smart"/"lucky" prompts in the
+ * caller's clock. We guard for hosts that don't expose Intl at all (rare
+ * but possible in test sandboxes) — auth must never crash on a missing
+ * timezone, so a missing value yields an empty string (the server treats
+ * it as "unknown").
+ */
+function getClientTimezone(): string {
+  try {
+    if (typeof Intl === "undefined") return "";
+    const fmt = Intl.DateTimeFormat();
+    const tz = fmt?.resolvedOptions?.().timeZone;
+    return typeof tz === "string" ? tz : "";
+  } catch {
+    return "";
+  }
+}
+
+/** Build the standard auth header set used by every request. */
+function buildAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (USE_MOCK) {
+    // Mock never inspects headers; sending initData would also work but isn't useful.
+    return headers;
+  }
+  const initData = getInitData();
+  if (initData) {
+    headers["X-Telegram-Init-Data"] = initData;
+  }
+  const devUid = getDevUserId();
+  if (devUid) {
+    headers["X-Dev-User-Id"] = devUid;
+  }
+  return headers;
+}
+
 /** Low-level request. Adds the auth header (initData in prod, X-Dev-User-Id in dev). */
 export async function request<T>(
   path: string,
@@ -41,19 +80,12 @@ export async function request<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
+    ...buildAuthHeaders(),
   };
-  if (USE_MOCK) {
-    // Mock never inspects headers; sending initData would also work but isn't useful.
-  } else {
-    const initData = getInitData();
-    if (initData) {
-      headers["X-Telegram-Init-Data"] = initData;
-    }
-    const devUid = getDevUserId();
-    if (devUid) {
-      headers["X-Dev-User-Id"] = devUid;
-    }
-  }
+  // Cluster 7(c): always emit so the server can use it. The server's loose
+  // IANA validator (pairly/auth/telegram.py:_coerce_timezone) drops bogus
+  // values without failing the request.
+  headers["X-Client-Timezone"] = getClientTimezone();
 
   const res = await fetchImpl(API_URL + path, {
     method: opts.method ?? "GET",
@@ -75,6 +107,46 @@ export async function request<T>(
   // 204 / empty
   const text = await res.text();
   return (text ? JSON.parse(text) : null) as T;
+}
+
+/**
+ * Variant of `request` for non-JSON binary payloads (e.g. forwarded
+ * Telegram photos). Uses the same auth header path — `X-Telegram-Init-Data`
+ * is sent as a HEADER, never a query param, so it never lands in a URL
+ * or in Caddy logs.
+ *
+ * Cluster 7(a): the previous client built `<img src="...?init_data=…">`,
+ * which leaks initData via Referer, browser history, and any proxy that
+ * logs the request line. We fetch the bytes ourselves with the header,
+ * then hand the caller a Blob the UI can wrap in `URL.createObjectURL`.
+ */
+export async function requestBlob(
+  path: string,
+  opts: RequestOptions = {},
+): Promise<Blob> {
+  const headers: Record<string, string> = {
+    ...buildAuthHeaders(),
+  };
+  headers["X-Client-Timezone"] = getClientTimezone();
+
+  const res = await fetchImpl(API_URL + path, {
+    method: opts.method ?? "GET",
+    headers,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    let detail = `${res.status}`;
+    try {
+      const j = await res.json();
+      detail = (j && (j.detail || j.error)) || detail;
+    } catch {
+      /* keep status text */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.blob();
 }
 
 // ---------------------------------------------------------------------------
@@ -145,18 +217,32 @@ export const endpoints = {
     request<LoveNoteItem>(`/api/love-notes/${id}/read`, { method: "POST", signal }),
 
   /**
-   * On-demand forwarded-photo URL for an item. <img src> can't send the auth
-   * header, so we pass initData (prod) / devUserId (dev) in the query. The
-   * backend 302-redirects to a short-lived Telegram file URL.
+   * Fetch a forwarded photo's bytes with the auth header attached — never
+   * via a query-param URL. The server (cluster 5) proxies Telegram file
+   * bytes directly so the bot token never enters the response or any log.
+   *
+   * The caller wraps the returned Blob in `URL.createObjectURL(blob)` and
+   * uses it as `<img src>`. On unmount / item change, the URL should be
+   * revoked (see `usePhotoBlob` in Wishlist.tsx) to avoid leaks.
+   *
+   * In mock mode we return a tiny transparent PNG so the UI can still
+   * render a placeholder without the network.
    */
-  wishlistPhotoUrl: (id: string): string => {
-    if (USE_MOCK) return "";
-    const params = new URLSearchParams();
-    const initData = getInitData();
-    if (initData) params.set("init_data", initData);
-    const devUid = getDevUserId();
-    if (devUid) params.set("dev_user_id", devUid);
-    return `${API_URL}/api/wishlist/${id}/photo?${params.toString()}`;
+  wishlistPhotoBlob: (id: string, signal?: AbortSignal): Promise<Blob> => {
+    if (USE_MOCK) {
+      // 1x1 transparent PNG — keeps the <img> "loaded" without showing a
+      // canned image that would look real.
+      const png = new Uint8Array([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+        0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+        0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+      ]);
+      return Promise.resolve(new Blob([png], { type: "image/png" }));
+    }
+    return requestBlob(`/api/wishlist/${id}/photo`, { signal });
   },
   markDone: (item_id: string, signal?: AbortSignal) =>
     request<WishlistItem>("/api/mark-done", { method: "POST", body: { item_id }, signal }),
