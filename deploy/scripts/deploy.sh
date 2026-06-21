@@ -26,8 +26,12 @@ echo "==> restart services"
 docker compose --env-file .env.prod up -d --force-recreate api bot
 # Caddy serves miniapp/dist via a read-only bind mount — new files are visible
 # immediately, no restart needed (and a restart causes a brief TLS-reload outage).
-# `up -d` is a no-op for caddy unless its config changed.
-docker compose --env-file .env.prod up -d caddy
+# Force-recreate caddy: the Caddyfile is a bind-mounted single file, and `git pull`
+# replaces it via atomic rename (new inode). A plain `up -d` sees no service-definition
+# change and leaves the old container running with a stale (old-inode) mount, so
+# Caddyfile edits silently never take effect (and `caddy reload` re-reads the same
+# stale bytes). --force-recreate re-mounts the current file. Brief TLS gap is acceptable.
+docker compose --env-file .env.prod up -d --force-recreate caddy
 
 echo "==> health"
 sleep 3
