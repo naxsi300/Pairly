@@ -10,6 +10,13 @@
 #   https://<domain>/telegram-webhook -> aiogram webhook (service: bot:8080)
 #   /.well-known/telegram-bot-app.json -> manifest for @BotFather /setdomain check
 
+# Hard cap on request bodies at the edge. The app-side limiter from cluster 5
+# is the primary defense — this stops oversized payloads from even reaching
+# the upstream (1 MiB ≫ our largest legit payload, a <512 KiB photo upload).
+request_body {
+	max_size 1MB
+}
+
 pairly.mnepo.fyi {
     encode zstd gzip
 
@@ -26,6 +33,12 @@ pairly.mnepo.fyi {
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
             header_up X-Forwarded-Proto https
+            # Strip client-supplied dev-impersonation headers at the edge.
+            # If an external caller spoofs `X-Dev-User-Id`, the app would
+            # happily impersonate any user. We MUST NOT trust it from the
+            # wire. The legit Mini App client sends `X-Telegram-Init-Data`
+            # instead — that one stays.
+            header_up -X-Dev-User-Id
             transport http {
                 dial_timeout 5s
                 response_header_timeout 30s
@@ -47,12 +60,37 @@ pairly.mnepo.fyi {
         file_server
     }
 
+    # Access log with PII redaction.
+    #
+    # `/api/wishlist/*/photo` accepts `init_data` + `dev_user_id` as query
+    # params (the former because `<img src="...">` can't set custom
+    # headers; the latter because dev_auth is gated only by the header
+    # being absent). Caddy's default `console` format records the full
+    # request URI, which means the captured 24h-replayable Telegram
+    # initData AND the dev impersonation id would land in the docker
+    # log driver readable by anyone with `docker logs`. We use the
+    # `filter` log format with `request>uri query { replace ...
+    # REDACTED }` so the keys are replaced with a placeholder before
+    # the line is written.
     log {
         output stdout
-        format console
+        format filter {
+            request>uri query {
+                replace init_data REDACTED
+                replace dev_user_id REDACTED
+            }
+        }
         level INFO
     }
 }
+
+# TODO(cluster-8d, rate_limit): Caddy's `rate_limit` directive is a plugin
+# (mholt/caddy-ratelimit), not in stock caddy:2-alpine. To enable, build
+# a custom image with `xcaddy build` and include
+# github.com/mholt/caddy-ratelimit, then add a coarse per-IP limit scoped
+# to /api/* (e.g. zone "api" { key {remote_host} window 1m events 600 })
+# here. Until then, the app-side limiter from cluster 5 is the primary
+# defense.
 
 # Health endpoint on plain HTTP for uptime monitors.
 :80 {

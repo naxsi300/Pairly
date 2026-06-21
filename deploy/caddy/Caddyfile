@@ -9,18 +9,34 @@
 #   /var/www/pairly        -> built Mini App (miniapp/dist), owned readable by caddy
 #   127.0.0.1:8000         -> pairly-api.service (uvicorn)
 
+# Hard cap on request bodies at the edge. The app-side limiter from cluster 5
+# is the primary defense — this stops oversized payloads from even reaching
+# the upstream (1 MiB ≫ our largest legit payload, a <512 KiB photo upload).
+request_body {
+	max_size 1MB
+}
+
 app.example.com {
 	encode zstd gzip
 
 	# API: FastAPI on uvicorn. Strip /api prefix? No — the app is mounted at /api/*.
 	# Keep the path so the router matches. Proxy headers so the app sees real client info.
 	handle_path /api/* {
-		reverse_proxy 127.0.0.1:8000
+		reverse_proxy 127.0.0.1:8000 {
+			# Strip client-supplied dev-impersonation headers at the edge.
+			# If an external caller spoofs `X-Dev-User-Id`, the app would
+			# happily impersonate any user. We MUST NOT trust it from the
+			# wire. The legit Mini App client sends `X-Telegram-Init-Data`
+			# instead — that one stays.
+			header_up -X-Dev-User-Id
+		}
 	}
 
 	# Also expose the bare /api (without trailing path) to the upstream root router.
 	handle /api {
-		reverse_proxy 127.0.0.1:8000
+		reverse_proxy 127.0.0.1:8000 {
+			header_up -X-Dev-User-Id
+		}
 	}
 
 	# Static Mini App (PWA shell). SPA fallback so client routes resolve to index.html.
@@ -38,12 +54,35 @@ app.example.com {
 		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org"
 	}
 
-	# Quiet access log per site (optional). Comment out if noisy.
+	# Access log with PII redaction.
+	#
+	# `/api/wishlist/*/photo` accepts `init_data` + `dev_user_id` as query
+	# params (the former because `<img src="...">` can't set custom
+	# headers; the latter because dev_auth is gated only by the header
+	# being absent). Caddy's default `console` format records the full
+	# request URI, which means the captured 24h-replayable Telegram
+	# initData AND the dev impersonation id would land in
+	# /var/log/caddy/*.log readable by caddy. We use the `filter` log
+	# format with `request>uri query { replace ... REDACTED }` so the
+	# keys are replaced with a placeholder before the line is written.
 	log {
 		output file /var/log/caddy/pairly-access.log {
 			roll_size 10mb
 			roll_keep 5
 		}
-		format console
+		format filter {
+			request>uri query {
+				replace init_data REDACTED
+				replace dev_user_id REDACTED
+			}
+		}
 	}
 }
+
+# TODO(cluster-8d, rate_limit): Caddy's `rate_limit` directive is a plugin
+# (mholt/caddy-ratelimit), not in stock caddy:2-alpine or Debian's
+# apt-caddy. To enable, build a custom image with `xcaddy build` and
+# include github.com/mholt/caddy-ratelimit, then add a coarse per-IP
+# limit scoped to /api/* (e.g. zone "api" { key {remote_host} window 1m
+# events 600 }). Until then, the app-side limiter from cluster 5 is the
+# primary defense.
