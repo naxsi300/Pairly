@@ -30,10 +30,31 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/opt/pairly /var/log/pairly
+# Narrow write allowlist. Source code under /opt/pairly (repo checkout) is
+# read-only in spirit: it is deployed from git and never mutated at runtime.
+# The only runtime-mutable surfaces are the SQLite DB (/var/lib/pairly), the
+# log dir (/var/log/pairly), and the venv's __pycache__ (/opt/pairly/.venv).
+ReadWritePaths=/var/lib/pairly /var/log/pairly /opt/pairly/.venv
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictNamespaces=true
+
+# Drop all capabilities (process runs unprivileged).
+CapabilityBoundingSet=
+AmbientCapabilities=
+# AF_UNIX is needed for journald / sd_notify sockets; AF_INET/AF_INET6 for HTTP.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Restrict to the curated @system-service syscall set; deny others with EPERM.
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectProc=invisible
+UMask=0027
 
 StandardOutput=journal
 StandardError=journal
