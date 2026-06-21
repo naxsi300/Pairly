@@ -33,3 +33,47 @@ def test_dev_auth_disabled_on_public_bind_is_fine(monkeypatch):
     monkeypatch.setattr(s, "api_host", "0.0.0.0", raising=False)
     app = create_app()  # prod mode on a public bind is the normal case
     assert app is not None
+
+
+# --- Cluster 5 (f): the env's api_host is bypassable when the docker entrypoint
+# forces --host 0.0.0.0. The guard must ALSO refuse dev_auth when api_deploy ==
+# "docker" (cluster 10 sets PAIRLY_API_DEPLOY=docker in the entrypoint).
+# `create_app` is called at import time (module bottom), so the docker case has
+# to be checked before that import. We use a subprocess so the cached `app`
+# singleton doesn't mask the boot guard. ---
+
+
+def test_dev_auth_docker_deploy_raises_subprocess(tmp_path):
+    """When api_deploy='docker' the guard must refuse dev_auth even if api_host
+    is loopback. The docker entrypoint overrides --host at runtime, so checking
+    api_host alone is bypassable; checking api_deploy closes the hole."""
+    import subprocess
+    import sys
+
+    script = (
+        "import os, sys\n"
+        "os.environ['PAIRLY_BOT_TOKEN'] = '0:test'\n"
+        "os.environ['PAIRLY_API_DEPLOY'] = 'docker'\n"
+        "os.environ['PAIRLY_DEV_AUTH'] = '1'\n"
+        "os.environ['PAIRLY_API_HOST'] = '127.0.0.1'  # would pass the old guard\n"
+        "os.environ['PAIRLY_DATABASE_URL'] = 'sqlite+aiosqlite:///:memory:'\n"
+        # Bypass lru_cache so each subprocess gets fresh settings.
+        "from pairly.config import get_settings\n"
+        "get_settings.cache_clear()\n"
+        "try:\n"
+        "    from pairly.api.app import create_app\n"
+        "    create_app()\n"
+        "except RuntimeError as e:\n"
+        "    print('GUARD_RAISED:', e); sys.exit(0)\n"
+        "print('GUARD_BYPASSED'); sys.exit(2)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        cwd="/root/MyProjects/TelegramMiniApps/Pairly/backend",
+    )
+    assert "GUARD_RAISED" in result.stdout, (
+        f"expected guard to raise on docker+dev_auth. stdout={result.stdout!r} "
+        f"stderr={result.stderr!r} rc={result.returncode}"
+    )

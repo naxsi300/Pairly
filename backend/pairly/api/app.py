@@ -15,7 +15,11 @@ is always camelCase on the way out.
 
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+import asyncio
+import time
+from collections import defaultdict, deque
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.api.schemas import (
@@ -60,6 +64,74 @@ from pairly.repositories.qotd import AnswerTooLongError
 from pairly.repositories.wishlist import WishlistLimitError, WishlistStateError
 
 
+# --- Middleware & rate-limit constants (Cluster 5) ---
+# Body-size cap (1MB) is a hard DoS guard applied before auth. The cap is checked
+# against the client's Content-Length so we don't allocate the body to reject it.
+MAX_BODY_BYTES = 1_000_000
+
+# In-process token-bucket-ish limits. We use a sliding window of timestamps per
+# (key, route) — the route-level cap below is the per-window ceiling.
+# Cheap, async-safe, no dependency. Per-process state is fine for MVP: a multi-
+# worker reverse proxy would distribute the load, so the effective per-user cap
+# is roughly N_workers * cap. Acceptable — we want DoS protection, not a strict
+# quota.
+_RATE_LIMIT_WINDOW = 60.0  # seconds
+
+# route -> (max requests per window). /api/date-idea is the AI path so it's
+# the most expensive; POST mood/qotd/love-notes are cheap but cap anyway.
+_RATE_LIMITS: dict[str, int] = {
+    "/api/date-idea": 10,
+    "/api/mood": 30,
+    "/api/qotd/answer": 30,
+    "/api/love-notes": 30,
+}
+# Routes rate-limited as POSTs.
+_RATE_LIMIT_POST_ROUTES = {"/api/mood", "/api/qotd/answer", "/api/love-notes"}
+
+# Sliding window store: {key: {route: deque[float]}}. We only keep one global
+# lock so the per-request overhead is a single acquire; a single asyncio.Lock
+# is fine for MVP (deques are O(1) append and we cap their length).
+_rate_lock = asyncio.Lock()
+_rate_buckets: dict[str, dict[str, deque[float]]] = defaultdict(
+    lambda: defaultdict(deque)
+)
+
+
+def _check_rate_limit(key: str, route: str, *, now: float) -> tuple[bool, int]:
+    """Return (allowed, retry_after_seconds). Holds the rate lock briefly.
+
+    Eviction: any timestamp older than _RATE_LIMIT_WINDOW is popped. The deque
+    never grows past the cap+1 in practice (we pop as we go), so memory is bounded.
+    """
+    cap = _RATE_LIMITS.get(route)
+    if cap is None:
+        return True, 0
+    buckets = _rate_buckets[key]
+    dq = buckets[route]
+    cutoff = now - _RATE_LIMIT_WINDOW
+    while dq and dq[0] < cutoff:
+        dq.popleft()
+    if len(dq) >= cap:
+        # Retry-After = time until the OLDEST timestamp ages out + 1s, so the
+        # client doesn't hammer back at the exact second the window opens.
+        retry_after = max(1, int(dq[0] + _RATE_LIMIT_WINDOW - now) + 1)
+        return False, retry_after
+    dq.append(now)
+    return True, 0
+
+
+def _client_key(request: Request) -> str:
+    """Best-effort per-client key. We prefer the resolved user (set by the
+    auth dependency) and fall back to the client IP for unauthenticated probes
+    (e.g. the 413 short-circuit path)."""
+    auth_user = getattr(request.state, "auth_user", None)
+    if auth_user is not None:
+        return f"u:{auth_user}"
+    if request.client is not None and request.client.host:
+        return f"ip:{request.client.host}"
+    return "ip:unknown"
+
+
 def _require_pair(auth: AuthContext) -> str:
     """Return the user's pair_id or raise 412 (unpaired user hitting a shared feature)."""
     if auth.user.pair_id is None:
@@ -81,18 +153,101 @@ async def _partner_display_name(
     return None
 
 
+def _infer_media_type(file_path: str | None) -> str:
+    """Best-effort media-type guess from the file extension. Defaults to image/jpeg
+    because the photo endpoint is used only for Telegram photo_file entries — we
+    never want to advertise the wrong Content-Type to a browser <img> tag."""
+    if not file_path:
+        return "image/jpeg"
+    lower = file_path.lower()
+    if lower.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    if lower.endswith(".gif"):
+        return "image/gif"
+    return "image/jpeg"
+
+
 def create_app() -> FastAPI:
     # Boot guard: dev-auth (PAIRLY_DEV_AUTH=1) is a full unauthenticated impersonation
     # of any user via X-Dev-User-Id — it MUST NOT be reachable on a public bind.
     # Fail fast at import rather than serving an open bypass to the internet.
+    #
+    # Cluster 5 (f): api_host is not the only way uvicorn can end up on a public
+    # bind — the docker entrypoint forces --host 0.0.0.0 at runtime, overriding
+    # whatever api_host says in the env. The new `api_deploy` knob (set to
+    # "docker" in the prod entrypoint) closes that bypass: when dev_auth is on
+    # AND we're in a docker deploy, refuse even on loopback. Production has
+    # dev_auth off, so neither branch fires.
     settings = get_settings()
-    if settings.dev_auth and settings.api_host not in ("127.0.0.1", "localhost", "::1"):
-        raise RuntimeError(
-            "PAIRLY_DEV_AUTH=1 refuses to run on a public bind "
-            f"(api_host={settings.api_host!r}). Set PAIRLY_DEV_AUTH=0 or bind loopback."
-        )
+    if settings.dev_auth:
+        is_loopback = settings.api_host in ("127.0.0.1", "localhost", "::1")
+        is_docker = settings.api_deploy == "docker"
+        if not is_loopback or is_docker:
+            raise RuntimeError(
+                "PAIRLY_DEV_AUTH=1 refuses to run on a public bind "
+                f"(api_host={settings.api_host!r}, api_deploy={settings.api_deploy!r}). "
+                "Set PAIRLY_DEV_AUTH=0 or bind loopback (native only)."
+            )
 
     app = FastAPI(title="Pairly Mini App API", version="0.1.0")
+
+    # --- Cluster 5 (d) body-size cap ---
+    # Reject requests with Content-Length > MAX_BODY_BYTES before anything else
+    # runs. We use the header (not the body) so the cap is a constant-time check
+    # and we never allocate a giant payload just to discard it. Chunks are not
+    # covered (Content-Length missing) — uvicorn's own --limit-max-requests body
+    # cap is the backstop; this layer is the API contract.
+    @app.middleware("http")
+    async def _body_size_cap(request: Request, call_next):
+        cl = request.headers.get("content-length")
+        if cl is not None:
+            try:
+                if int(cl) > MAX_BODY_BYTES:
+                    return Response(
+                        b'{"detail":"body too large"}',
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        media_type="application/json",
+                    )
+            except ValueError:
+                # Malformed Content-Length: refuse rather than guess.
+                return Response(
+                    b'{"detail":"bad content-length"}',
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    media_type="application/json",
+                )
+        return await call_next(request)
+
+    # --- Cluster 5 (e) rate limit ---
+    # Per-(key, route) sliding window, async-safe. We don't know the user at
+    # middleware time (auth runs inside the route via Depends), so we key on
+    # the client IP for unauthenticated cases. Routes get a fresh decision per
+    # request — the lock is held only long enough to pop+append the deque.
+    @app.middleware("http")
+    async def _rate_limit(request: Request, call_next):
+        path = request.url.path
+        # Only the routes that have a configured cap; everything else is a
+        # free pass.
+        route_key: str | None = None
+        if path == "/api/date-idea":
+            route_key = path
+        elif path in _RATE_LIMIT_POST_ROUTES and request.method == "POST":
+            route_key = path
+        if route_key is not None:
+            key = _client_key(request)
+            async with _rate_lock:
+                ok, retry_after = _check_rate_limit(key, route_key, now=time.monotonic())
+            if not ok:
+                return Response(
+                    b'{"detail":"rate limited"}',
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    media_type="application/json",
+                    headers={"Retry-After": str(retry_after)},
+                )
+        return await call_next(request)
 
     app.add_exception_handler(PairAccessError, _forbidden)
     app.add_exception_handler(NotPairedError, _precondition)
@@ -178,27 +333,40 @@ def create_app() -> FastAPI:
     @app.get("/api/wishlist/{item_id}/photo")
     async def get_wishlist_photo(
         item_id: str,
+        request: Request,
         init_data: str = "",
         dev_user_id: str = "",
+        x_telegram_init_data: str = Header("", alias="X-Telegram-Init-Data"),
+        x_dev_user_id: str = Header("", alias="X-Dev-User-Id"),
         session: AsyncSession = Depends(get_session),
     ) -> Response:
-        """Resolve a forwarded photo on demand and 302 to Telegram's temp file URL.
+        """Proxy a forwarded photo's bytes — NEVER redirect to Telegram directly.
 
-        ``<img src>`` cannot send the X-Telegram-Init-Data header, so auth here is
-        via the ``init_data`` (or ``dev_user_id`` in dev) query param — the same
-        HMAC initData the client already sends as a header on every other request
-        (equivalent threat model; initData is itself short-lived). Membership is
-        still enforced: the item must belong to the caller's pair.
+        Cluster 5 (a): a 302 to bot.session.api.file_url(bot.token, path) embeds
+        the FULL BOT TOKEN in the Location header. Any browser/proxy that logs
+        the response leaks the token. Instead, we resolve the Telegram temp file
+        server-side with bot.download_file(...) and stream the bytes back. The
+        token never leaves the process.
+
+        Auth: this endpoint accepts EITHER the X-Telegram-Init-Data header
+        (preferred) OR the init_data query param (for <img src> tags that can't
+        set custom headers). The header is read explicitly so an <img> that only
+        has the query param still works; a fetch() that sends the header doesn't
+        need a query string. dev_auth accepts the dev headers the same way.
+        Membership is still enforced — the item must belong to the caller's pair.
 
         Returns 204 when the item has no photo, 404 when absent, 502 if Telegram
         declines the lookup — best-effort, the <img> just stays empty.
         """
-        from fastapi.responses import RedirectResponse
-
         from pairly.auth import resolve_init_data
         from pairly.bot.notify import _get_bot
 
-        auth = await resolve_init_data(init_data, session, dev_user_id=dev_user_id)
+        # Prefer the header, fall back to the query param. Same initData either way.
+        effective_init = x_telegram_init_data or init_data
+        effective_dev = x_dev_user_id or dev_user_id
+        auth = await resolve_init_data(
+            effective_init, session, dev_user_id=effective_dev
+        )
         pair_id = _require_pair(auth)  # 412 if unpaired
         try:
             item = await wishlist.get_item(
@@ -215,9 +383,23 @@ def create_app() -> FastAPI:
             return Response(status_code=502)
         if not file.file_path:
             return Response(status_code=204)
-        # aiogram builds the absolute temp-file URL from the bot token + path.
-        url = bot.session.api.file_url(bot.token, file.file_path)
-        return RedirectResponse(url=str(url), status_code=302)
+        # Resolve Telegram's file to bytes server-side. aiogram returns a
+        # BytesIO when destination is omitted; .read() gives the full payload.
+        try:
+            buf = await bot.download_file(file.file_path)
+            data = buf.read() if buf is not None else b""
+        except Exception:
+            return Response(status_code=502)
+        if not data:
+            return Response(status_code=204)
+        media_type = _infer_media_type(file.file_path)
+        return Response(
+            content=data,
+            media_type=media_type,
+            # 5 min private cache — the <img> is hot on a single client, but
+            # never share across users (membership still gates the path).
+            headers={"Cache-Control": "private, max-age=300"},
+        )
 
     @app.get("/api/date-idea", response_model=DateIdeaOut)
     async def get_date_idea(
@@ -365,6 +547,14 @@ def create_app() -> FastAPI:
             await session.commit()
         except WishlistLimitError as exc:
             raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, detail=str(exc)) from exc
+        # Cluster 5 (b): the bot's /forward path notifies the partner; the API
+        # path must too, otherwise mini-app-only users silently drop the beat.
+        # Best-effort + never raises (notify_wishlist_added swallows internally).
+        from pairly.bot.notify import notify_wishlist_added
+
+        await notify_wishlist_added(
+            session, pair_id=pair_id, actor_id=auth.user.id, title=item.title
+        )
         out = WishlistItemOut.model_validate(item).model_dump(by_alias=True)
         out["mine"] = item.created_by == auth.user.id
         out["newMilestones"] = [
@@ -805,6 +995,14 @@ def create_app() -> FastAPI:
             # the session tears down at end-of-request — invisible to subsequent
             # fetches.
             await session.commit()
+            # Cluster 5 (c): the COMPLETE beat is a relationship-core moment
+            # ("we did this together"). Tell the partner, symmetrically with
+            # REDEEMED/CLAIMED/DECLINED above. Best-effort + never raises.
+            from pairly.bot.notify import notify_gift_completed
+
+            await notify_gift_completed(
+                session, pair_id=pair_id, actor_id=auth.user.id, gesture=item.gesture
+            )
             if new_ms_c:
                 result = _to_gift_out(item, auth.user.id).model_dump(by_alias=True)
                 result["newMilestones"] = [

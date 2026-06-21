@@ -475,3 +475,222 @@ async def test_gift_completed_milestone_persists(session):
         )
     ).scalars().all()
     assert rows, "gift_completed=15 milestone not committed"
+
+
+# --- Cluster 5: api/app.py integration ---
+#
+# Pin the bug fixes the cluster makes:
+#   (a) photo endpoint proxies bytes server-side (no bot token in any response)
+#   (b) POST /api/wishlist notifies the partner
+#   (c) Gift COMPLETE branch notifies the partner
+#   (d) Body-size cap middleware rejects >1MB with 413
+#   (e) In-process rate limiter on /api/date-idea (and POSTs on mood/qotd/love-notes)
+#   (f) dev_auth guard ALSO refuses when api_deploy=="docker"
+
+
+@pytest.mark.asyncio
+async def test_photo_endpoint_proxies_bytes_no_token_leak(session, monkeypatch):
+    """Fix (a): GET /api/wishlist/{id}/photo must proxy bytes, never redirect.
+
+    Pre-fix: the handler 302-redirected to bot.session.api.file_url(bot.token, path)
+    — that URL embeds the FULL BOT TOKEN in the Location header. Anyone with
+    that header gets the token. Post-fix: bytes are streamed back, no Location
+    header, no token in any response header.
+    """
+    from pairly.config import get_settings
+    from pairly.db.models import WishlistItem
+    from pairly.repositories import wishlist as wl_repo
+
+    # The photo endpoint does its own resolve_init_data() (no Depends(current_auth)),
+    # so the standard dependency-override trick in `_client_for` doesn't apply.
+    # Enable dev_auth on settings + use the X-Dev-User-Id header the endpoint
+    # now also accepts (img-tag fallback vs fetch() header).
+    settings = get_settings()
+    monkeypatch.setattr(settings, "dev_auth", True, raising=False)
+
+    a, b = await _make_pair(session, 200, 201)
+    item = await wl_repo.create_item(
+        session, pair_id=a.pair_id, user_id=a.id, title="Кафе"
+    )
+    item.telegram_file_id = "AgAC_file_id_xyz"
+    await session.flush()
+    await session.commit()
+
+    # Mock the bot so we don't hit Telegram.
+    class _FakeFile:
+        file_path = "photos/x.png"
+
+    class _FakeBot:
+        token = "0:TEST_TOKEN_MUST_NOT_LEAK"
+
+        async def get_file(self, _fid):
+            return _FakeFile()
+
+        async def download_file(self, _file_path):
+            import io
+
+            return io.BytesIO(b"\x89PNG_FAKE_BYTES")
+
+    import pairly.bot.notify as notify_mod
+    monkeypatch.setattr(notify_mod, "_get_bot", lambda: _FakeBot())
+
+    client = _client_for(a, session)
+    resp = client.get(
+        f"/api/wishlist/{item.id}/photo",
+        headers={"X-Dev-User-Id": a.id},
+    )
+    # Pre-fix: status_code == 302 with Location: api.telegram.org/file/.../<TOKEN>/...
+    assert resp.status_code == 200, f"expected 200 (proxied bytes), got {resp.status_code}"
+    assert "Location" not in resp.headers, (
+        f"Location header present (token leak): {resp.headers.get('Location')!r}"
+    )
+    # NO response header may contain the token.
+    for hk, hv in resp.headers.items():
+        assert "TEST_TOKEN_MUST_NOT_LEAK" not in hv, (
+            f"bot token leaked in header {hk}: {hv!r}"
+        )
+    # The bytes are the proxy result.
+    assert resp.content == b"\x89PNG_FAKE_BYTES"
+    # And we have a sane media type.
+    assert resp.headers.get("content-type", "").startswith("image/"), resp.headers.get("content-type")
+
+
+@pytest.mark.asyncio
+async def test_photo_endpoint_returns_204_when_no_file(session, monkeypatch):
+    """Photo endpoint returns 204 (no body) when the item has no file_id."""
+    from pairly.config import get_settings
+    from pairly.repositories import wishlist as wl_repo
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "dev_auth", True, raising=False)
+
+    a, b = await _make_pair(session, 202, 203)
+    item = await wl_repo.create_item(
+        session, pair_id=a.pair_id, user_id=a.id, title="Без фото"
+    )
+    await session.commit()
+    assert item.telegram_file_id is None
+
+    client = _client_for(a, session)
+    resp = client.get(
+        f"/api/wishlist/{item.id}/photo",
+        headers={"X-Dev-User-Id": a.id},
+    )
+    assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_post_wishlist_notifies_partner(session, monkeypatch):
+    """Fix (b): POST /api/wishlist must call notify_wishlist_added (best-effort)."""
+    from pairly.bot import notify as notify_mod
+
+    a, b = await _make_pair(session, 210, 211)
+    captured: list[dict] = []
+
+    async def fake_notify(session_arg, *, pair_id, actor_id, title):
+        captured.append(
+            {"pair_id": pair_id, "actor_id": actor_id, "title": title}
+        )
+
+    monkeypatch.setattr(notify_mod, "notify_wishlist_added", fake_notify)
+
+    client = _client_for(a, session)
+    resp = client.post("/api/wishlist", json={"title": "Суши"})
+    assert resp.status_code == 200, resp.text
+    assert captured, "notify_wishlist_added was not called on POST /api/wishlist"
+    assert captured[-1]["title"] == "Суши"
+    assert captured[-1]["pair_id"] == a.pair_id
+    assert captured[-1]["actor_id"] == a.id
+
+
+@pytest.mark.asyncio
+async def test_gift_complete_notifies_partner(session, monkeypatch):
+    """Fix (c): transitioning a gift to COMPLETE must call notify_gift_completed."""
+    from pairly.bot import notify as notify_mod
+    from pairly.db.models import GiftItem, GiftStatus
+    from pairly.repositories import gifts as gifts_repo
+
+    a, b = await _make_pair(session, 220, 221)
+
+    captured: list[dict] = []
+
+    async def fake_notify(session_arg, *, pair_id, actor_id, gesture):
+        captured.append(
+            {"pair_id": pair_id, "actor_id": actor_id, "gesture": gesture}
+        )
+
+    monkeypatch.setattr(notify_mod, "notify_gift_completed", fake_notify)
+
+    gift = await gifts_repo.create_gift(
+        session, pair_id=a.pair_id, giver_id=a.id, gesture="Завтрак"
+    )
+    await gifts_repo.transition(
+        session, pair_id=a.pair_id, user_id=b.id, gift_id=gift.id, to=GiftStatus.CLAIMED
+    )
+    await gifts_repo.transition(
+        session, pair_id=a.pair_id, user_id=a.id, gift_id=gift.id, to=GiftStatus.REDEEMED
+    )
+    await session.commit()
+
+    client = _client_for(a, session)
+    resp = client.post(
+        f"/api/gifts/{gift.id}/transition", json={"status": "complete"}
+    )
+    assert resp.status_code == 200, resp.text
+    assert captured, "notify_gift_completed was not called on gift COMPLETE"
+    assert captured[-1]["gesture"] == "Завтрак"
+    assert captured[-1]["pair_id"] == a.pair_id
+
+
+@pytest.mark.asyncio
+async def test_body_size_cap_middleware_returns_413(session):
+    """Fix (d): a >1MB body must be rejected with 413 before any route runs.
+
+    We hit the most-likely endpoint (POST /api/wishlist) with a body whose
+    content-length header is over the cap. The middleware sits before auth.
+    """
+    a, b = await _make_pair(session, 230, 231)
+    client = _client_for(a, session)
+    # Build a body the same way a client would — the server measures the header
+    # so we don't need to actually allocate 1MB+ in memory.
+    big_title = "a" * (1_000_001)
+    resp = client.post(
+        "/api/wishlist",
+        content=b'{"title": "' + big_title.encode() + b'"}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 413, f"expected 413, got {resp.status_code} body={resp.text}"
+
+
+@pytest.mark.asyncio
+async def test_date_idea_rate_limit_kicks_in_after_burst(session, monkeypatch):
+    """Fix (e): a tight burst of /api/date-idea calls must be rate-limited (429).
+
+    We don't pin the exact threshold (the cluster picks a small per-process
+    cap). What matters is the middleware EXISTS and returns 429 + Retry-After
+    once the cap is hit.
+    """
+    # Stub the use-case at the module level so the AI client / canned list never
+    # runs. The route does `from pairly.use_cases.date_idea import pick_date_idea`
+    # inline, so we patch the module.
+    from pairly.use_cases import date_idea as date_idea_mod
+    from pairly.use_cases.date_idea import DateIdea
+
+    async def fake_pick(*args, **kwargs):
+        return DateIdea(source="default", title="t", category="eat", reason="")
+
+    monkeypatch.setattr(date_idea_mod, "pick_date_idea", fake_pick)
+
+    a, b = await _make_pair(session, 240, 241)
+
+    client = _client_for(a, session)
+    last = None
+    saw_429 = False
+    # Burst 30 quick calls — at least one must be 429 with a Retry-After header.
+    for _ in range(30):
+        last = client.get("/api/date-idea")
+        if last.status_code == 429:
+            saw_429 = True
+            assert "Retry-After" in last.headers, f"429 missing Retry-After: {dict(last.headers)}"
+            break
+    assert saw_429, f"rate limiter never returned 429 (last={last.status_code if last else None})"

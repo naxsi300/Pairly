@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # --- API (FastAPI, separate process from the bot) ---
     api_host: str = "127.0.0.1"
     api_port: int = 8000
+    # Deploy mode of the API process. Set to "docker" in the prod container (the
+    # entrypoint forces --host 0.0.0.0 there); cluster 5 uses this to ALSO refuse
+    # dev_auth on a public bind (the env's api_host alone is bypassable when the
+    # container's uvicorn override wins). Default "native" — the api_host check
+    # alone is the gate.
+    api_deploy: str = "native"
 
     # --- Pair invite tokens ---
     # Bytes of entropy for `/pair` invite tokens.
