@@ -25,6 +25,12 @@
 #   PAIRLY_BACKUP_PREFIX  default: pairly   (key prefix inside the bucket)
 #   PAIRLY_LOCAL_DIR      default: /var/backups/pairly
 #   LOG_FILE              default: /var/log/pairly/backup.log
+#   PAIRLY_BACKUP_SSE     default: AES256   server-side encryption algorithm.
+#                         Set to "aws:kms" to use SSE-KMS (and set
+#                         PAIRLY_BACKUP_KMS_KEY_ID to a valid key ARN/id).
+#   PAIRLY_BACKUP_KMS_KEY_ID  only used when PAIRLY_BACKUP_SSE=aws:kms.
+#                         Appended as --sse-kms-key-id. Leave empty for
+#                         the AWS-managed key default.
 
 set -euo pipefail
 
@@ -67,13 +73,20 @@ require() {
 	command -v "$1" >/dev/null 2>&1 || die "missing required binary: $1"
 }
 
-# Build the aws s3 global args (endpoint override for S3-compatible providers).
+# Build the aws s3 global args (endpoint override for S3-compatible providers,
+# server-side encryption, optional KMS key id).
 # Emits args to stdout, one per line (caller reads into an array).
 s3_global_args() {
 	if [[ -n "$AWS_ENDPOINT_URL_S3" ]]; then
 		printf -- '--endpoint-url\n%s\n' "$AWS_ENDPOINT_URL_S3"
 	fi
 	printf -- '--region\n%s\n' "$AWS_REGION"
+	# Server-side encryption. Default SSE-S3 (AES256); opt in to SSE-KMS
+	# by setting PAIRLY_BACKUP_SSE=aws:kms + PAIRLY_BACKUP_KMS_KEY_ID.
+	printf -- '--sse\n%s\n' "${PAIRLY_BACKUP_SSE:-AES256}"
+	if [[ -n "${PAIRLY_BACKUP_KMS_KEY_ID:-}" ]]; then
+		printf -- '--sse-kms-key-id\n%s\n' "$PAIRLY_BACKUP_KMS_KEY_ID"
+	fi
 }
 
 # --- preflight ----------------------------------------------------------

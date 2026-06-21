@@ -128,7 +128,15 @@ ensure_repo() {
 	if [[ -d "$INSTALL_DIR/.git" ]]; then
 		log "pulling latest into $INSTALL_DIR"
 		git -C "$INSTALL_DIR" fetch --all --prune
-		git -C "$INSTALL_DIR" reset --hard '@{u}' 2>/dev/null || git -C "$INSTALL_DIR" pull --ff-only
+		# Use only `git pull --ff-only`. The previous `git reset --hard '@{u}'`
+		# destroyed any uncommitted local state (operator hotfix, debug print,
+		# etc.). If the working tree has diverged, WARN and stop — the operator
+		# must reconcile manually.
+		if ! git -C "$INSTALL_DIR" pull --ff-only; then
+			log "WARN: $INSTALL_DIR has diverged from upstream. Resolve manually:"
+			log "      cd $INSTALL_DIR && git status"
+			log "      (commit/stash any local changes, then re-run install.sh)"
+		fi
 	else
 		log "cloning $REPO_URL -> $INSTALL_DIR"
 		mkdir -p "$(dirname "$INSTALL_DIR")"
@@ -200,17 +208,38 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 /var/lib/pairly /var/lo
 
 install_units() {
 	log "installing systemd units"
-	install -m 0644 "$INSTALL_DIR/deploy/systemd/pairly-bot.service" /etc/systemd/system/pairly-bot.service
-	install -m 0644 "$INSTALL_DIR/deploy/systemd/pairly-api.service" /etc/systemd/system/pairly-api.service
-	# Make sure the venv path the units reference matches reality.
-	sed -i "s|/opt/pairly|${INSTALL_DIR}|g" \
-		/etc/systemd/system/pairly-bot.service \
-		/etc/systemd/system/pairly-api.service
-	systemctl daemon-reload
-	systemctl enable --now pairly-api.service >/dev/null 2>&1 || \
-		log "NOTE: pairly-api enable failed (fill env, then: systemctl start pairly-api)"
-	systemctl enable --now pairly-bot.service >/dev/null 2>&1 || \
-		log "NOTE: pairly-bot enable failed (fill env, then: systemctl start pairly-bot)"
+	# Only overwrite a unit if the destination is missing or differs from
+	# the repo copy. Operators commonly add drop-ins under
+	# /etc/systemd/system/pairly-bot.service.d/ or patch ExecStart, and
+	# an unconditional `install` would erase those tweaks on re-run.
+	# We also fix up the venv path so the rendered unit matches INSTALL_DIR.
+	local changed=0
+	for unit in pairly-bot.service pairly-api.service; do
+		local src="$INSTALL_DIR/deploy/systemd/$unit"
+		local dst="/etc/systemd/system/$unit"
+		# Render the path-fixed variant in a temp file for the cmp check,
+		# so we don't diff against an unrewritten source.
+		local tmp
+		tmp="$(mktemp)"
+		sed "s|/opt/pairly|${INSTALL_DIR}|g" "$src" > "$tmp"
+		if [[ ! -f "$dst" ]] || ! cmp -s "$tmp" "$dst"; then
+			install -m 0644 "$tmp" "$dst"
+			changed=1
+			log "$unit updated (differs from repo copy)"
+		else
+			log "$unit unchanged; skipping"
+		fi
+		rm -f "$tmp"
+	done
+	if (( changed )); then
+		systemctl daemon-reload
+		systemctl enable --now pairly-api.service >/dev/null 2>&1 || \
+			log "NOTE: pairly-api enable failed (fill env, then: systemctl start pairly-api)"
+		systemctl enable --now pairly-bot.service >/dev/null 2>&1 || \
+			log "NOTE: pairly-bot enable failed (fill env, then: systemctl start pairly-bot)"
+	else
+		log "systemd units unchanged; not reloading daemon or restarting services"
+	fi
 }
 
 install_units
@@ -220,7 +249,17 @@ install_units
 install_caddy() {
 	log "installing Caddyfile"
 	install -d -m 0755 /etc/caddy
-	install -m 0644 "$INSTALL_DIR/deploy/caddy/Caddyfile" /etc/caddy/Caddyfile
+	# Only install if the destination is missing or differs from the
+	# repo copy. Operators often edit /etc/caddy/Caddyfile by hand (rate
+	# limits, extra routes, custom domain); an unconditional `install`
+	# would clobber those edits on every re-run.
+	if [[ ! -f /etc/caddy/Caddyfile ]] || \
+		! cmp -s "$INSTALL_DIR/deploy/caddy/Caddyfile" /etc/caddy/Caddyfile; then
+		install -m 0644 "$INSTALL_DIR/deploy/caddy/Caddyfile" /etc/caddy/Caddyfile
+		log "Caddyfile updated (differs from repo copy)"
+	else
+		log "Caddyfile unchanged; skipping"
+	fi
 	# Only reload if the domain is no longer the placeholder.
 	if ! grep -q 'app.example.com' /etc/caddy/Caddyfile; then
 		systemctl reload caddy || systemctl restart caddy
@@ -238,14 +277,25 @@ install_cron() {
 	install -d -m 0755 /var/backups/pairly
 	install -m 0755 "$INSTALL_DIR/deploy/scripts/backup.sh" /usr/local/sbin/pairly-backup.sh
 	install -m 0755 "$INSTALL_DIR/deploy/scripts/restore.sh" /usr/local/sbin/pairly-restore.sh
-	# Cron runs as root so it can read /etc/pairly/pairly.env; the script loads it.
-	cat > /etc/cron.d/pairly-backup <<EOF
-# Pairly hourly DB backup. Managed by deploy/scripts/install.sh.
+	# /etc/cron.d/pairly-backup is a SINGLE file that may also hold other
+	# operator-added jobs. Before rewriting it, look for a marker comment
+	# that THIS script writes. If absent (operator deleted/edited the
+	# file), do NOT clobber — warn and let the operator merge.
+	CRON_MARKER="# Pairly hourly DB backup. Managed by deploy/scripts/install.sh."
+	CRON_FILE=/etc/cron.d/pairly-backup
+	if [[ -f "$CRON_FILE" ]] && ! grep -qF "$CRON_MARKER" "$CRON_FILE"; then
+		log "WARN: $CRON_FILE exists but does not contain the install.sh marker."
+		log "      Refusing to overwrite (operator may have added jobs). Merge manually:"
+		log "      add: 7 * * * * root /usr/local/sbin/pairly-backup.sh"
+		return 0
+	fi
+	cat > "$CRON_FILE" <<EOF
+$CRON_MARKER
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 7 * * * * root /usr/local/sbin/pairly-backup.sh
 EOF
-	chmod 0644 /etc/cron.d/pairly-backup
+	chmod 0644 "$CRON_FILE"
 	systemctl reload cron 2>/dev/null || systemctl reload crond 2>/dev/null || true
 }
 
