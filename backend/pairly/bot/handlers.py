@@ -17,14 +17,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from pairly.bot.text import truncate_graphemes
 from pairly.db.base import SessionLocal
 from pairly.db.models import WishlistStatus
 from pairly.repositories import base, pairs, users, wishlist
 from pairly.repositories.base import NotPairedError
 from pairly.repositories.pairs import InviteError
 from pairly.repositories.wishlist import WishlistLimitError
-
-from pairly.bot.text import truncate_graphemes
 
 router = Router(name="pairly-main")
 
@@ -492,20 +491,16 @@ async def cb_wish_approve(call: CallbackQuery) -> None:
         session, pair_id=pair.id, item=item, approver_id=me.id
     )
     await call.answer("👍 Добавил в общий список!" if item.status == WishlistStatus.OPEN else "Уже добавлено.")
-    try:
+    with contextlib.suppress(Exception):
         await call.message.edit_reply_markup(reply_markup=None)
-    except Exception:  # noqa: BLE001
-        pass
 
 
 @router.callback_query(F.data == "wish:approve:skip")
 async def cb_wish_approve_skip(call: CallbackQuery) -> None:
     """Partner defers consent — dismiss the approve keyboard. The item stays pending."""
     await call.answer("Ок, отложили.")
-    try:
+    with contextlib.suppress(Exception):
         await call.message.edit_reply_markup(reply_markup=None)
-    except Exception:  # noqa: BLE001
-        pass
 
 
 @router.message(StateFilter(WishEdit.waiting_for_new_title), F.text)
@@ -582,10 +577,8 @@ async def cb_hint_pair(call: CallbackQuery) -> None:
 async def cb_upgrade_dismiss(call: CallbackQuery) -> None:
     """User tapped «Не сейчас» on the upgrade prompt — just hide the keyboard."""
     await call.answer()
-    try:
+    with contextlib.suppress(Exception):
         await call.message.edit_reply_markup(reply_markup=None)
-    except Exception:  # noqa: BLE001
-        pass
 
 
 @router.callback_query(F.data == "upgrade:info")
@@ -596,10 +589,8 @@ async def cb_upgrade_info(call: CallbackQuery) -> None:
         "Когда запустим — пришлём ссылку 🙌",
         show_alert=True,
     )
-    try:
+    with contextlib.suppress(Exception):
         await call.message.edit_reply_markup(reply_markup=None)
-    except Exception:  # noqa: BLE001
-        pass
 
 
 # --- /unpair (destructive, 2-step confirm) -----------------------------------

@@ -18,10 +18,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
-
-from pairly.db.models import QOTDAnswer, QOTDQuestion
+from pairly.db.models import QOTDAnswer
 from pairly.repositories import pairs, qotd, users
+from sqlalchemy import select
 
 
 async def _pair(session, tg_a: int, tg_b: int):

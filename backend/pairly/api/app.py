@@ -29,17 +29,17 @@ from pairly.api.schemas import (
     CountdownCreate,
     CountdownOut,
     CountdownUpdate,
+    DateIdeaOut,
     GiftCreate,
     GiftItemOut,
     GiftsResponse,
     GiftTransition,
+    LoveNoteCreate,
+    LoveNoteOut,
     MilestoneOut,
     MoodEntryOut,
     MoodResponse,
     MoodSet,
-    DateIdeaOut,
-    LoveNoteCreate,
-    LoveNoteOut,
     PairStats,
     QOTDAnswerIn,
     QOTDAnswerOut,
@@ -53,8 +53,16 @@ from pairly.auth import AuthContext, current_auth
 from pairly.config import get_settings
 from pairly.db.base import get_session
 from pairly.db.models import GiftStatus, WishlistStatus
-from pairly.repositories import bucket, countdowns, gifts, milestones, mood, qotd, wishlist
-from pairly.repositories import love_notes
+from pairly.repositories import (
+    bucket,
+    countdowns,
+    gifts,
+    love_notes,
+    milestones,
+    mood,
+    qotd,
+    wishlist,
+)
 from pairly.repositories.base import NotPairedError, PairAccessError
 from pairly.repositories.bucket import BucketLimitError
 from pairly.repositories.countdowns import CountdownLimitError
@@ -62,7 +70,6 @@ from pairly.repositories.gifts import GiftStateError
 from pairly.repositories.mood import InvalidMoodError
 from pairly.repositories.qotd import AnswerTooLongError
 from pairly.repositories.wishlist import WishlistLimitError, WishlistStateError
-
 
 # --- Middleware & rate-limit constants (Cluster 5) ---
 # Body-size cap (1MB) is a hard DoS guard applied before auth. The cap is checked
@@ -232,9 +239,7 @@ def create_app() -> FastAPI:
         # Only the routes that have a configured cap; everything else is a
         # free pass.
         route_key: str | None = None
-        if path == "/api/date-idea":
-            route_key = path
-        elif path in _RATE_LIMIT_POST_ROUTES and request.method == "POST":
+        if path == "/api/date-idea" or path in _RATE_LIMIT_POST_ROUTES and request.method == "POST":
             route_key = path
         if route_key is not None:
             key = _client_key(request)
@@ -1159,8 +1164,9 @@ def create_app() -> FastAPI:
         session: AsyncSession = Depends(get_session),
     ) -> dict:
         """Resolve a pair by any member's Telegram id."""
-        from pairly.db.models import User
         from sqlalchemy import select as _select
+
+        from pairly.db.models import User
 
         if not _is_admin(auth):
             raise HTTPException(status.HTTP_404_NOT_FOUND)

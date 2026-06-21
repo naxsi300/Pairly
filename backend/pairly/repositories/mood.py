@@ -11,8 +11,8 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pairly.db.models import MoodEntry
 from pairly.bot.text import truncate_graphemes
+from pairly.db.models import MoodEntry
 from pairly.repositories.base import _require_membership, pair_members
 
 # 8 moods (Russian, gender-neutral adverbial) — a 4×2 valence gradient.

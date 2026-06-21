@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from pairly.api.schemas import WishlistItemOut
 from pairly.bot import handlers
 from pairly.bot.parse import parse_forwarded_text
@@ -658,7 +657,7 @@ async def test_outbox_drainer_invokes_drain(monkeypatch):
     """
     from pairly import main
 
-    drain = AsyncMock()
+    AsyncMock()
     monkeypatch.setattr(main, "_OUTBOX_DRAIN_INTERVAL_SEC", 0.0)
     monkeypatch.setattr(main, "SessionLocal", lambda: SimpleNamespace())
 

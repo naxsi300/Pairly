@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from pairly.bot.text import truncate_graphemes
 
-
 # Family emoji: man + woman + girl + boy, joined by ZWJ. 7 code points (4 emoji
 # + 3 ZWJ). Counts as a single grapheme cluster.
 _FAMILY_EMOJI = "\U0001F468‍\U0001F469‍\U0001F467‍\U0001F466"

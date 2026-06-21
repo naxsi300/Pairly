@@ -29,7 +29,7 @@ from aiogram.exceptions import (
     TelegramServerError,
 )
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from pairly.config import get_settings
 from pairly.db.models import NotifyOutbox, User

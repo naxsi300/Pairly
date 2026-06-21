@@ -17,11 +17,9 @@ from typing import Any
 
 import httpx
 import pytest
-
 from pairly import ai
 from pairly.ai.client import AIError
 from pairly.use_cases.date_idea import DateIdea, _build_context, pick_date_idea
-
 
 # ---------- helpers for monkeypatching the httpx POST ----------
 
@@ -82,12 +80,12 @@ class _RecorderClient:
         self._raise_transport_after = raise_transport_after
         self._post_count = 0
 
-    def __call__(self, *args: Any, **kwargs: Any) -> "_RecorderClient":
+    def __call__(self, *args: Any, **kwargs: Any) -> _RecorderClient:
         # Constructor kwargs recorded for limits / timeout assertions.
         self.ctor_kwargs.append({"args": args, "kwargs": kwargs})
         return self
 
-    async def __aenter__(self) -> "_RecorderClient":
+    async def __aenter__(self) -> _RecorderClient:
         self.entered += 1
         return self
 
@@ -319,7 +317,7 @@ async def test_smart_mode_ai_failure_logs_and_returns_default(
     session, monkeypatch, caplog
 ) -> None:
     """AI client raising → fallback to a default DateIdea, and a warning is logged."""
-    from pairly.repositories import pairs, users, wishlist
+    from pairly.repositories import wishlist
 
     a, _b, pair = await _pair(session)
     await wishlist.create_item(
@@ -362,7 +360,6 @@ async def test_smart_mode_with_empty_wishlist_returns_canned(
 
     monkeypatch.setattr(ai, "chat_json", boom)
 
-    from pairly.repositories import pairs, users
 
     a, _b, pair = await _pair(session)
     await session.commit()
@@ -390,7 +387,7 @@ async def test_smart_mode_with_empty_wishlist_returns_canned(
 @pytest.mark.asyncio
 async def test_pick_date_idea_accepts_timezone_kwarg(session) -> None:
     """The new ``timezone`` kwarg is accepted and does not break random mode."""
-    from pairly.repositories import pairs, users, wishlist
+    from pairly.repositories import wishlist
 
     a, _b, pair = await _pair(session)
     await wishlist.create_item(

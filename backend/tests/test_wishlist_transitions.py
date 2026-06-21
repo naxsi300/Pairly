@@ -7,7 +7,6 @@ rejected. ARCHIVED is terminal.
 from __future__ import annotations
 
 import pytest
-
 from pairly.db.models import WishlistStatus
 from pairly.repositories import pairs, users, wishlist
 from pairly.repositories.wishlist import WishlistStateError

@@ -9,6 +9,7 @@ which create_all never creates).
 
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 from pathlib import Path
@@ -82,7 +83,5 @@ async def test_conftest_runs_alembic_not_create_all() -> None:
             await eng.dispose()
         except Exception:
             pass
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(path)
-        except FileNotFoundError:
-            pass

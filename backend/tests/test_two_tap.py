@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pairly.db.models import WishlistStatus
 from pairly.repositories import pairs, users, wishlist
 
@@ -179,7 +178,6 @@ async def test_notify_wishlist_approved_skips_when_already_open(session, monkeyp
 def _client_for(user, session):
     """Inline FastAPI TestClient with auth/session overrides (mirror test_wire_format)."""
     from fastapi.testclient import TestClient
-
     from pairly.api.app import create_app
     from pairly.auth import AuthContext, current_auth
     from pairly.db.base import get_session

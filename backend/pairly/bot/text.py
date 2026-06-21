@@ -67,9 +67,7 @@ def _is_joiner(ch: str, prev_ch: str | None, prev_was_ri: bool, after_zwj: bool)
     cp = ord(ch)
     if _is_variation_selector(cp) or _is_combining_mark(cp) or _is_skin_tone(cp):
         return True
-    if _is_regional_indicator(cp) and prev_was_ri:
-        return True
-    return False
+    return bool(_is_regional_indicator(cp) and prev_was_ri)
 
 
 def _cluster_boundaries(s: str) -> list[int]:

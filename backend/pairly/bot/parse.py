@@ -71,9 +71,7 @@ def _looks_like_junk_title(line: str) -> bool:
         return True
     # EMOJI_BANNER must not match real words (contains a letter/digit) and must
     # actually contain something (avoid treating "" — already handled — as banner).
-    if not re.search(r"[A-Za-zА-Яа-яЁё0-9]", line) and _EMOJI_BANNER_RE.match(line):
-        return True
-    return False
+    return bool(not re.search(r"[A-Za-zА-Яа-яЁё0-9]", line) and _EMOJI_BANNER_RE.match(line))
 
 
 def _pick_title(lines: list[str]) -> str | None:

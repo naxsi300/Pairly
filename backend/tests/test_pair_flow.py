@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 from pairly.db.models import PairTier
 from pairly.repositories import pairs, users
@@ -121,8 +122,8 @@ async def test_concurrent_accept_only_one_wins(engine):
 
     # Sanity: only one Pair row exists for the creator + the winning accepter.
     async with maker() as s_verify:
-        from sqlalchemy import select
         from pairly.db.models import Pair, PairInvite, User
+        from sqlalchemy import select
 
         invite_row = await s_verify.scalar(select(PairInvite).where(PairInvite.token == token))
         assert invite_row.consumed_by is not None

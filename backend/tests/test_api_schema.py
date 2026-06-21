@@ -245,7 +245,6 @@ def test_countdown_update_accepts_emoji_at_limit():
 
 def _client_for(user, session):
     from fastapi.testclient import TestClient
-
     from pairly.api.app import create_app
     from pairly.auth import AuthContext, current_auth
     from pairly.db.base import get_session
@@ -332,7 +331,7 @@ async def test_mark_done_returns_409_on_pending_item(session):
     PENDING can only leave via approve_item (two-tap). Skipping the partner's
     consent by trying to mark-done directly is the regression the fix closes.
     """
-    from pairly.db.models import WishlistItem, WishlistStatus
+    from pairly.db.models import WishlistStatus
     from pairly.repositories import wishlist as wl_repo
 
     a, b = await _make_pair(session, 110, 111)
@@ -498,7 +497,6 @@ async def test_photo_endpoint_proxies_bytes_no_token_leak(session, monkeypatch):
     header, no token in any response header.
     """
     from pairly.config import get_settings
-    from pairly.db.models import WishlistItem
     from pairly.repositories import wishlist as wl_repo
 
     # The photo endpoint does its own resolve_init_data() (no Depends(current_auth)),
@@ -607,7 +605,7 @@ async def test_post_wishlist_notifies_partner(session, monkeypatch):
 async def test_gift_complete_notifies_partner(session, monkeypatch):
     """Fix (c): transitioning a gift to COMPLETE must call notify_gift_completed."""
     from pairly.bot import notify as notify_mod
-    from pairly.db.models import GiftItem, GiftStatus
+    from pairly.db.models import GiftStatus
     from pairly.repositories import gifts as gifts_repo
 
     a, b = await _make_pair(session, 220, 221)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pairly.repositories import love_notes, pairs, users
 
 

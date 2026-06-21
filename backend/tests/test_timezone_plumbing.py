@@ -29,7 +29,6 @@ from pairly.db.models import User
 from pairly.repositories import users as users_repo
 from sqlalchemy import select
 
-
 BOT_TOKEN = "tz-test-bot-token"
 
 

@@ -9,9 +9,9 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import select
 from pairly.bot import notify
 from pairly.repositories import pairs, users
+from sqlalchemy import select
 
 
 async def _pair(session, tg_a: int, tg_b: int):
@@ -156,6 +156,7 @@ async def test_send_on_retry_after_enqueues_outbox(session, monkeypatch):
     """TelegramRetryAfter -> _send returns False AND writes a NotifyOutbox row
     scheduled for not_before = now + retry_after seconds."""
     from datetime import datetime
+
     from pairly.bot import notify
     from pairly.db.models import NotifyOutbox
 
@@ -218,11 +219,11 @@ async def test_send_on_server_error_enqueues_outbox(session, monkeypatch):
 @pytest.mark.asyncio
 async def test_drain_outbox_delivers_due_row(session, monkeypatch, engine):
     """A due row -> drain_outbox sends it and deletes the row."""
-    from datetime import datetime, UTC, timedelta
+    from datetime import UTC, datetime, timedelta
+
     from pairly.bot import notify
     from pairly.db.models import NotifyOutbox
-    from pairly.db.base import SessionLocal
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     a, b = await _pair(session, 105, 106)
     # Insert a due row.
@@ -257,10 +258,11 @@ async def test_drain_outbox_delivers_due_row(session, monkeypatch, engine):
 @pytest.mark.asyncio
 async def test_drain_outbox_skips_future_row(session, monkeypatch, engine):
     """not_before in the future -> not delivered, not touched."""
-    from datetime import datetime, UTC, timedelta
+    from datetime import UTC, datetime, timedelta
+
     from pairly.bot import notify
     from pairly.db.models import NotifyOutbox
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     a, b = await _pair(session, 107, 108)
     row = NotifyOutbox(
@@ -292,10 +294,11 @@ async def test_drain_outbox_skips_future_row(session, monkeypatch, engine):
 @pytest.mark.asyncio
 async def test_drain_outbox_dead_letter_after_max_attempts(session, monkeypatch, engine):
     """5 attempts + another failure -> row is removed (dead-letter)."""
-    from datetime import datetime, UTC, timedelta
+    from datetime import UTC, datetime, timedelta
+
     from pairly.bot import notify
     from pairly.db.models import NotifyOutbox
-    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     a, b = await _pair(session, 109, 110)
     row = NotifyOutbox(

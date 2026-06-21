@@ -9,9 +9,9 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pairly.bot.text import truncate_graphemes
 from pairly.db.models import LoveNote
 from pairly.repositories.base import _require_membership
-from pairly.bot.text import truncate_graphemes
 
 _MAX_BODY = 1000
 _MAX_DELIVER_LEN = 5  # "HH:MM"

@@ -16,6 +16,7 @@ Hardening (cluster 8):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from typing import Any
 
@@ -143,10 +144,8 @@ async def _sleep_backoff(resp: httpx.Response | _RetryAfterCarrier, attempt: int
     delay = _BACKOFF_BASE * (2 ** (attempt - 1))
     retry_after = resp.headers.get("retry-after") if resp is not None else None
     if retry_after is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             delay = max(delay, float(retry_after))
-        except (TypeError, ValueError):
-            pass
     await asyncio.sleep(delay)
 
 

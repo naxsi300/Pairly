@@ -129,7 +129,7 @@ async def pick_date_idea(
     items = await _open_items(session, pair_id, category)
     if items:
         chosen = secrets.choice(items)
-        reason = f"Это из вашего wishlist — давно хотели, пора воплотить ✨"
+        reason = "Это из вашего wishlist — давно хотели, пора воплотить ✨"
         return DateIdea(source="wishlist", title=chosen.title, category=chosen.category, reason=reason)
     title, cat = _DEFAULT_IDEAS[secrets.randbelow(len(_DEFAULT_IDEAS))]
     label = _category_label(cat)

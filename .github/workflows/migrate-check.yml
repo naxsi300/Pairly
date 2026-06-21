@@ -86,13 +86,17 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: ${{ env.PG_DB }}
-          POSTGRES_USER: ${{ env.PG_USER }}
-          POSTGRES_PASSWORD: ${{ env.PG_PASS }}
+          # Literals, NOT ${{ env.* }}: the `services:` block is evaluated before
+          # job-level env exists, so GitHub forbids the env context here and rejects
+          # the workflow file (0s "workflow file issue" failure). These are non-secret
+          # throwaway test-container values; steps below still use the job-level env.
+          POSTGRES_DB: pairly_migrate_check
+          POSTGRES_USER: pairly
+          POSTGRES_PASSWORD: pairly_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ${{ env.PG_USER }}"
+          --health-cmd "pg_isready -U pairly"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10

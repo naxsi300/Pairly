@@ -7,7 +7,7 @@ creates cannot both bypass the cap.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pairly.config import get_settings
@@ -29,7 +29,7 @@ async def _pair(session, tg_a: int, tg_b: int, *, pro: bool = False):
 
 
 def _future(idx: int) -> datetime:
-    return datetime(2030, 1, 1, tzinfo=timezone.utc).replace(day=1 + (idx % 28))
+    return datetime(2030, 1, 1, tzinfo=UTC).replace(day=1 + (idx % 28))
 
 
 @pytest.mark.asyncio

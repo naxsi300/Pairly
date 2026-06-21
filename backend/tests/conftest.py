@@ -12,6 +12,7 @@ because nothing exercised alembic during the suite).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import tempfile
 from collections.abc import AsyncIterator
@@ -87,10 +88,8 @@ async def engine():
     finally:
         await eng.dispose()
         # Clean up the temp file so /tmp doesn't grow during CI runs.
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(path)
-        except FileNotFoundError:
-            pass
 
 
 @pytest_asyncio.fixture
