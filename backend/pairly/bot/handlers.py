@@ -463,6 +463,17 @@ async def cb_wish_approve(call: CallbackQuery) -> None:
             await session.commit()
             await call.answer("Сначала объединитесь в пару.", show_alert=True)
             return
+        # Cluster 4a: capture the pre-call status so notify_wishlist_approved
+        # can detect the idempotent re-tap (OPEN -> OPEN) and skip the warm beat.
+        try:
+            pre = await wishlist.get_item(
+                session, pair_id=pair.id, user_id=me.id, item_id=item_id
+            )
+            was_open_before = pre.status == WishlistStatus.OPEN
+        except (LookupError, base.PairAccessError):
+            await session.rollback()
+            await call.answer("Не нашёл пункт.", show_alert=True)
+            return
         try:
             item = await wishlist.approve_item(
                 session, pair_id=pair.id, user_id=me.id, item_id=item_id
@@ -472,6 +483,14 @@ async def cb_wish_approve(call: CallbackQuery) -> None:
             await session.rollback()
             await call.answer("Не нашёл пункт.", show_alert=True)
             return
+    # Cluster 4a: tell the forwarder (item.created_by) the partner approved.
+    # The notifier itself skips self-approve and re-tap by status.
+    from pairly.bot.notify import notify_wishlist_approved
+
+    item.was_open_before = was_open_before  # type: ignore[attr-defined]
+    await notify_wishlist_approved(
+        session, pair_id=pair.id, item=item, approver_id=me.id
+    )
     await call.answer("👍 Добавил в общий список!" if item.status == WishlistStatus.OPEN else "Уже добавлено.")
     try:
         await call.message.edit_reply_markup(reply_markup=None)

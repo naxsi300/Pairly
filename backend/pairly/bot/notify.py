@@ -46,7 +46,11 @@ _cooldowns: dict[tuple[str, str], float] = {}
 # Soft cooldown for the high-frequency actions so we never become a nag.
 # NOTE: mood is INTENTIONALLY ABSENT — docs/copy/mood-sync.md forbids any mood
 # push ("NEVER send an alert when partner's mood changes. Ambient only.").
-_COOLDOLD_SEC = {"qotd": 60 * 60}  # 60 min
+# Cluster 4b: qotd_mutual is a separate key from qotd. The route-level
+# first-cross guard (capture mine_existed_before in app.py) is the primary
+# gate; this cooldown is defense-in-depth so a direct call to
+# notify_qotd_mutual (or a buggy caller) cannot spam the partner.
+_COOLDOLD_SEC = {"qotd": 60 * 60, "qotd_mutual": 60 * 60}  # 60 min
 
 # Server-error / network-blip backoff for the outbox. We don't know how long the
 # Telegram side will be grumpy; a small constant keeps the message tryable soon
@@ -358,7 +362,14 @@ async def notify_gift_declined(
 async def notify_qotd_mutual(session: AsyncSession, *, pair_id: str, actor_id: str) -> None:
     """Both answered today's question — the mutual reveal beat. Meta-only: never the
     answer body (the deep-link opens the Mini App where the gated reveal happens).
+
+    Cooldown-gated via `qotd_mutual` (60 min) — defense-in-depth on top of the
+    route-level first-cross guard. Without this, a buggy caller that re-fires
+    `notify_qotd_mutual` on every same-day re-answer would nag the partner
+    each time.
     """
+    if not _past_cooldown(pair_id, "qotd_mutual"):
+        return
     lines = [
         "Вы оба ответили на вопрос дня — откройте, чтобы увидеть 💬",
         "Ваши ответы готовы друг для друга ✨ открывайте",
@@ -380,6 +391,45 @@ async def notify_wishlist_added(
         f"Новое в вишлисте от {name}: «{title}»",
     ]
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+
+
+async def notify_wishlist_approved(
+    session: AsyncSession, *, pair_id: str, item, approver_id: str
+) -> None:
+    """Partner approved a forwarded item — tell the original forwarder.
+
+    Targets `item.created_by` (the actor who forwarded the post), NOT the
+    approver. The approver is passed as `actor_id` so `_partner()` resolves to
+    the forwarder — symmetric with how `notify_gift_accepted` targets the giver.
+
+    Two skip conditions:
+      - `item.created_by == approver_id` (self-approve no-op, wave-1 contract):
+        the forwarder is approving their own item; they don't need a poke.
+      - `was_open_before is True`: the item was already OPEN before this call
+        (an idempotent re-tap by the approver). The warm beat already fired on
+        the first transition PENDING → OPEN; we don't spam on re-tap.
+
+    `was_open_before` MUST be captured BEFORE the route commits the transition,
+    otherwise the status is stale and every re-tap would re-notify.
+    """
+    forwarder_id = getattr(item, "created_by", None)
+    if not forwarder_id or forwarder_id == approver_id:
+        return
+    if getattr(item, "was_open_before", False):
+        return
+    actor = await session.get(User, approver_id)
+    name = _actor_label(actor) if actor else "Партнёр"
+    title = getattr(item, "title", "") or ""
+    lines = [
+        f"{name} подтвердил(а) твою идею «{title}» в общий список ✅",
+        f"«{title}» добавлено в вишлист — {name} одобрил(а) 💚",
+    ]
+    await _send(
+        session,
+        pair_id=pair_id,
+        actor_id=approver_id,
+        text=random.choice(lines),  # noqa: S311
+    )
 
 
 async def notify_wishlist_pending(

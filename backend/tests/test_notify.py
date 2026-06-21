@@ -340,3 +340,51 @@ async def test_notify_gift_completed_calls_send(session, monkeypatch):
     assert len(sent) == 1
     assert sent[0]["actor_id"] == a.id
     assert "Прогулка" in sent[0]["text"]
+
+
+# --- Cluster 4b: QOTD mutual notify cooldown + route-level first-cross ---------
+
+
+@pytest.mark.asyncio
+async def test_qotd_mutual_cooldown_suppresses_repeat(session, monkeypatch):
+    """notify_qotd_mutual has its own cooldown key (qotd_mutual): a second call
+    within the window is a no-op even if the caller invokes it directly.
+    Defense-in-depth on top of the route-level first-cross guard."""
+    from pairly.bot import notify
+
+    a, b = await _pair(session, 200, 201)
+    calls: list[str] = []
+
+    async def fake_send(s, *, pair_id, actor_id, text):
+        calls.append(text)
+        return True
+
+    monkeypatch.setattr(notify, "_send", fake_send)
+    notify._cooldowns.clear()
+    await notify.notify_qotd_mutual(session, pair_id=a.pair_id, actor_id=a.id)
+    await notify.notify_qotd_mutual(session, pair_id=a.pair_id, actor_id=a.id)
+    assert len(calls) == 1  # second call suppressed by cooldown
+
+
+@pytest.mark.asyncio
+async def test_qotd_mutual_cooldown_key_independent_from_qotd(session, monkeypatch):
+    """The qotd_mutual cooldown is a separate key from qotd, so the answered
+    notify and the mutual notify don't share state. A mutual doesn't reset the
+    answered gate and vice-versa."""
+    from pairly.bot import notify
+
+    notify._cooldowns.clear()
+    a, b = await _pair(session, 202, 203)
+    calls: list[str] = []
+
+    async def fake_send(s, *, pair_id, actor_id, text):
+        calls.append(text)
+        return True
+
+    monkeypatch.setattr(notify, "_send", fake_send)
+    # First an answered notify — uses "qotd" key.
+    await notify.notify_qotd_answered(session, pair_id=a.pair_id, actor_id=a.id)
+    # Now the mutual — uses "qotd_mutual" key, should NOT be suppressed by the
+    # qotd-answered gate.
+    await notify.notify_qotd_mutual(session, pair_id=a.pair_id, actor_id=a.id)
+    assert len(calls) == 2

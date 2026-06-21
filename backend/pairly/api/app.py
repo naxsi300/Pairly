@@ -52,7 +52,7 @@ from pairly.api.schemas import (
 from pairly.auth import AuthContext, current_auth
 from pairly.config import get_settings
 from pairly.db.base import get_session
-from pairly.db.models import GiftStatus
+from pairly.db.models import GiftStatus, WishlistStatus
 from pairly.repositories import bucket, countdowns, gifts, milestones, mood, qotd, wishlist
 from pairly.repositories import love_notes
 from pairly.repositories.base import NotPairedError, PairAccessError
@@ -510,6 +510,15 @@ def create_app() -> FastAPI:
     ) -> WishlistItemOut:
         """Two-tap consent: approve a pending forwarded item (partner action)."""
         pair_id = _require_pair(auth)
+        # Cluster 4a: capture pre-call status so the forwarder notify can detect
+        # the idempotent re-tap (OPEN -> OPEN) and skip the warm beat.
+        try:
+            pre = await wishlist.get_item(
+                session, pair_id=pair_id, user_id=auth.user.id, item_id=item_id
+            )
+            was_open_before = pre.status == WishlistStatus.OPEN
+        except LookupError as exc:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="item not found") from exc
         try:
             item = await wishlist.approve_item(
                 session, pair_id=pair_id, user_id=auth.user.id, item_id=item_id
@@ -517,6 +526,14 @@ def create_app() -> FastAPI:
         except LookupError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="item not found") from exc
         await session.commit()
+        # Cluster 4a: notify the forwarder (item.created_by) — symmetric with
+        # the bot path. The notifier itself skips self-approve and re-tap.
+        from pairly.bot.notify import notify_wishlist_approved
+
+        item.was_open_before = was_open_before  # type: ignore[attr-defined]
+        await notify_wishlist_approved(
+            session, pair_id=pair_id, item=item, approver_id=auth.user.id
+        )
         out = WishlistItemOut.model_validate(item)
         out.mine = item.created_by == auth.user.id
         return out
@@ -862,6 +879,20 @@ def create_app() -> FastAPI:
                 )
             question_id = q.id
         try:
+            # Cluster 4b: capture whether the caller ALREADY had an answer for
+            # this question BEFORE posting. If they did, this is a same-day
+            # re-answer (body update) — NOT a first-cross. Without this guard
+            # the mutual notify would fire on every re-answer, spamming the
+            # partner each time they tweak their text.
+            mine_existed_before = (
+                await qotd.my_answer(
+                    session,
+                    pair_id=pair_id,
+                    user_id=auth.user.id,
+                    question_id=question_id,
+                )
+                is not None
+            )
             answer = await qotd.post_answer(
                 session,
                 pair_id=pair_id,
@@ -887,13 +918,17 @@ def create_app() -> FastAPI:
         p_answered = await qotd.partner_has_answered(
             session, pair_id=pair_id, user_id=auth.user.id, question_id=question_id
         )
-        # Notification beat: if BOTH have now answered, send the mutual reveal line
-        # (meta-only — never the body). Otherwise a soft single ping (cooldown-gated).
-        if p_answered:
+        # Notification beat: fire the mutual reveal ONLY on the first cross —
+        # partner already answered AND the caller did NOT have an answer before
+        # this call. Otherwise a same-day re-answer would re-fire and nag.
+        # Otherwise a soft single ping (cooldown-gated).
+        if p_answered and not mine_existed_before:
             from pairly.bot.notify import notify_qotd_mutual
 
             await notify_qotd_mutual(session, pair_id=pair_id, actor_id=auth.user.id)
-        else:
+        elif not mine_existed_before:
+            # Only the answered ping respects the first-cross gate too; re-answers
+            # don't poke the partner a second time.
             from pairly.bot.notify import notify_qotd_answered
 
             await notify_qotd_answered(session, pair_id=pair_id, actor_id=auth.user.id)

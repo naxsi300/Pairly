@@ -694,3 +694,48 @@ async def test_date_idea_rate_limit_kicks_in_after_burst(session, monkeypatch):
             assert "Retry-After" in last.headers, f"429 missing Retry-After: {dict(last.headers)}"
             break
     assert saw_429, f"rate limiter never returned 429 (last={last.status_code if last else None})"
+
+
+# --- Cluster 4b: QOTD mutual notify fires only on first-cross -----------------
+
+
+@pytest.mark.asyncio
+async def test_qotd_mutual_notify_fires_once_on_re_answer(session, monkeypatch):
+    """Cluster 4b (route-level): B's first answer triggers notify_qotd_mutual
+    (since A already answered). B's same-day RE-answer (an idempotent body
+    update) must NOT re-fire the mutual notify — the reveal already happened.
+    """
+    from pairly.bot import notify
+    from pairly.repositories import qotd as qotd_repo
+
+    a, b = await _make_pair(session, 400, 401)
+    question = await qotd_repo.todays_question(session)
+    assert question is not None
+    # A answers first (this alone is a soft "answered" beat, no mutual yet).
+    await qotd_repo.post_answer(
+        session, pair_id=a.pair_id, user_id=a.id,
+        question_id=question.id, body="A says",
+    )
+    await session.commit()
+
+    calls: list[str] = []
+
+    async def fake_send(s, *, pair_id, actor_id, text):
+        calls.append(text)
+        return True
+
+    monkeypatch.setattr(notify, "_send", fake_send)
+    notify._cooldowns.clear()
+
+    cb = _client_for(b, session)
+    # First B answer — first-cross; partner_has_answered is True (A), mine
+    # was not yet set BEFORE post_answer -> the route fires notify_qotd_mutual.
+    r1 = cb.post("/api/qotd/answer", json={"answer": "B first"})
+    assert r1.status_code == 200, r1.text
+
+    # Same-day re-answer by B — mine_existed_before is now True -> skip mutual.
+    r2 = cb.post("/api/qotd/answer", json={"answer": "B re-edited"})
+    assert r2.status_code == 200, r2.text
+
+    # Exactly ONE mutual-notify message reached _send across both calls.
+    assert len(calls) == 1, f"expected 1 mutual notify, got {len(calls)}: {calls}"
