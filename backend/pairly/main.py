@@ -177,6 +177,19 @@ class _OutboxDrainer:
             raise
 
 
+async def _maybe_init_db(settings) -> None:
+    """Dev convenience: ensure tables exist via create_all. SKIPPED in prod.
+
+    Prod schema is owned by Alembic (docker-entrypoint runs ``alembic upgrade head``
+    before the process starts). Running create_all in prod would undermine alembic
+    as the source of truth and can silently mask a missing migration — exactly the
+    failure class that shipped the 0006 Postgres blocker. Only dev (DEBUG) uses this
+    shortcut; the regression test in tests/test_main_startup.py pins the guard.
+    """
+    if settings.debug:
+        await init_db()
+
+
 async def main() -> None:
     settings = get_settings()
     logging.basicConfig(
@@ -184,8 +197,9 @@ async def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    # Dev convenience: ensure tables exist. In prod Alembic is the source of truth.
-    await init_db()
+    # Dev convenience only: create_all so a fresh dev DB "just works". In prod this
+    # is skipped (see _maybe_init_db) — Alembic owns the schema there.
+    await _maybe_init_db(settings)
 
     bot = Bot(
         token=settings.bot_token,
