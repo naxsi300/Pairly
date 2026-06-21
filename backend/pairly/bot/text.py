@@ -16,7 +16,9 @@ dependencies. It treats as part of the current cluster:
     cluster (a single unpaired indicator is its own cluster).
 
 The function counts clusters, not code points, and stops at the N-th boundary.
-A cluster is never split.
+A cluster is never split. It also enforces an optional code-point backstop so
+the result is safe to store in a Postgres ``VARCHAR(n)`` / SQLAlchemy
+``String(n)`` column, which counts code points.
 """
 
 from __future__ import annotations
@@ -70,51 +72,81 @@ def _is_joiner(ch: str, prev_ch: str | None, prev_was_ri: bool, after_zwj: bool)
     return False
 
 
-def truncate_graphemes(s: str, n: int) -> str:
-    """Return ``s`` truncated to at most ``n`` grapheme clusters.
+def _cluster_boundaries(s: str) -> list[int]:
+    """Return cluster start indices in ``s``, terminated by ``len(s)``.
 
-    Never splits a cluster. If ``s`` has ``n`` or fewer clusters, returns
-    ``s`` unchanged. Pure function; no external dependencies.
+    Cluster k occupies ``s[boundaries[k]:boundaries[k+1]]``. The list always
+    starts with 0 and ends with ``len(s)``.
     """
-    if n <= 0 or not s:
-        return ""
-
-    clusters = 0
-    i = 0
+    if not s:
+        return [0, 0]
+    boundaries = [0]
     total_cp = len(s)
     prev_ch: str | None = None
     prev_was_ri = False
     after_zwj = False
-    while i < total_cp:
+    for i in range(total_cp):
         ch = s[i]
-        if i == 0 or not _is_joiner(ch, prev_ch, prev_was_ri, after_zwj):
-            clusters += 1
-            if clusters > n:
-                # Last started cluster exceeds the limit: back off to its start.
-                return s[:i]
-            if clusters == n:
-                # Keep consuming the rest of this cluster (joiners) but stop
-                # at the first code point that would start a new cluster.
-                j = i + 1
-                prev_ch_inner = ch
-                prev_was_ri_inner = _is_regional_indicator(ord(ch))
-                after_zwj_inner = False
-                while j < total_cp:
-                    nxt = s[j]
-                    if not _is_joiner(nxt, prev_ch_inner, prev_was_ri_inner, after_zwj_inner):
-                        break
-                    after_zwj_inner = nxt == _ZWJ
-                    prev_ch_inner = nxt
-                    prev_was_ri_inner = _is_regional_indicator(ord(nxt))
-                    j += 1
-                return s[:j]
+        if i == 0:
+            # First code point always starts the first cluster.
+            pass
+        elif not _is_joiner(ch, prev_ch, prev_was_ri, after_zwj):
+            boundaries.append(i)
         after_zwj = ch == _ZWJ
         prev_ch = ch
         prev_was_ri = _is_regional_indicator(ord(ch))
-        i += 1
+    boundaries.append(total_cp)
+    return boundaries
 
-    # All clusters fit.
-    return s
+
+def truncate_graphemes(s: str, n: int, code_point_cap: int | None = None) -> str:
+    """Return ``s`` truncated to at most ``n`` grapheme clusters AND ``code_point_cap`` code points.
+
+    Never splits a cluster. If ``s`` already satisfies both caps, returns it
+    unchanged. Pure function; no external dependencies.
+
+    ``code_point_cap`` defaults to ``n`` (so the result also fits in a DB column
+    of width ``n``, e.g. Postgres ``VARCHAR(n)`` / SQLAlchemy ``String(n)``,
+    which count code points — not grapheme clusters). A family-emoji is one
+    grapheme cluster but ~7 code points, so without this backstop a 60-grapheme
+    limit could silently overflow a 60-char column.
+
+    If even a single cluster exceeds ``code_point_cap``, returns ``""`` —
+    matching the no-orphan-cluster guarantee on the grapheme side.
+    """
+    if n <= 0 or not s:
+        return ""
+    if code_point_cap is None:
+        code_point_cap = n
+    if code_point_cap <= 0:
+        return ""
+
+    boundaries = _cluster_boundaries(s)
+    # ``boundaries`` is a list of cluster start indices, terminated by
+    # ``len(s)``. Cluster k occupies ``s[boundaries[k]:boundaries[k+1]]``.
+    cluster_count = len(boundaries) - 1
+    # Iterate cluster-by-cluster. Pick as many leading clusters as fit
+    # within both caps.
+    kept = 0
+    cumulative_cp = 0
+    for k in range(cluster_count):
+        cp_len = boundaries[k + 1] - boundaries[k]
+        if cp_len > code_point_cap:
+            # A single cluster alone overflows the code-point cap.
+            if k == 0:
+                return ""
+            break
+        if k >= n:
+            break
+        if cumulative_cp + cp_len > code_point_cap:
+            break
+        kept += 1
+        cumulative_cp += cp_len
+
+    if kept == 0:
+        return ""
+    end = boundaries[kept]
+    return s[:end]
 
 
 __all__ = ["truncate_graphemes"]
