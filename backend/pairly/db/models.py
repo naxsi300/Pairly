@@ -302,6 +302,34 @@ class PairMilestone(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class NotifyOutbox(Base):
+    """Bounded retry queue for partner notifications that failed to deliver.
+
+    Anything that would otherwise be silently lost (TelegramRetryAfter,
+    TelegramServerError, TelegramNetworkError) is parked here with a
+    not_before timestamp. A periodic drain task (drain_outbox) picks due rows,
+    retries the send, and either deletes on success, bumps not_before on a
+    rate-limit, or dead-letters after 5 failed attempts.
+
+    Best-effort: notifications are not part of the user-visible business
+    contract, so we never block business operations on this queue. Bounded
+    by attempts (<=5) so a permanently broken account can't grow this
+    table without bound.
+    """
+
+    __tablename__ = "notify_outbox"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
+    pair_id: Mapped[str] = mapped_column(
+        ForeignKey("pairs.id", ondelete="CASCADE"), index=True
+    )
+    partner_tg_id: Mapped[int] = mapped_column(BigInteger)
+    text: Mapped[str] = mapped_column(Text)
+    not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    attempts: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class LoveNote(Base):
     """A warm note one partner leaves for the other.
 
@@ -329,6 +357,7 @@ __all__ = [
     "AdminAuditLog",
     "Base",
     "LoveNote",
+    "NotifyOutbox",
     "PairMilestone",
     "BucketItem",
     "BucketStatus",

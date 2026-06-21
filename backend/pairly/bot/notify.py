@@ -18,14 +18,21 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import (
+    TelegramForbiddenError,
+    TelegramNetworkError,
+    TelegramRetryAfter,
+    TelegramServerError,
+)
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pairly.config import get_settings
-from pairly.db.models import User
+from pairly.db.models import NotifyOutbox, User
 
 log = logging.getLogger("pairly.notify")
 
@@ -40,6 +47,20 @@ _cooldowns: dict[tuple[str, str], float] = {}
 # NOTE: mood is INTENTIONALLY ABSENT — docs/copy/mood-sync.md forbids any mood
 # push ("NEVER send an alert when partner's mood changes. Ambient only.").
 _COOLDOLD_SEC = {"qotd": 60 * 60}  # 60 min
+
+# Server-error / network-blip backoff for the outbox. We don't know how long the
+# Telegram side will be grumpy; a small constant keeps the message tryable soon
+# but doesn't pound the API if it's still down.
+_SERVER_BACKOFF = timedelta(seconds=10)
+
+# Max attempts before the outbox dead-letters (deletes) the row. Permanent-
+# failure rows are dropped rather than left to grow the table forever; the
+# best-effort contract means a single lost notification is acceptable.
+_MAX_ATTEMPTS = 5
+
+# How many rows drain_outbox processes per pass. Keeps the per-tick cost bounded
+# so a backlog can't starve the rest of the bot loop.
+_DRAIN_BATCH = 50
 
 _bot: Bot | None = None
 
@@ -82,11 +103,48 @@ def _past_cooldown(pair_id: str, action: str) -> bool:
     return True
 
 
+async def _enqueue_outbox(
+    session: AsyncSession,
+    *,
+    pair_id: str,
+    partner_tg_id: int,
+    text: str,
+    not_before: datetime,
+) -> None:
+    """Park a failed notification for the drainer to retry.
+
+    Best-effort: if the insert itself blows up (disk full, db locked), log and
+    move on. Notifications must never break the business operation.
+    """
+    try:
+        session.add(
+            NotifyOutbox(
+                pair_id=pair_id,
+                partner_tg_id=partner_tg_id,
+                text=text,
+                not_before=not_before,
+                attempts=0,
+                created_at=datetime.now(UTC),
+            )
+        )
+        # Caller is inside a larger transaction in the API process; we don't
+        # commit here — they'll commit. In the bot process there's no caller
+        # transaction, so we commit explicitly.
+        await session.commit()
+    except Exception:  # noqa: BLE001
+        log.exception("failed to enqueue notify_outbox row; message dropped")
+
+
 async def _send(session: AsyncSession, *, pair_id: str, actor_id: str, text: str) -> bool:
     """Deliver one message to the partner. Returns False if not delivered.
 
     NEVER raises: a notification failure must not abort the business operation
     that triggered it. Network blips, rate limits, blocked bots — all swallowed.
+
+    On TelegramRetryAfter / TelegramServerError / TelegramNetworkError the
+    message is parked in the notify_outbox so the periodic drainer can retry.
+    Without this, a partner's first gift / love-note could vanish the moment
+    Telegram rate-limits us.
     """
     partner = await _partner(session, pair_id=pair_id, actor_id=actor_id)
     if partner is None:
@@ -98,12 +156,111 @@ async def _send(session: AsyncSession, *, pair_id: str, actor_id: str, text: str
         log.info("partner %s blocked the bot; skipping notification", partner.tg_id)
         return False
     except TelegramRetryAfter as exc:
-        # Telegram rate-limit: respect the pause, drop this one (don't block the request).
-        log.warning("telegram retry-after %ss; dropping notification", exc.retry_after)
+        log.warning(
+            "telegram retry-after %ss; queuing notify_outbox (partner=%s)",
+            exc.retry_after, partner.tg_id,
+        )
+        await _enqueue_outbox(
+            session,
+            pair_id=pair_id,
+            partner_tg_id=partner.tg_id,
+            text=text,
+            not_before=datetime.now(UTC) + timedelta(seconds=exc.retry_after),
+        )
+        return False
+    except (TelegramServerError, TelegramNetworkError) as exc:
+        log.warning(
+            "telegram transient error %s; queuing notify_outbox (partner=%s)",
+            type(exc).__name__, partner.tg_id,
+        )
+        await _enqueue_outbox(
+            session,
+            pair_id=pair_id,
+            partner_tg_id=partner.tg_id,
+            text=text,
+            not_before=datetime.now(UTC) + _SERVER_BACKOFF,
+        )
         return False
     except Exception:  # noqa: BLE001 — notify is best-effort; never break the caller
         log.exception("notification delivery failed (partner=%s); ignored", partner.tg_id)
         return False
+
+
+async def drain_outbox(session_factory: Callable[[], AsyncSession]) -> None:
+    """Pick due NotifyOutbox rows and try to deliver them.
+
+    Bound: at most _DRAIN_BATCH rows per pass. On success the row is deleted;
+    on TelegramRetryAfter not_before is bumped and attempts++ ; on any other
+    failure attempts++; once attempts >= _MAX_ATTEMPTS the row is dead-lettered
+    (deleted) so a permanently broken partner can't grow the table without
+    bound. Best-effort: any exception here is logged but never raised, so the
+    caller (a periodic task in the bot process) is safe to schedule on a timer.
+
+    `session_factory` is a zero-arg callable returning a fresh AsyncSession — the
+    cluster-4 wiring will pass pairly.db.base.SessionLocal.
+    """
+    try:
+        async with session_factory() as session:
+            now = datetime.now(UTC)
+            rows = (
+                await session.execute(
+                    select(NotifyOutbox)
+                    .where(NotifyOutbox.not_before <= now)
+                    .where(NotifyOutbox.attempts < _MAX_ATTEMPTS)
+                    .order_by(NotifyOutbox.not_before)
+                    .limit(_DRAIN_BATCH)
+                )
+            ).scalars().all()
+            for row in rows:
+                try:
+                    await _get_bot().send_message(row.partner_tg_id, row.text)
+                    await session.delete(row)
+                except TelegramForbiddenError:
+                    # Partner blocked the bot; no point retrying.
+                    log.info(
+                        "outbox partner %s blocked the bot; dropping row",
+                        row.partner_tg_id,
+                    )
+                    await session.delete(row)
+                except TelegramRetryAfter as exc:
+                    row.not_before = datetime.now(UTC) + timedelta(seconds=exc.retry_after)
+                    row.attempts += 1
+                    log.warning(
+                        "outbox retry-after %ss for partner=%s (attempts=%d)",
+                        exc.retry_after, row.partner_tg_id, row.attempts,
+                    )
+                except (TelegramServerError, TelegramNetworkError) as exc:
+                    row.not_before = datetime.now(UTC) + _SERVER_BACKOFF
+                    row.attempts += 1
+                    log.warning(
+                        "outbox transient error %s for partner=%s (attempts=%d)",
+                        type(exc).__name__, row.partner_tg_id, row.attempts,
+                    )
+                except Exception:  # noqa: BLE001
+                    row.attempts += 1
+                    log.exception(
+                        "outbox unexpected error for partner=%s (attempts=%d)",
+                        row.partner_tg_id, row.attempts,
+                    )
+            await session.commit()
+            # Dead-letter sweep: anything past _MAX_ATTEMPTS (incl. ones that
+            # just crossed the threshold this pass) is dropped to bound the
+            # table size.
+            dead = (
+                await session.execute(
+                    select(NotifyOutbox).where(NotifyOutbox.attempts >= _MAX_ATTEMPTS)
+                )
+            ).scalars().all()
+            for row in dead:
+                log.warning(
+                    "notify_outbox dead-letter: partner=%s attempts=%d (dropped)",
+                    row.partner_tg_id, row.attempts,
+                )
+                await session.delete(row)
+            if dead:
+                await session.commit()
+    except Exception:  # noqa: BLE001 — drainer must never escape
+        log.exception("drain_outbox crashed; will retry next tick")
 
 
 # --- Public action helpers ----------------------------------------------------
@@ -143,6 +300,25 @@ async def notify_gift_redeemed(
     lines = [
         f"{name} отметил(а) «{gesture}» как состоявшееся ✅",
         f"«{gesture}» — теперь в истории, спасибо {name} 🌿",
+    ]
+    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+
+
+async def notify_gift_completed(
+    session: AsyncSession, *, pair_id: str, actor_id: str, gesture: str
+) -> None:
+    """The gift reached the end of its lifecycle (COMPLETE) — a warm close for the
+    partner. Mirrors notify_gift_redeemed's structure so every gift transition
+    notifies the partner symmetrically. Always-notify (gifts are rare, the
+    COMPLETE beat is a relationship-core moment — "we did this together").
+    """
+    actor = await session.get(User, actor_id)
+    if actor is None:
+        return
+    name = _actor_label(actor)
+    lines = [
+        f"{name} завершил(а) «{gesture}» — теперь в добрых делах 🌟",
+        f"«{gesture}» — закрыто вместе, спасибо {name} 💛",
     ]
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
 

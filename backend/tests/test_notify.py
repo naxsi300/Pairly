@@ -6,7 +6,10 @@ not real delivery.
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
+from sqlalchemy import select
 from pairly.bot import notify
 from pairly.repositories import pairs, users
 
@@ -143,3 +146,197 @@ def test_no_mood_notification_by_contract():
         "(docs/copy/mood-sync.md: NEVER send an alert when partner's mood changes)."
     )
     assert "mood" not in notify._COOLDOLD_SEC
+
+
+# --- Cluster 3: outbox + drain + notify_gift_completed -----------------------
+
+
+@pytest.mark.asyncio
+async def test_send_on_retry_after_enqueues_outbox(session, monkeypatch):
+    """TelegramRetryAfter -> _send returns False AND writes a NotifyOutbox row
+    scheduled for not_before = now + retry_after seconds."""
+    from datetime import datetime
+    from pairly.bot import notify
+    from pairly.db.models import NotifyOutbox
+
+    a, b = await _pair(session, 101, 102)
+
+    class RetryBot:
+        async def send_message(self, *a, **kw):
+            # TelegramRetryAfter needs a TelegramMethod (not a bound method). We
+            # hand it a tiny duck-typed object — only the type name is read.
+            class _M:
+                __name__ = "SendMessage"
+            raise notify.TelegramRetryAfter(method=_M(), message="x", retry_after=2)
+
+    monkeypatch.setattr(notify, "_bot", RetryBot())
+
+    result = await notify._send(
+        session, pair_id=a.pair_id, actor_id=a.id, text="важное"
+    )
+    assert result is False
+    # A row was inserted, scheduled ~2s in the future.
+    rows = (await session.execute(select(NotifyOutbox))).scalars().all()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.pair_id == a.pair_id
+    assert row.partner_tg_id == b.tg_id
+    assert row.text == "важное"
+    assert row.attempts == 0
+    # not_before should be in the future, within (1s, 5s) window
+    now = datetime.now(row.not_before.tzinfo)
+    delta = (row.not_before - now).total_seconds()
+    assert 0.5 < delta < 5.0
+
+
+@pytest.mark.asyncio
+async def test_send_on_server_error_enqueues_outbox(session, monkeypatch):
+    """TelegramServerError -> _send returns False AND enqueues with short backoff."""
+    from pairly.bot import notify
+    from pairly.db.models import NotifyOutbox
+
+    a, b = await _pair(session, 103, 104)
+
+    class ServerBot:
+        async def send_message(self, *a, **kw):
+            raise notify.TelegramServerError(method=None, message="500 from tg")
+
+    monkeypatch.setattr(notify, "_bot", ServerBot())
+    result = await notify._send(
+        session, pair_id=a.pair_id, actor_id=a.id, text="again"
+    )
+    assert result is False
+    rows = (await session.execute(select(NotifyOutbox))).scalars().all()
+    assert len(rows) == 1
+    # backoff is small (a few seconds) — should be in the future, but < 60s
+    from datetime import datetime
+    now = datetime.now(rows[0].not_before.tzinfo)
+    delta = (rows[0].not_before - now).total_seconds()
+    assert 0 < delta < 60
+
+
+@pytest.mark.asyncio
+async def test_drain_outbox_delivers_due_row(session, monkeypatch, engine):
+    """A due row -> drain_outbox sends it and deletes the row."""
+    from datetime import datetime, UTC, timedelta
+    from pairly.bot import notify
+    from pairly.db.models import NotifyOutbox
+    from pairly.db.base import SessionLocal
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+    a, b = await _pair(session, 105, 106)
+    # Insert a due row.
+    row = NotifyOutbox(
+        id=str(uuid.uuid4()),
+        pair_id=a.pair_id,
+        partner_tg_id=b.tg_id,
+        text="hi from outbox",
+        not_before=datetime.now(UTC) - timedelta(seconds=1),
+        attempts=0,
+        created_at=datetime.now(UTC),
+    )
+    session.add(row)
+    await session.commit()
+
+    sent: list[tuple[int, str]] = []
+
+    class FakeBot:
+        async def send_message(self, tg_id, text, **kw):
+            sent.append((tg_id, text))
+
+    monkeypatch.setattr(notify, "_bot", FakeBot())
+
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    await notify.drain_outbox(maker)
+    assert sent == [(b.tg_id, "hi from outbox")]
+    # Row should be gone after success.
+    rows = (await session.execute(select(NotifyOutbox))).scalars().all()
+    assert len(rows) == 0
+
+
+@pytest.mark.asyncio
+async def test_drain_outbox_skips_future_row(session, monkeypatch, engine):
+    """not_before in the future -> not delivered, not touched."""
+    from datetime import datetime, UTC, timedelta
+    from pairly.bot import notify
+    from pairly.db.models import NotifyOutbox
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+    a, b = await _pair(session, 107, 108)
+    row = NotifyOutbox(
+        id=str(uuid.uuid4()),
+        pair_id=a.pair_id,
+        partner_tg_id=b.tg_id,
+        text="future",
+        not_before=datetime.now(UTC) + timedelta(seconds=60),
+        attempts=0,
+        created_at=datetime.now(UTC),
+    )
+    session.add(row)
+    await session.commit()
+
+    sent: list = []
+
+    class FakeBot:
+        async def send_message(self, *a, **kw):
+            sent.append(a)
+
+    monkeypatch.setattr(notify, "_bot", FakeBot())
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    await notify.drain_outbox(maker)
+    assert sent == []
+    rows = (await session.execute(select(NotifyOutbox))).scalars().all()
+    assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_drain_outbox_dead_letter_after_max_attempts(session, monkeypatch, engine):
+    """5 attempts + another failure -> row is removed (dead-letter)."""
+    from datetime import datetime, UTC, timedelta
+    from pairly.bot import notify
+    from pairly.db.models import NotifyOutbox
+    from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+
+    a, b = await _pair(session, 109, 110)
+    row = NotifyOutbox(
+        id=str(uuid.uuid4()),
+        pair_id=a.pair_id,
+        partner_tg_id=b.tg_id,
+        text="zombie",
+        not_before=datetime.now(UTC) - timedelta(seconds=1),
+        attempts=5,  # already at cap; one more failure -> drop
+        created_at=datetime.now(UTC),
+    )
+    session.add(row)
+    await session.commit()
+
+    class BombBot:
+        async def send_message(self, *a, **kw):
+            raise notify.TelegramServerError(method=None, message="500")
+
+    monkeypatch.setattr(notify, "_bot", BombBot())
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    await notify.drain_outbox(maker)
+    rows = (await session.execute(select(NotifyOutbox))).scalars().all()
+    assert len(rows) == 0
+
+
+@pytest.mark.asyncio
+async def test_notify_gift_completed_calls_send(session, monkeypatch):
+    """notify_gift_completed uses _send to reach the partner with a warm line."""
+    from pairly.bot import notify
+
+    a, b = await _pair(session, 111, 112)
+    sent: list[dict] = []
+
+    async def fake_send(s, *, pair_id, actor_id, text):
+        sent.append({"pair_id": pair_id, "actor_id": actor_id, "text": text})
+        return True
+
+    monkeypatch.setattr(notify, "_send", fake_send)
+    await notify.notify_gift_completed(
+        session, pair_id=a.pair_id, actor_id=a.id, gesture="Прогулка"
+    )
+    assert len(sent) == 1
+    assert sent[0]["actor_id"] == a.id
+    assert "Прогулка" in sent[0]["text"]
