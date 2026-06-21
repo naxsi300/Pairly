@@ -47,6 +47,7 @@ def test_dev_auth_docker_deploy_raises_subprocess(tmp_path):
     """When api_deploy='docker' the guard must refuse dev_auth even if api_host
     is loopback. The docker entrypoint overrides --host at runtime, so checking
     api_host alone is bypassable; checking api_deploy closes the hole."""
+    import os
     import subprocess
     import sys
 
@@ -71,7 +72,9 @@ def test_dev_auth_docker_deploy_raises_subprocess(tmp_path):
         [sys.executable, "-c", script],
         capture_output=True,
         text=True,
-        cwd="/root/MyProjects/TelegramMiniApps/Pairly/backend",
+        # Derive the backend dir from this test file's location so the test is
+        # portable (the hardcoded absolute path failed in CI with PermissionError).
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     )
     assert "GUARD_RAISED" in result.stdout, (
         f"expected guard to raise on docker+dev_auth. stdout={result.stdout!r} "
