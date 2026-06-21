@@ -281,6 +281,16 @@ async def on_forward(message: Message, state: FSMContext, bot: Bot) -> None:
     are resolved on demand from telegram_file_id by the API).
     """
     """The core capture loop: a forwarded post becomes a wishlist item."""
+    # FSM guard: if a WishTitle / WishEdit flow is open, the user's "forward" is
+    # almost certainly meant as the answer to that flow (a forwarded post can
+    # carry text the user wants to use as the title). Without this guard, the
+    # capture loop would create a NEW wishlist item AND clobber the FSM state
+    # — both wrong. Drop the forward silently and let the FSM handlers deal
+    # with it (a text-only forward will just be ignored as a "no-text" reply
+    # via on_non_text_in_*_state).
+    if await state.get_state() is not None:
+        return
+
     # An album arrives as several updates; only handle the first photo per group.
     # Later photos (no caption of their own) would otherwise each ask for a title.
     if _is_album_followup(message):
@@ -458,7 +468,7 @@ async def cb_wish_approve(call: CallbackQuery) -> None:
                 session, pair_id=pair.id, user_id=me.id, item_id=item_id
             )
             await session.commit()
-        except LookupError:
+        except (LookupError, base.PairAccessError):
             await session.rollback()
             await call.answer("Не нашёл пункт.", show_alert=True)
             return
@@ -507,9 +517,9 @@ async def on_rename_reply(message: Message, state: FSMContext) -> None:
                 session, pair_id=pair.id, user_id=user.id, item_id=item_id, title=message.text
             )
             await session.commit()
-        except LookupError:
+        except (LookupError, base.PairAccessError):
             await session.rollback()
-            await message.answer("Не нашёл этот пункт — возможно, его удалили.")
+            await message.answer("Не нашёл этот пункт.")
             return
     await message.answer(f"Готово — теперь это «{html.escape(item.title)}»")
 
@@ -527,6 +537,50 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
         return
     await state.clear()
     await message.answer("Отменил.")
+
+
+# --- "no webapp configured" hint (keyboards.py:43) -----------------------------
+
+
+@router.callback_query(F.data == "hint:pair")
+async def cb_hint_pair(call: CallbackQuery) -> None:
+    """Dev-fallback CTA when no Mini App is configured: explain /pair in 1 tap.
+
+    The button is emitted by webapp_open_kb_or_pair() in keyboards.py when
+    PAIRLY_WEBAPP_URL is empty (local dev). Without this handler the tap was
+    a silent no-op and confused new users.
+    """
+    await call.answer(
+        "Нажмите /pair и пришлите код приглашения, чтобы объединиться.",
+        show_alert=True,
+    )
+
+
+# --- Free-tier upgrade CTAs (keyboards.py:88-89) ------------------------------
+
+
+@router.callback_query(F.data == "upgrade:dismiss")
+async def cb_upgrade_dismiss(call: CallbackQuery) -> None:
+    """User tapped «Не сейчас» on the upgrade prompt — just hide the keyboard."""
+    await call.answer()
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@router.callback_query(F.data == "upgrade:info")
+async def cb_upgrade_info(call: CallbackQuery) -> None:
+    """User tapped «Узнать про Pro» — show a short Pro pitch inline + dismiss."""
+    await call.answer(
+        "Pairly Pro: безлимит на вишлист, отсчёты и подарки. "
+        "Когда запустим — пришлём ссылку 🙌",
+        show_alert=True,
+    )
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 # --- /unpair (destructive, 2-step confirm) -----------------------------------

@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     webhook_path: str = "/telegram-webhook"
     webhook_host: str = "0.0.0.0"
     webhook_port: int = 8080
+    # Webhook secret token (Telegram's X-Telegram-Bot-Api-Secret-Token). If unset,
+    # the bot generates a random one on each start (dev convenience) — Telegram
+    # will then drop every update after a restart because the secret rotates.
+    # In prod, ALWAYS set PAIRLY_WEBHOOK_SECRET_TOKEN to a stable, random value.
+    webhook_secret_token: str = ""
     # API auth: True = trust X-Dev-User-Id header (no HMAC). DEV/TEST ONLY. Never True in prod.
     dev_auth: bool = False
     # Admin gating: comma-separated Telegram user ids that may use /admin. Empty disables the menu.
