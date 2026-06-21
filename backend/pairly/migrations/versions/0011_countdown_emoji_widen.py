@@ -35,14 +35,23 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Best-effort: any row whose emoji > 16 chars will be truncated by SQLite
-    # during the table-copy in batch_alter_table. The Mini App caps at 4
-    # grapheme clusters, so the only risk is historical data written before
-    # this fix — accept the truncation rather than block downgrade.
+    # Narrowing VARCHAR(32) -> VARCHAR(16). On Postgres the ALTER COLUMN
+    # against a populated table that contains rows > 16 code points would
+    # raise "value too long for type varchar(16)" and leave alembic_version
+    # pointing at a half-applied revision, blocking every subsequent
+    # migration. Express the narrowing as a substring() expression in the
+    # USING clause so Postgres can rewrite the column in one statement.
+    # NOTE: substring() is code-point-blind — Postgres has no built-in
+    # grapheme-cluster function. The remaining 16 code points can still
+    # split a ZWJ family emoji (👨‍👩‍👧‍👦 = 11 code points), so this
+    # downgrade is best-effort. The Mini App caps input at 4 grapheme
+    # clusters, so historical rows are the only risk and truncation is
+    # acceptable.
     with op.batch_alter_table("countdowns") as batch_op:
         batch_op.alter_column(
             "emoji",
             existing_type=sa.String(length=32),
             type_=sa.String(length=16),
             existing_nullable=True,
+            postgresql_using="substring(emoji FROM 1 FOR 16)",
         )

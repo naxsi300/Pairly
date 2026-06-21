@@ -23,9 +23,20 @@ if [[ "$MODE" == "init" ]]; then
 fi
 
 if [[ "$MODE" == "api" ]]; then
-    echo "[entrypoint] starting uvicorn on 0.0.0.0:${PAIRLY_API_PORT:-8000}"
+    # Mark this process as running inside Docker so the create_app() boot
+    # guard refuses dev_auth regardless of api_host (the old env-only
+    # api_host check was bypassable because the entrypoint hard-pinned
+    # --host 0.0.0.0 below). Native (non-docker) deployments don't set
+    # this and keep the original api_host-only guard.
+    export PAIRLY_API_DEPLOY="${PAIRLY_API_DEPLOY:-docker}"
+    # Honor PAIRLY_API_HOST so the entrypoint doesn't silently override
+    # the operator's bind choice. Default is 0.0.0.0 inside the container
+    # (Caddy terminates TLS and proxies in — no public socket here is
+    # expected to be loopback).
+    PAIRLY_API_HOST="${PAIRLY_API_HOST:-0.0.0.0}"
+    echo "[entrypoint] starting uvicorn on ${PAIRLY_API_HOST}:${PAIRLY_API_PORT:-8000} (api_deploy=${PAIRLY_API_DEPLOY})"
     exec uvicorn pairly.api.app:app \
-        --host 0.0.0.0 \
+        --host "${PAIRLY_API_HOST}" \
         --port "${PAIRLY_API_PORT:-8000}" \
         --proxy-headers
 elif [[ "$MODE" == "bot" ]]; then

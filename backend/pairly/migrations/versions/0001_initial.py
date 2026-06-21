@@ -270,5 +270,11 @@ def downgrade() -> None:
     ):
         op.drop_table(table)
 
-    for enum_name in ("bucketstatus", "mood_entries", "giftstatus", "wishliststatus", "pairtier"):
+    # Drop enums. Note: "mood_entries" is a TABLE name, not a Postgres enum
+    # type — the mood column is a plain String(32), so there is no enum to
+    # drop here. Earlier revisions of this file incorrectly listed
+    # "mood_entries" in the enum-drop loop, which would call
+    # `DROP TYPE mood_entries` against an entity that doesn't exist (no-op
+    # via checkfirst, but still wrong and misleading).
+    for enum_name in ("bucketstatus", "giftstatus", "wishliststatus", "pairtier"):
         sa.Enum(name=enum_name).drop(op.get_bind(), checkfirst=True)
