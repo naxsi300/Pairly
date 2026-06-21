@@ -14,8 +14,15 @@ async def get_or_create_user(
     *,
     tg_username: str | None = None,
     display_name: str | None = None,
+    timezone: str | None = None,
 ) -> User:
-    """Return the existing user for tg_id, or create one on first contact."""
+    """Return the existing user for tg_id, or create one on first contact.
+
+    ``timezone`` is an IANA name (e.g. ``"Europe/Moscow"``). On create it is
+    persisted. On update (existing user), it is refreshed only when a non-None
+    value is provided and differs from the stored one — so callers can safely
+    pass the per-request header value without churning the row on every contact.
+    """
     user = await session.scalar(select(User).where(User.tg_id == tg_id))
     if user is not None:
         # Keep display fields fresh on each contact.
@@ -23,6 +30,8 @@ async def get_or_create_user(
             user.tg_username = tg_username
         if display_name is not None:
             user.display_name = display_name
+        if timezone is not None and timezone != user.timezone:
+            user.timezone = timezone
         await session.flush()
         return user
 
@@ -30,6 +39,7 @@ async def get_or_create_user(
         tg_id=tg_id,
         tg_username=tg_username,
         display_name=display_name,
+        timezone=timezone,
     )
     session.add(user)
     await session.flush()

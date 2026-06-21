@@ -13,6 +13,12 @@ We validate it per the official algorithm:
 On success: extract the `user` JSON field (contains tg_id, username, etc.) and
 return the User row, creating it on first contact.
 
+The Mini App also sends an optional ``X-Client-Timezone`` header (an IANA name
+like ``Europe/Moscow``) so per-user time-of-day scheduling (QOTD at 12:00 local,
+date-wheel smart-mode prompt) honors the caller's local clock. The header is
+validated loosely (ZoneInfo in a try/except); a bad value falls back to None
+and never crashes auth.
+
 Dev mode: PAIRLY_DEV_AUTH=1 skips validation. Use ONLY for local dev and tests — never
 set this in production. The client must still send the dev headers in dev mode.
 """
@@ -24,6 +30,7 @@ import hmac
 import json
 import time
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +65,25 @@ def _check_string(parsed: dict[str, str]) -> str:
             continue
         parts.append(f"{k}={parsed[k]}")
     return "\n".join(parts)
+
+
+def _coerce_timezone(raw: str | None) -> str | None:
+    """Parse the X-Client-Timezone header into a valid IANA name, or None.
+
+    Loose validation: a bad / unknown zone returns None rather than raising —
+    auth must never crash on a malformed header. Empty / whitespace strings
+    also collapse to None.
+    """
+    if not raw:
+        return None
+    candidate = raw.strip()
+    if not candidate:
+        return None
+    try:
+        ZoneInfo(candidate)
+    except ZoneInfoNotFoundError:
+        return None
+    return candidate
 
 
 def validate_init_data(
@@ -114,8 +140,18 @@ async def resolve_init_data(
     session: AsyncSession,
     *,
     dev_user_id: str = "",
+    timezone: str | None = None,
 ) -> AuthContext:
-    """Resolve AuthContext. Dev mode (PAIRLY_DEV_AUTH=1) trusts dev_user_id instead."""
+    """Resolve AuthContext. Dev mode (PAIRLY_DEV_AUTH=1) trusts dev_user_id instead.
+
+    ``timezone`` is the value of the ``X-Client-Timezone`` header (already
+    loosely validated via :func:`_coerce_timezone`). On new users it is
+    persisted; on existing users it is refreshed when it differs, and always
+    exposed on ``ctx.user.timezone`` so date_idea / QOTD scheduling can read
+    it without an extra DB round-trip.
+    """
+    tz = _coerce_timezone(timezone)
+
     settings = get_settings()
     if settings.dev_auth:
         if not dev_user_id:
@@ -126,6 +162,11 @@ async def resolve_init_data(
         user = await session.get(User, dev_user_id)
         if user is None:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="dev auth: unknown user")
+        # Reflect the current request's timezone on the returned object even
+        # in dev mode — keeps behavior symmetric with the prod path.
+        if tz is not None and tz != user.timezone:
+            user.timezone = tz
+            await session.flush()
         return AuthContext(user=user, raw_user={}, dev_mode=True)
 
     if not settings.bot_token:
@@ -140,7 +181,18 @@ async def resolve_init_data(
         tg_id,
         tg_username=raw_user.get("username"),
         display_name=_telegram_name(raw_user),
+        timezone=tz,
     )
+    # Mirror the header value on the in-memory object so downstream code
+    # (date_idea, QOTD) sees the freshest tz without a re-read. Only when the
+    # header disagrees with the stored value AND the header is None: leave
+    # the stored value alone (it may already be correct from a previous
+    # contact).
+    if tz is None and user.timezone is None:
+        pass  # both None — nothing to do
+    elif tz is not None and tz != user.timezone:
+        user.timezone = tz
+        await session.flush()
     return AuthContext(user=user, raw_user=raw_user, dev_mode=False)
 
 
@@ -148,8 +200,17 @@ async def current_auth(
     session: AsyncSession = Depends(get_session),
     x_telegram_init_data: str = Header("", alias="X-Telegram-Init-Data"),
     x_dev_user_id: str = Header("", alias="X-Dev-User-Id"),
+    x_client_timezone: str | None = Header(None, alias="X-Client-Timezone"),
 ) -> AuthContext:
-    """FastAPI dependency: returns AuthContext for the current request."""
+    """FastAPI dependency: returns AuthContext for the current request.
+
+    Reads ``X-Client-Timezone`` (optional, IANA name) so per-user time-of-day
+    scheduling honors the caller's local clock. A bad value is silently
+    dropped — see :func:`resolve_init_data`.
+    """
     return await resolve_init_data(
-        x_telegram_init_data, session, dev_user_id=x_dev_user_id
+        x_telegram_init_data,
+        session,
+        dev_user_id=x_dev_user_id,
+        timezone=x_client_timezone,
     )
