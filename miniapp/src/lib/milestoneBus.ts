@@ -5,7 +5,7 @@ Screens call `emitMilestone(...)` after a create. App subscribes via
 event so old toasts don't pile up.
 */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export interface MilestoneEvent {
   kind: string;
@@ -28,11 +28,20 @@ export function onMilestone(fn: Listener) {
   };
 }
 
-/** React hook: subscribes to the bus and re-emits the latest event. */
+/**
+ * React hook: subscribes to the bus and re-emits the latest event.
+ *
+ * The returned `dismiss` is stable across renders (wrapped in useCallback
+ * with `[]`) so consumers like <MilestoneToast/> can depend on it inside
+ * a `useEffect` without re-running their auto-dismiss timer on every
+ * parent render. Without this, every state change in App.tsx would
+ * reset the 4-second dismissal timer and the toast would never go away.
+ */
 export function useMilestoneToast() {
   const [event, setEvent] = useState<MilestoneEvent | null>(lastEvent);
   useEffect(() => {
     return onMilestone((e) => setEvent(e));
   }, []);
-  return [event, () => setEvent(null)] as const;
+  const dismiss = useCallback(() => setEvent(null), []);
+  return [event, dismiss] as const;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IS_MOCK } from "./sdk/api";
 import { initTwa } from "./sdk/twa";
 import { Wishlist } from "./screens/Wishlist";
@@ -27,6 +27,15 @@ export default function App() {
   // Pro status is app-global: the wheel (a tab) and the admin menu both read/flip it.
   const { isPro, setPro, refresh } = useIsPro();
 
+  // Stable identity per actual milestone. Recomputing `[milestone]` inline
+  // would produce a fresh array on every App render, which then flows into
+  // <MilestoneToast events={…}/> and resets the toast's 4s dismiss timer
+  // (and would re-fire the confetti effect — see Toast.tsx idempotency ref).
+  const milestoneEvents = useMemo<MilestoneEvent[]>(
+    () => (milestone ? [milestone] : []),
+    [milestone],
+  );
+
   // Hidden admin entry: #admin deep link works from any screen.
   useEffect(() => {
     const check = () => {
@@ -45,7 +54,7 @@ export default function App() {
         </div>
       ) : null}
       {milestone ? (
-        <MilestoneToast events={[milestone] as MilestoneEvent[]} onDismiss={dismissMilestone} />
+        <MilestoneToast events={milestoneEvents} onDismiss={dismissMilestone} />
       ) : null}
 
       <main className="app-scroll flex-1">

@@ -4,7 +4,7 @@
  *
  * For "big" milestones (anniversaries, high thresholds), adds a confetti burst.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { COPY } from "../copy";
 import { Confetti } from "./Confetti";
 
@@ -55,17 +55,48 @@ export function MilestoneToast({
 }) {
   const [showConfetti, setShowConfetti] = useState(false);
 
+  // Idempotency key: `kind|value` of the first confetti-eligible event we
+  // ever see. Without this, every parent re-render that produces a fresh
+  // `events` array identity would re-trigger the confetti effect (which
+  // mounts a fresh <canvas> and re-bursts particles). Now confetti only
+  // fires for a milestone the user hasn't seen yet.
+  const firedKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (events.some((e) => CONFETTI_KINDS.has(e.kind))) {
-      setShowConfetti(true);
-    }
+    const confettiEvent = events.find((e) => CONFETTI_KINDS.has(e.kind));
+    if (!confettiEvent) return;
+    const key = `${confettiEvent.kind}|${confettiEvent.value}`;
+    if (firedKeyRef.current === key) return; // already burst for this milestone
+    firedKeyRef.current = key;
+    setShowConfetti(true);
   }, [events]);
 
-  // Auto-dismiss after 4s (slightly longer for confetti).
+  // Auto-dismiss after 4s. We keep the timer in a ref and reset it only
+  // when the underlying milestone events actually change — not on every
+  // parent render — so the toast always disappears 4s after it appears.
+  // Previously the effect depended on `onDismiss` directly; if App.tsx
+  // re-rendered and produced a new function reference, the timer would
+  // be torn down and recreated, effectively extending the visible time
+  // indefinitely.
+  const dismissTimerRef = useRef<number | null>(null);
+  const firstEventKey = events[0] ? `${events[0].kind}|${events[0].value}` : null;
   useEffect(() => {
-    const t = setTimeout(onDismiss, 4000);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
+    if (!firstEventKey) return;
+    if (dismissTimerRef.current !== null) {
+      window.clearTimeout(dismissTimerRef.current);
+    }
+    dismissTimerRef.current = window.setTimeout(() => {
+      onDismiss();
+      dismissTimerRef.current = null;
+    }, 4000);
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        window.clearTimeout(dismissTimerRef.current);
+        dismissTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstEventKey]);
 
   const onConfettiDone = useCallback(() => setShowConfetti(false), []);
 
@@ -90,7 +121,7 @@ export function MilestoneToast({
           }}
         >
           {events.map((e, i) => (
-            <p key={i} className="text-sm font-medium">
+            <p key={`${e.kind}|${e.value}|${i}`} className="text-sm font-medium">
               {KIND_LABEL[e.kind]?.(e.value) ?? COPY.milestones.generic}
             </p>
           ))}

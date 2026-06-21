@@ -22,14 +22,17 @@ export function AdminMenu({
   open,
   onClose,
   setPro,
-  refresh,
 }: {
   open: boolean;
   onClose: () => void;
   setPro: (next: boolean) => void;
-  refresh: () => void;
+  /** Kept for API back-compat — unused because useIsPro.setPro already
+   *  refetches internally, so an explicit refresh would double-refetch.
+   *  The prop is reserved (not removed) so callers can be migrated safely. */
+  refresh?: () => void;
 }) {
   const [denied, setDenied] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [status, setStatus] = useState<Status | null>(null);
   const [stats, setStats] = useState<{ total: number; pro: number; free: number; dissolved: number } | null>(null);
@@ -39,24 +42,57 @@ export function AdminMenu({
   const [lookup, setLookup] = useState<AdminPair | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Load on open. Mirrors useApi's pattern: AbortController + alive guard +
+  // signal threaded into every endpoint, so:
+  //   - re-opening the modal while a previous load is still in flight
+  //     cancels the stale request (no setState after unmount), and
+  //   - we never emit a flash of "empty cards" while a slow load is racing
+  //     a stale render.
+  //   - non-404/403 errors (network drop, 500, CORS, …) surface inline
+  //     instead of producing silent empty cards.
   useEffect(() => {
     if (!open) return;
+    const ctrl = new AbortController();
+    let alive = true;
     setDenied(false);
+    setLoadError(null);
     setStatus(null);
     setLookup(null);
     setSearchTg("");
-    endpoints
-      .getAdminStatus()
-      .then((s) => {
+
+    (async () => {
+      try {
+        const s = await endpoints.getAdminStatus(ctrl.signal);
+        if (!alive) return;
         setStatus(s as Status);
-        return Promise.all([endpoints.getAdminStats(), endpoints.listAdminPairs(20, 0), endpoints.getAdminAudit(15)]);
-      })
-      .then(([st, pr, au]) => {
+
+        const [st, pr, au] = await Promise.all([
+          endpoints.getAdminStats(ctrl.signal),
+          endpoints.listAdminPairs(20, 0, ctrl.signal),
+          endpoints.getAdminAudit(15, ctrl.signal),
+        ]);
+        if (!alive) return;
         setStats(st);
         setPairs(pr.items);
         setAudit(au.items);
-      })
-      .catch((e) => setDenied(e instanceof ApiError && (e.status === 404 || e.status === 403)));
+      } catch (e) {
+        // Aborted because the modal closed / re-opened — no-op.
+        if (!alive) return;
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        if (e instanceof ApiError && (e.status === 404 || e.status === 403)) {
+          setDenied(true);
+          return;
+        }
+        // Anything else: a real, visible failure. Don't silently render
+        // empty cards — the user needs to know why admin looks blank.
+        setLoadError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+
+    return () => {
+      alive = false;
+      ctrl.abort();
+    };
   }, [open]);
 
   async function toggleSelfPro() {
@@ -67,7 +103,9 @@ export function AdminMenu({
       setPro(res.isPro);
       setStatus((s) => (s ? { ...s, isPro: res.isPro, tier: res.isPro ? "pro" : "free" } : s));
       haptic("success");
-      refresh();
+      // NOTE: useIsPro.setPro already calls refetch() internally (see
+      // lib/useIsPro.ts). An explicit refresh() here caused a double
+      // refetch — drop it.
     } catch {
       haptic("light");
     } finally {
@@ -114,6 +152,11 @@ export function AdminMenu({
           <div className="card-sub">
             Добавь свой Telegram id в <code>PAIRLY_ADMIN_TG_IDS</code> на сервере.
           </div>
+        </div>
+      ) : loadError ? (
+        <div className="card">
+          <div className="card-title">Не удалось загрузить админ-данные</div>
+          <div className="card-sub">{loadError}</div>
         </div>
       ) : !status ? (
         <p className="sub">Загрузка…</p>
