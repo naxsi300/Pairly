@@ -56,57 +56,8 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   M3 Design Tokens
-   Derived from Telegram theme vars — light/dark auto-switch via prefers-color-scheme.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ── Color roles ─────────────────────────────────────────────────────── */
-:root {
-  --m3-primary: var(--tg-theme-button-color);
-  --m3-on-primary: var(--tg-theme-button-text-color);
-  --m3-primary-container: color-mix(in srgb, var(--tg-theme-button-color) 12%, transparent);
-  --m3-on-primary-container: var(--tg-theme-text-color);
-
-  --m3-secondary: var(--tg-theme-hint-color);
-  --m3-on-secondary: #fff;
-  --m3-secondary-container: color-mix(in srgb, var(--tg-theme-hint-color) 12%, transparent);
-
-  --m3-surface: var(--tg-theme-bg-color);
-  --m3-surface-container-lowest: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 40%, var(--tg-theme-bg-color));
-  --m3-surface-container: var(--tg-theme-secondary-bg-color);
-  --m3-surface-container-high: color-mix(in srgb, var(--tg-theme-secondary-bg-color) 80%, var(--tg-theme-hint-color));
-
-  --m3-on-surface: var(--tg-theme-text-color);
-  --m3-on-surface-variant: var(--tg-theme-hint-color);
-
-  --m3-outline: color-mix(in srgb, var(--tg-theme-hint-color) 30%, transparent);
-  --m3-outline-variant: color-mix(in srgb, var(--tg-theme-hint-color) 16%, transparent);
-
-  --m3-error: var(--tg-theme-destructive-text-color, #dc2626);
-  --m3-on-error: #fff;
-  --m3-error-container: color-mix(in srgb, var(--tg-theme-destructive-text-color, #dc2626) 12%, transparent);
-}
-
-/* ── Elevation (shadows) ─────────────────────────────────────────────── */
-:root {
-  --m3-elevation-0: none;
-  --m3-elevation-1: 0 1px 2px 0 rgba(0,0,0,.08), 0 1px 3px 1px rgba(0,0,0,.04);
-  --m3-elevation-2: 0 1px 2px 0 rgba(0,0,0,.12), 0 2px 6px 2px rgba(0,0,0,.06);
-  --m3-elevation-3: 0 4px 8px 3px rgba(0,0,0,.08), 0 1px 3px 0 rgba(0,0,0,.06);
-}
-
-/* ── Shape (border-radius) ───────────────────────────────────────────── */
-:root {
-  --m3-shape-extra-small: 4px;
-  --m3-shape-small: 8px;
-  --m3-shape-medium: 12px;
-  --m3-shape-large: 16px;
-  --m3-shape-full: 9999px;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
    R-warm — the chosen warm design direction (from the approved gallery).
-   A coral accent layered on top of M3. Coexists with M3 tokens.
+   A coral accent layered on a Telegram-derived surface palette.
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
   /* Warm coral accent (light). Warm-on is always white for contrast. */
@@ -128,191 +79,6 @@ body {
     --warm-container: color-mix(in srgb, var(--warm) 16%, var(--tg-sec));
     --rw-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     --rw-shadow-lifted: 0 6px 20px rgba(0, 0, 0, 0.45);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   M3 Component Utilities (@layer components)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-@layer components {
-  /* ── M3 Card — replaces .card-glass ────────────────────────────────── */
-  .card-m3 {
-    background: var(--tg-sec);
-    border-radius: var(--m3-shape-medium);
-    box-shadow: var(--m3-elevation-1);
-    border: 1px solid var(--m3-outline-variant);
-  }
-
-  /* ── M3 Card (lowest) — for input areas ────────────────────────────── */
-  .card-m3-low {
-    background: var(--tg-sec);
-    border-radius: var(--m3-shape-medium);
-    box-shadow: var(--m3-elevation-0);
-    border: 1px solid var(--m3-outline-variant);
-  }
-
-  /* ── M3 Filled Button — primary action ─────────────────────────────── */
-  .btn-m3-filled {
-    background: var(--tg-button);
-    color: var(--tg-button-text);
-    border-radius: var(--m3-shape-full);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 20px;
-    padding: 10px 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: box-shadow 200ms ease, opacity 200ms ease;
-    position: relative;
-    overflow: hidden;
-  }
-  .btn-m3-filled:hover {
-    box-shadow: var(--m3-elevation-1);
-  }
-  .btn-m3-filled:active {
-    opacity: 0.88;
-  }
-  .btn-m3-filled:disabled {
-    opacity: 0.38;
-  }
-
-  /* ── M3 Outlined Button — secondary action ─────────────────────────── */
-  .btn-m3-outlined {
-    background: transparent;
-    color: var(--tg-button);
-    border: 1px solid var(--m3-outline);
-    border-radius: var(--m3-shape-full);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 20px;
-    padding: 10px 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: background 200ms ease;
-    position: relative;
-    overflow: hidden;
-  }
-  .btn-m3-outlined:hover {
-    background: color-mix(in srgb, var(--tg-button) 8%, transparent);
-  }
-  .btn-m3-outlined:active {
-    background: color-mix(in srgb, var(--tg-button) 12%, transparent);
-  }
-  .btn-m3-outlined:disabled {
-    opacity: 0.38;
-    border-color: color-mix(in srgb, var(--tg-text) 12%, transparent);
-    color: var(--tg-text);
-  }
-
-  /* ── M3 Text Button — tertiary action ──────────────────────────────── */
-  .btn-m3-text {
-    background: transparent;
-    color: var(--tg-button);
-    border: none;
-    border-radius: var(--m3-shape-full);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 20px;
-    padding: 10px 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: background 200ms ease;
-    position: relative;
-    overflow: hidden;
-  }
-  .btn-m3-text:hover {
-    background: color-mix(in srgb, var(--tg-button) 8%, transparent);
-  }
-  .btn-m3-text:active {
-    background: color-mix(in srgb, var(--tg-button) 12%, transparent);
-  }
-  .btn-m3-text:disabled {
-    opacity: 0.38;
-  }
-
-  /* ── M3 Icon Button ────────────────────────────────────────────────── */
-  .btn-m3-icon {
-    background: transparent;
-    color: var(--tg-hint);
-    border: none;
-    border-radius: var(--m3-shape-full);
-    width: 40px;
-    height: 40px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 200ms ease;
-    position: relative;
-    overflow: hidden;
-  }
-  .btn-m3-icon:hover {
-    background: color-mix(in srgb, var(--tg-hint) 8%, transparent);
-  }
-
-  /* ── M3 Outlined Input — replaces glass field ──────────────────────── */
-  .input-m3 {
-    width: 100%;
-    background: var(--tg-sec);
-    border: 1px solid var(--m3-outline-variant);
-    border-radius: var(--m3-shape-extra-small);
-    padding: 12px 16px;
-    font-size: 14px;
-    line-height: 20px;
-    color: var(--tg-text);
-    transition: border-color 200ms ease, box-shadow 200ms ease;
-  }
-  .input-m3::placeholder {
-    color: var(--tg-hint);
-  }
-  .input-m3:focus {
-    outline: none;
-    border-color: var(--tg-button);
-    box-shadow: 0 0 0 1px var(--tg-button);
-  }
-
-  /* ── M3 Surface (page-level) — replaces glass-elevated ─────────────── */
-  .surface-m3 {
-    background: var(--tg-bg);
-    border-radius: var(--m3-shape-large);
-    box-shadow: var(--m3-elevation-2);
-    border: 1px solid var(--m3-outline-variant);
-  }
-
-  /* ── M3 NavBar surface ─────────────────────────────────────────────── */
-  .navbar-m3 {
-    background: var(--tg-sec);
-    box-shadow: var(--m3-elevation-2);
-    border-top: 1px solid var(--m3-outline-variant);
-  }
-
-  /* ── Typography utilities ──────────────────────────────────────────── */
-  .text-m3-label {
-    font-size: 12px;
-    line-height: 16px;
-    font-weight: 500;
-    letter-spacing: 0.5px;
-  }
-  .text-m3-body {
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 400;
-  }
-  .text-m3-title {
-    font-size: 16px;
-    line-height: 24px;
-    font-weight: 500;
-  }
-  .text-m3-headline {
-    font-size: 24px;
-    line-height: 32px;
-    font-weight: 400;
   }
 }
 
@@ -345,7 +111,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   R-warm component classes — namespaced rw- (coexist with M3 card-m3 etc).
+   R-warm component classes — namespaced rw- variants of the gallery classes.
    Values verbatim from the approved gallery's warm-lib.mjs.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -597,7 +363,7 @@ body {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CANONICAL R-warm toolkit — 1:1 with the approved static gallery.
-   Alias the gallery's --tg-* token names onto the app's M3 vars, then paste the
+   Alias the gallery's --tg-* token names onto the app's --tg-theme-* vars, then paste the
    gallery's component classes verbatim so the Mini App renders pixel-identical
    to the mock cards. (The gallery's warm-lib.mjs is the source of truth.)
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -918,7 +684,7 @@ body {
   transform: scale(1.2);
 }
 
-/* — Ripple (interaction primitive; relocated from the removed M3 layer) — */
+/* — Ripple (interaction primitive) — */
 .ripple-container {
   position: relative;
   overflow: hidden;
