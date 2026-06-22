@@ -1,7 +1,8 @@
+import { useMemo } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
-import type { MoodResponse, QOTDResponse } from "../sdk/api";
-import type { Countdown } from "../types";
+import type { GiftsResponse, LoveNoteItem, MoodResponse, QOTDResponse } from "../sdk/api";
+import type { BucketItem, Countdown } from "../types";
 import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
 import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
@@ -15,12 +16,35 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const mood = useApi<MoodResponse>(endpoints.getMood);
   const qotd = useApi<QOTDResponse>(endpoints.getQotd);
   const cds = useApi<Countdown[]>(endpoints.listCountdowns);
+  const bucket = useApi<BucketItem[]>(endpoints.listBucket);
+  const gifts = useApi<GiftsResponse>(endpoints.listGifts);
+  const notes = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
 
   const occasion = nearestOccasion(cds.data);
   const daysToOccasion = occasion
     ? Math.round((occasion.at - Date.now()) / 86_400_000)
     : null;
   const occasionSoon = daysToOccasion !== null && daysToOccasion <= 3;
+
+  const dreaming = (bucket.data ?? []).filter((b) => b.status === "dreaming");
+  const doneCount = (bucket.data ?? []).filter((b) => b.status === "done").length;
+  const dream = useMemo(
+    () => (dreaming.length ? dreaming[Math.floor(Math.random() * dreaming.length)] : null),
+    [dreaming],
+  );
+
+  const gItems = gifts.data?.items ?? [];
+  const waiting = gItems.find((g) => g.direction === "them" && g.status === "received") ?? null;
+  const activeCount = gItems.filter((g) => !["declined", "archived"].includes(g.status)).length;
+  const goodDeeds = gItems.filter((g) => g.status === "complete").length;
+  const lastDeed = gItems.find((g) => g.status === "complete") ?? null;
+
+  const nItems = notes.data ?? [];
+  const unread = nItems.filter((n) => !n.mine && !n.readByRecipient).length;
+  const latest = nItems[0] ?? null;
+  const daysAgo = latest
+    ? Math.max(0, Math.round((Date.now() - new Date(latest.createdAt).getTime()) / 86_400_000))
+    : null;
 
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
@@ -58,9 +82,25 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
       <Gratitude />
 
       {/* Section entries — everything that used to live behind "Ещё", now in the feed */}
-      <EntryCard emoji="🌌" title="Мечты" sub="что хотите пережить вместе" onClick={() => onOpen("bucket")} />
-      <EntryCard emoji="🎁" title="Подарки" sub="добрые дела и сюрпризы" onClick={() => onOpen("gifts")} />
-      <EntryCard emoji="💌" title="Записки" sub="тёплые слова для партнёра" onClick={() => onOpen("notes")} />
+      <PreviewCard
+        label={COPY.home.cardDreamsTitle}
+        title={dream ? `🌌 ${dream.title}` : COPY.home.dreamsEmpty}
+        meta={dream ? COPY.home.dreamsMeta(dreaming.length, doneCount) : ""}
+        onClick={() => onOpen("bucket")}
+      />
+      <PreviewCard
+        label={COPY.home.cardGiftsTitle}
+        warm={!!waiting}
+        title={waiting ? `🎁 ${waiting.gesture}` : lastDeed ? `🎁 ${lastDeed.gesture}` : COPY.home.giftsEmpty}
+        meta={waiting ? COPY.home.giftsWaitingMeta : lastDeed ? COPY.home.giftsMeta(activeCount, goodDeeds) : ""}
+        onClick={() => onOpen("gifts")}
+      />
+      <PreviewCard
+        label={COPY.home.cardNotesTitle}
+        title={latest ? COPY.home.notesMetaNew(unread, daysAgo ?? 0) : COPY.home.notesEmpty}
+        meta=""
+        onClick={() => onOpen("notes")}
+      />
     </div>
   );
 }
@@ -112,32 +152,34 @@ function qotdStatus(q: QOTDResponse | null | undefined): string {
   return COPY.home.qotdYouWaiting;
 }
 
-/** A "tap to open" section entry — same .card surface as the ambient cards so it
- *  reads as part of the feed; the warm chevron is the only accent. */
-function EntryCard({
-  emoji,
+/** Variant-A preview card: indistinguishable from the ambient cards; the only
+ *  accent cue is the meta line. `warm` swaps .card → .hero-warm (used when a
+ *  gift is waiting, to draw the eye to the action). */
+function PreviewCard({
+  label,
   title,
-  sub,
+  meta,
+  warm = false,
   onClick,
 }: {
-  emoji: string;
+  label: string;
   title: string;
-  sub: string;
+  meta?: string;
+  warm?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="card card-row"
-      style={{ border: "none", cursor: "pointer", textAlign: "left", alignItems: "center" }}
+      className={warm ? "hero-warm" : "card"}
+      style={{ border: "none", cursor: "pointer", textAlign: "left" }}
     >
-      <span className="emoji" style={{ fontSize: 24 }}>{emoji}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="card-title">{title}</div>
-        <div className="card-sub">{sub}</div>
-      </div>
-      <span style={{ color: "var(--tg-hint)", fontWeight: 700, fontSize: 18 }}>›</span>
+      <div className="section-label" style={{ margin: "0 0 4px" }}>{label}</div>
+      <div className="card-title">{title}</div>
+      {meta ? (
+        <div className="meta" style={warm ? { color: "var(--tg-warm)" } : undefined}>{meta}</div>
+      ) : null}
     </button>
   );
 }

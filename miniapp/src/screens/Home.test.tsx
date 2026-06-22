@@ -24,6 +24,20 @@ vi.mock("../sdk/api", async () => {
         { id: "c1", label: "Знакомство", emoji: "💛", targetDate: new Date(Date.now() - 112 * 86_400_000).toISOString(), recurrence: null },
       ]),
       getDateIdea: vi.fn().mockResolvedValue({ source: "wishlist", title: "Пицца", category: "eat" }),
+      listBucket: vi.fn().mockResolvedValue([
+        { id: "b1", title: "Увидеть северное сияние", note: null, status: "dreaming" },
+        { id: "b2", title: "Съездить на океан", note: null, status: "dreaming" },
+        { id: "b3", title: "Старая мечта", note: null, status: "done" },
+      ]),
+      listGifts: vi.fn().mockResolvedValue({
+        items: [
+          { id: "g1", gesture: "Массаж", description: null, status: "received", direction: "them", createdAt: new Date().toISOString() },
+        ],
+        partnerName: "Маша",
+      }),
+      listLoveNotes: vi.fn().mockResolvedValue([
+        { id: "n1", body: "очень личный текст", mine: false, readByRecipient: false, createdAt: new Date(Date.now() - 3 * 86_400_000).toISOString() },
+      ]),
     },
   };
 });
@@ -39,5 +53,19 @@ describe("Home", () => {
     });
     // section entries are in the feed (gifts is a destination again, not a tab)
     expect(screen.getByText("Подарки")).toBeTruthy();
+  });
+
+  it("shows live previews: a dream, a waiting gift (warm), notes count — not the note body", async () => {
+    render(<Home onOpen={() => {}} />);
+    // a dream title from the open items appears
+    await waitFor(() => {
+      expect(screen.getByText(/Увидеть северное сияние|Съездить на океан/)).toBeTruthy();
+    });
+    // the waiting gift warms the card (hero-warm) and shows the gesture + "примите"
+    expect(screen.getByText(/Массаж/)).toBeTruthy();
+    expect(screen.getByText(/примите/)).toBeTruthy();
+    // notes: count shown, body NEVER rendered on Home (privacy)
+    expect(screen.queryByText("очень личный текст")).toBeNull();
+    expect(screen.getByText(/новых/)).toBeTruthy();
   });
 });
