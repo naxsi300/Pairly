@@ -43,8 +43,8 @@ export function LoveNotes() {
     }
   }
 
-  if (loading) return <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>;
-  if (error) return <p className="py-10 text-center text-red-500">{COPY.common.error}</p>;
+  if (loading) return <p className="rw-empty">{COPY.common.loading}</p>;
+  if (error) return <p className="rw-empty" style={{ color: "var(--tg-danger)" }}>{COPY.common.error}</p>;
 
   const notes = data ?? [];
 
@@ -69,9 +69,9 @@ export function LoveNotes() {
                   className="w-full text-left"
                 >
                   <p className="rw-meta mb-1">{n.mine ? COPY.notes.fromYou : COPY.notes.fromPartner}</p>
-                  <p className="text-[15px] leading-snug text-tg-text">{n.body}</p>
+                  <p className="card-title">{n.body}</p>
                   {!n.mine && !n.readByRecipient ? (
-                    <p className="rw-meta mt-1">новое</p>
+                    <span className="meta" style={{ color: "var(--tg-warm)" }}>● новое</span>
                   ) : null}
                 </button>
               </Card>
