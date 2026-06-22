@@ -113,13 +113,7 @@ export function MilestoneToast({
           bottom: "calc(80px + var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom)) + 8px)",
         }}
       >
-        <div
-          className="rounded-full px-6 py-3 shadow-[var(--m3-elevation-3)]"
-          style={{
-            background: "var(--m3-surface-container-high)",
-            color: "var(--m3-on-surface)",
-          }}
-        >
+        <div className="toast">
           {events.map((e, i) => (
             <p key={`${e.kind}|${e.value}|${i}`} className="text-sm font-medium">
               {KIND_LABEL[e.kind]?.(e.value) ?? COPY.milestones.generic}

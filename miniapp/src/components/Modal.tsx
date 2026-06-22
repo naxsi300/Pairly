@@ -48,11 +48,11 @@ export function Modal({
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md surface-m3 p-5"
+        className="w-full max-w-md card p-5"
         role="dialog"
         aria-modal="true"
       >
-        {title ? <h2 className="mb-3 text-lg font-semibold text-tg-text">{title}</h2> : null}
+        {title ? <h2 className="heading">{title}</h2> : null}
         <div className="flex flex-col gap-3">{children}</div>
         <div className="mt-5 flex gap-2">
           {onSubmit ? (

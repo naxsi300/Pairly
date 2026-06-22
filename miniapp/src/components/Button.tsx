@@ -31,8 +31,8 @@ export function Button({
   const dangerStyle =
     variant === "danger"
       ? {
-          color: "var(--m3-error)",
-          borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)",
+          color: "var(--tg-danger)",
+          borderColor: "color-mix(in srgb, var(--tg-danger) 30%, transparent)",
           ...style,
         }
       : style;

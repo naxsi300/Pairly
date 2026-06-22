@@ -3,7 +3,7 @@ import { useCallback, type PointerEvent, type ReactNode } from "react";
 interface RippleProps {
   children: ReactNode;
   className?: string;
-  /** Ripple color override. Default: var(--m3-on-surface). */
+  /** Ripple color override. Default: var(--tg-text). */
   color?: string;
 }
 
