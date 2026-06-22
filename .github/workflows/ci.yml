@@ -51,6 +51,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: No-M3 guard
+        run: bash miniapp/scripts/check-no-m3.sh
+
       - name: Typecheck
         run: npm run typecheck
 
