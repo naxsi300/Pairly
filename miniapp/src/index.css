@@ -113,7 +113,7 @@ body {
   --warm: #ff6b6b;
   --warm-strong: #ff5252;
   --warm-on: #ffffff;
-  --warm-container: color-mix(in srgb, var(--warm) 14%, var(--m3-surface-container));
+  --warm-container: color-mix(in srgb, var(--warm) 14%, var(--tg-sec));
   /* Rounded-card radius used across R-warm surfaces (matches the gallery). */
   --rw-radius: 20px;
   --rw-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
@@ -125,7 +125,7 @@ body {
     --warm: #ff8a7a;
     --warm-strong: #ff7464;
     --warm-on: #1c1c1e;
-    --warm-container: color-mix(in srgb, var(--warm) 16%, var(--m3-surface-container));
+    --warm-container: color-mix(in srgb, var(--warm) 16%, var(--tg-sec));
     --rw-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
     --rw-shadow-lifted: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
@@ -138,7 +138,7 @@ body {
 @layer components {
   /* ── M3 Card — replaces .card-glass ────────────────────────────────── */
   .card-m3 {
-    background: var(--m3-surface-container);
+    background: var(--tg-sec);
     border-radius: var(--m3-shape-medium);
     box-shadow: var(--m3-elevation-1);
     border: 1px solid var(--m3-outline-variant);
@@ -146,7 +146,7 @@ body {
 
   /* ── M3 Card (lowest) — for input areas ────────────────────────────── */
   .card-m3-low {
-    background: var(--m3-surface-container-lowest);
+    background: var(--tg-sec);
     border-radius: var(--m3-shape-medium);
     box-shadow: var(--m3-elevation-0);
     border: 1px solid var(--m3-outline-variant);
@@ -154,8 +154,8 @@ body {
 
   /* ── M3 Filled Button — primary action ─────────────────────────────── */
   .btn-m3-filled {
-    background: var(--m3-primary);
-    color: var(--m3-on-primary);
+    background: var(--tg-button);
+    color: var(--tg-button-text);
     border-radius: var(--m3-shape-full);
     font-size: 14px;
     font-weight: 500;
@@ -182,7 +182,7 @@ body {
   /* ── M3 Outlined Button — secondary action ─────────────────────────── */
   .btn-m3-outlined {
     background: transparent;
-    color: var(--m3-primary);
+    color: var(--tg-button);
     border: 1px solid var(--m3-outline);
     border-radius: var(--m3-shape-full);
     font-size: 14px;
@@ -198,21 +198,21 @@ body {
     overflow: hidden;
   }
   .btn-m3-outlined:hover {
-    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+    background: color-mix(in srgb, var(--tg-button) 8%, transparent);
   }
   .btn-m3-outlined:active {
-    background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
+    background: color-mix(in srgb, var(--tg-button) 12%, transparent);
   }
   .btn-m3-outlined:disabled {
     opacity: 0.38;
-    border-color: color-mix(in srgb, var(--m3-on-surface) 12%, transparent);
-    color: var(--m3-on-surface);
+    border-color: color-mix(in srgb, var(--tg-text) 12%, transparent);
+    color: var(--tg-text);
   }
 
   /* ── M3 Text Button — tertiary action ──────────────────────────────── */
   .btn-m3-text {
     background: transparent;
-    color: var(--m3-primary);
+    color: var(--tg-button);
     border: none;
     border-radius: var(--m3-shape-full);
     font-size: 14px;
@@ -228,10 +228,10 @@ body {
     overflow: hidden;
   }
   .btn-m3-text:hover {
-    background: color-mix(in srgb, var(--m3-primary) 8%, transparent);
+    background: color-mix(in srgb, var(--tg-button) 8%, transparent);
   }
   .btn-m3-text:active {
-    background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
+    background: color-mix(in srgb, var(--tg-button) 12%, transparent);
   }
   .btn-m3-text:disabled {
     opacity: 0.38;
@@ -240,7 +240,7 @@ body {
   /* ── M3 Icon Button ────────────────────────────────────────────────── */
   .btn-m3-icon {
     background: transparent;
-    color: var(--m3-on-surface-variant);
+    color: var(--tg-hint);
     border: none;
     border-radius: var(--m3-shape-full);
     width: 40px;
@@ -253,28 +253,28 @@ body {
     overflow: hidden;
   }
   .btn-m3-icon:hover {
-    background: color-mix(in srgb, var(--m3-on-surface-variant) 8%, transparent);
+    background: color-mix(in srgb, var(--tg-hint) 8%, transparent);
   }
 
   /* ── M3 Outlined Input — replaces glass field ──────────────────────── */
   .input-m3 {
     width: 100%;
-    background: var(--m3-surface-container-lowest);
+    background: var(--tg-sec);
     border: 1px solid var(--m3-outline-variant);
     border-radius: var(--m3-shape-extra-small);
     padding: 12px 16px;
     font-size: 14px;
     line-height: 20px;
-    color: var(--m3-on-surface);
+    color: var(--tg-text);
     transition: border-color 200ms ease, box-shadow 200ms ease;
   }
   .input-m3::placeholder {
-    color: var(--m3-on-surface-variant);
+    color: var(--tg-hint);
   }
   .input-m3:focus {
     outline: none;
-    border-color: var(--m3-primary);
-    box-shadow: 0 0 0 1px var(--m3-primary);
+    border-color: var(--tg-button);
+    box-shadow: 0 0 0 1px var(--tg-button);
   }
 
   /* ── Ripple (base) ─────────────────────────────────────────────────── */
@@ -285,7 +285,7 @@ body {
   .ripple-effect {
     position: absolute;
     border-radius: 50%;
-    background: var(--m3-on-surface);
+    background: var(--tg-text);
     opacity: 0.1;
     transform: scale(0);
     animation: ripple-expand 400ms ease-out forwards;
@@ -300,7 +300,7 @@ body {
 
   /* ── M3 Surface (page-level) — replaces glass-elevated ─────────────── */
   .surface-m3 {
-    background: var(--m3-surface);
+    background: var(--tg-bg);
     border-radius: var(--m3-shape-large);
     box-shadow: var(--m3-elevation-2);
     border: 1px solid var(--m3-outline-variant);
@@ -308,7 +308,7 @@ body {
 
   /* ── M3 NavBar surface ─────────────────────────────────────────────── */
   .navbar-m3 {
-    background: var(--m3-surface-container);
+    background: var(--tg-sec);
     box-shadow: var(--m3-elevation-2);
     border-top: 1px solid var(--m3-outline-variant);
   }
@@ -379,19 +379,19 @@ body {
 }
 .rw-sub {
   font-size: 14px;
-  color: var(--m3-on-surface-variant);
+  color: var(--tg-hint);
 }
 .rw-section-label {
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--m3-on-surface-variant);
+  color: var(--tg-hint);
   margin: 18px 0 10px;
 }
 .rw-meta {
   font-size: 12px;
-  color: var(--m3-primary);
+  color: var(--tg-button);
   font-weight: 600;
 }
 
@@ -401,8 +401,8 @@ body {
 .rw-hero-warm {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--warm) 18%, var(--m3-surface)),
-    var(--m3-surface)
+    color-mix(in srgb, var(--warm) 18%, var(--tg-bg)),
+    var(--tg-bg)
   );
   border-radius: 22px;
   padding: 20px;
@@ -411,8 +411,8 @@ body {
 .rw-hero {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--m3-primary) 14%, var(--m3-surface-container)),
-    var(--m3-surface-container)
+    color-mix(in srgb, var(--tg-button) 14%, var(--tg-sec)),
+    var(--tg-sec)
   );
   border-radius: 22px;
   padding: 20px;
@@ -437,8 +437,8 @@ body {
   display: block;
   width: 100%;
   background: none;
-  color: var(--m3-primary);
-  border: 1px solid color-mix(in srgb, var(--m3-primary) 30%, transparent);
+  color: var(--tg-button);
+  border: 1px solid color-mix(in srgb, var(--tg-button) 30%, transparent);
   border-radius: 24px;
   padding: 14px;
   font-size: 15px;
@@ -452,7 +452,7 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  background: var(--m3-surface-container);
+  background: var(--tg-sec);
   border-radius: var(--rw-radius);
   padding: 14px;
   box-shadow: var(--rw-shadow);
@@ -462,23 +462,23 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: var(--m3-on-surface);
+  color: var(--tg-text);
 }
 
 /* Chip pill selectors (category/mood filters). */
 .rw-chip {
-  background: var(--m3-surface-container);
+  background: var(--tg-sec);
   border-radius: 18px;
   padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
-  color: var(--m3-on-surface);
+  color: var(--tg-text);
   border: none;
   cursor: pointer;
 }
 .rw-chip.is-active {
-  background: var(--m3-primary);
-  color: var(--m3-on-primary);
+  background: var(--tg-button);
+  color: var(--tg-button-text);
 }
 
 /* Emoji tile picker (4-col grid, e.g. gift/ritual selection). */
@@ -488,7 +488,7 @@ body {
   gap: 10px;
 }
 .rw-emoji-opt {
-  background: var(--m3-surface-container);
+  background: var(--tg-sec);
   border-radius: var(--rw-radius);
   padding: 14px 4px;
   text-align: center;
@@ -503,15 +503,15 @@ body {
 }
 .rw-emoji-opt .label {
   font-size: 11px;
-  color: var(--m3-on-surface-variant);
+  color: var(--tg-hint);
   font-weight: 500;
 }
 .rw-emoji-opt.is-active {
-  background: var(--m3-primary);
-  color: var(--m3-on-primary);
+  background: var(--tg-button);
+  color: var(--tg-button-text);
 }
 .rw-emoji-opt.is-active .label {
-  color: var(--m3-on-primary);
+  color: var(--tg-button-text);
   font-weight: 600;
 }
 .rw-emoji-opt.is-active .emoji {
@@ -525,7 +525,7 @@ body {
   gap: 10px;
 }
 .rw-mood-opt {
-  background: var(--m3-surface-container);
+  background: var(--tg-sec);
   border-radius: var(--rw-radius);
   padding: 18px;
   text-align: center;
@@ -541,14 +541,14 @@ body {
 .rw-mood-opt .label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--m3-on-surface);
+  color: var(--tg-text);
 }
 .rw-mood-opt.is-active {
-  background: var(--m3-primary);
-  color: var(--m3-on-primary);
+  background: var(--tg-button);
+  color: var(--tg-button-text);
 }
 .rw-mood-opt.is-active .label {
-  color: var(--m3-on-primary);
+  color: var(--tg-button-text);
 }
 
 /* Countdown blocks. */
@@ -558,7 +558,7 @@ body {
   justify-content: center;
 }
 .rw-cd-unit {
-  background: var(--m3-surface-container);
+  background: var(--tg-sec);
   border-radius: 16px;
   padding: 14px 10px;
   text-align: center;
@@ -569,11 +569,11 @@ body {
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -1px;
-  color: var(--m3-on-surface);
+  color: var(--tg-text);
 }
 .rw-cd-label {
   font-size: 11px;
-  color: var(--m3-on-surface-variant);
+  color: var(--tg-hint);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 2px;
@@ -583,7 +583,7 @@ body {
 .rw-empty {
   text-align: center;
   padding: 40px 20px;
-  color: var(--m3-on-surface-variant);
+  color: var(--tg-hint);
 }
 .rw-empty .emoji {
   font-size: 56px;
@@ -598,7 +598,7 @@ body {
 }
 .rw-stat {
   flex: 1;
-  background: var(--m3-surface-container);
+  background: var(--tg-sec);
   border-radius: var(--rw-radius);
   padding: 18px 14px;
   text-align: center;
@@ -608,11 +608,11 @@ body {
   font-size: 32px;
   font-weight: 700;
   letter-spacing: -1px;
-  color: var(--m3-on-surface);
+  color: var(--tg-text);
 }
 .rw-stat-label {
   font-size: 12px;
-  color: var(--m3-on-surface-variant);
+  color: var(--tg-hint);
   margin-top: 2px;
 }
 
@@ -631,8 +631,8 @@ body {
   --tg-text: #1c1c1e;
   --tg-hint: #8a8a8e;
   --tg-sec: #f2f2f7;
-  --tg-button: var(--m3-primary);
-  --tg-button-text: var(--m3-on-primary);
+  --tg-button: var(--tg-theme-button-color);
+  --tg-button-text: var(--tg-theme-button-text-color);
   --tg-warm: var(--warm);
   --tg-danger: #dc2626;
 }
@@ -778,8 +778,8 @@ body {
 }
 .card-act.danger {
   background: none;
-  color: var(--m3-error);
-  border: 1px solid color-mix(in srgb, var(--m3-error) 30%, transparent);
+  color: var(--tg-danger);
+  border: 1px solid color-mix(in srgb, var(--tg-danger) 30%, transparent);
   padding: 10px 12px;
 }
 .card-act:disabled {
