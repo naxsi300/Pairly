@@ -56,7 +56,7 @@ describe("Home", () => {
   });
 
   it("shows live previews: a dream, a waiting gift (warm), notes count — not the note body", async () => {
-    render(<Home onOpen={() => {}} />);
+    const { container } = render(<Home onOpen={() => {}} />);
     // a dream title from the open items appears
     await waitFor(() => {
       expect(screen.getByText(/Увидеть северное сияние|Съездить на океан/)).toBeTruthy();
@@ -67,5 +67,7 @@ describe("Home", () => {
     // notes: count shown, body NEVER rendered on Home (privacy)
     expect(screen.queryByText("очень личный текст")).toBeNull();
     expect(screen.getByText(/новых/)).toBeTruthy();
+    // the waiting gift warms the card (hero-warm surface)
+    expect(container.querySelector(".hero-warm")).toBeTruthy();
   });
 });

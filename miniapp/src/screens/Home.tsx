@@ -26,12 +26,12 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
     : null;
   const occasionSoon = daysToOccasion !== null && daysToOccasion <= 3;
 
-  const dreaming = (bucket.data ?? []).filter((b) => b.status === "dreaming");
   const doneCount = (bucket.data ?? []).filter((b) => b.status === "done").length;
-  const dream = useMemo(
-    () => (dreaming.length ? dreaming[Math.floor(Math.random() * dreaming.length)] : null),
-    [dreaming],
-  );
+  const dreamingCount = (bucket.data ?? []).filter((b) => b.status === "dreaming").length;
+  const dream = useMemo(() => {
+    const d = (bucket.data ?? []).filter((b) => b.status === "dreaming");
+    return d.length ? d[Math.floor(Math.random() * d.length)] : null;
+  }, [bucket.data]);
 
   const gItems = gifts.data?.items ?? [];
   const waiting = gItems.find((g) => g.direction === "them" && g.status === "received") ?? null;
@@ -85,7 +85,7 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
       <PreviewCard
         label={COPY.home.cardDreamsTitle}
         title={dream ? `🌌 ${dream.title}` : COPY.home.dreamsEmpty}
-        meta={dream ? COPY.home.dreamsMeta(dreaming.length, doneCount) : ""}
+        meta={dream ? COPY.home.dreamsMeta(dreamingCount, doneCount) : ""}
         onClick={() => onOpen("bucket")}
       />
       <PreviewCard
