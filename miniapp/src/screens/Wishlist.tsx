@@ -199,7 +199,7 @@ export function Wishlist() {
       {loading ? (
         <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
       ) : error ? (
-        <p className="py-10 text-center text-red-500">{COPY.common.error}</p>
+        <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
         <EmptyState emoji="🗒" text={COPY.wishlist.empty} />
       ) : (
@@ -301,15 +301,7 @@ export function Wishlist() {
               type="button"
               onClick={() => setCategory(category === c ? "" : c)}
               aria-pressed={category === c}
-              className="ripple-container rounded-full px-3 py-1.5 text-sm transition"
-              style={{
-                background: category === c
-                  ? "var(--m3-primary-container)"
-                  : "var(--m3-surface-container)",
-                color: category === c
-                  ? "var(--m3-on-primary-container)"
-                  : "var(--m3-on-surface)",
-              }}
+              className={`chip ripple-container ${category === c ? "active" : ""}`}
             >
               {categoryEmoji(c)} {categoryLabel(c)}
             </button>

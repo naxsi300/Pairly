@@ -200,7 +200,7 @@ export function Countdowns() {
       {loading ? (
         <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
       ) : error ? (
-        <p className="py-10 text-center text-red-500">{COPY.common.error}</p>
+        <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
         <EmptyState emoji="📅" text={COPY.countdowns.empty} />
       ) : (
@@ -273,7 +273,7 @@ export function Countdowns() {
           }}
         />
         {dateErr ? (
-          <p className="text-xs text-red-500">Не разобрал дату. Попробуйте 25.12.2026.</p>
+          <p className="text-xs text-[var(--tg-danger)]">Не разобрал дату. Попробуйте 25.12.2026.</p>
         ) : null}
         <TextInput
           placeholder={COPY.countdowns.emojiPlaceholder}
@@ -284,11 +284,7 @@ export function Countdowns() {
           type="button"
           onClick={() => setMilestone((v) => !v)}
           aria-pressed={milestone}
-          className="ripple-container rounded-full px-3 py-2 text-left text-sm transition"
-          style={{
-            background: milestone ? "var(--m3-primary-container)" : "var(--m3-surface-container)",
-            color: milestone ? "var(--m3-on-primary-container)" : "var(--tg-text)",
-          }}
+          className={`chip ripple-container ${milestone ? "active" : ""}`}
         >
           {milestone ? "✓ " : ""}🎯 Считать круглые даты от этой даты (точка отсчёта)
         </button>

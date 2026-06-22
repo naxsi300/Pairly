@@ -55,7 +55,7 @@ export function QuestionOfTheDay() {
     return <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>;
   }
   if (error) {
-    return <p className="py-10 text-center text-red-500">{COPY.common.error}</p>;
+    return <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>;
   }
   if (!data?.question) {
     return (

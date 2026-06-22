@@ -81,7 +81,7 @@ export default function App() {
 function DestinationView({ dest, onBack }: { dest: Destination; onBack: () => void }) {
   return (
     <div className="mx-auto max-w-md px-4 py-4">
-      <button onClick={onBack} className="mb-2 text-sm" style={{ color: "var(--m3-primary)" }}>← Назад</button>
+      <button onClick={onBack} className="mb-2 text-sm" style={{ color: "var(--tg-button)" }}>← Назад</button>
       {dest === "bucket" ? <Bucket /> : null}
       {dest === "countdowns" ? <Countdowns /> : null}
       {dest === "gifts" ? <Gifts /> : null}

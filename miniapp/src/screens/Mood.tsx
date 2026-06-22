@@ -133,7 +133,7 @@ export function Mood() {
         <button
           type="button"
           className="btn-ghost"
-          style={{ marginTop: 8, color: "var(--m3-error)", borderColor: "color-mix(in srgb, var(--m3-error) 30%, transparent)" }}
+          style={{ marginTop: 8, color: "var(--tg-danger)", borderColor: "color-mix(in srgb, var(--tg-danger) 30%, transparent)" }}
           onClick={clear}
           disabled={busy}
         >
