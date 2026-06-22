@@ -527,6 +527,11 @@ body {
   border: 1px solid color-mix(in srgb, var(--tg-danger) 30%, transparent);
   padding: 10px 12px;
 }
+.card-act.ghost {
+  background: none;
+  color: var(--tg-hint);
+  border: 1px solid color-mix(in srgb, var(--tg-hint) 30%, transparent);
+}
 .card-act:disabled {
   opacity: 0.5;
 }
@@ -1000,4 +1005,11 @@ textarea.input {
   text-align: center;
   z-index: 50;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+}
+/* Inner <p> (e.g. <p className="card-sub">) would otherwise hardcode a hint
+   color via .card-sub and override the inverted text color of .toast. Force
+   descendants to inherit so the toast text reads in the inverted surface
+   color while .card-sub's font-size/weight still apply. */
+.toast p {
+  color: inherit;
 }

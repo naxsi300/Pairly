@@ -133,7 +133,7 @@ export function Gifts() {
       {loading ? (
         <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
       ) : error ? (
-        <p className="py-10 text-center text-red-500">{COPY.common.error}</p>
+        <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
         <EmptyState emoji="🎁" text={COPY.gifts.empty} />
       ) : (
@@ -223,7 +223,7 @@ export function Gifts() {
           ))}
         </div>
         {sendError ? (
-          <p className="text-sm text-red-500">{COPY.common.sendFailed}</p>
+          <p className="text-sm text-[var(--tg-danger)]">{COPY.common.sendFailed}</p>
         ) : null}
         <Button
           variant="secondary"
@@ -256,7 +256,7 @@ export function Gifts() {
           onChange={(e) => setCustom(e.target.value)}
         />
         {sendError ? (
-          <p className="text-sm text-red-500">{COPY.common.sendFailed}</p>
+          <p className="text-sm text-[var(--tg-danger)]">{COPY.common.sendFailed}</p>
         ) : null}
       </Modal>
     </div>

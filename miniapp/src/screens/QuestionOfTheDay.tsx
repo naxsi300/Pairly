@@ -73,7 +73,7 @@ export function QuestionOfTheDay() {
       <h1 className="heading">{COPY.qotd.heading}</h1>
 
       <Card className="mb-3">
-        <p className="section-label">{data.question.category}</p>
+        <p className="section-label" style={{ margin: "0 0 6px" }}>{data.question.category}</p>
         <p className="card-title">«{data.question.text}»</p>
       </Card>
 

@@ -6,10 +6,10 @@ cd "$(dirname "$0")/.."
 # literal would otherwise self-match).
 hits="$(grep -rnE --include="*.tsx" --include="*.ts" --include="*.css" \
   --exclude="no-m3.guard.test.ts" \
-  "(--m3-|card-m3|card-m3-low|input-m3|surface-m3|navbar-m3|btn-m3-|text-m3-)" src || true)"
+  "(--m3-|card-m3|card-m3-low|input-m3|surface-m3|navbar-m3|btn-m3-|text-m3-|text-red-[0-9]+)" src || true)"
 if [[ -n "$hits" ]]; then
   echo "$hits"
-  echo "M3 reference found - purge it (see R-warm consolidation plan)."
+  echo "M3 / raw-red reference found - purge it (see R-warm consolidation plan)."
   exit 1
 fi
-echo "no M3 references."
+echo "no M3 references, no raw reds."

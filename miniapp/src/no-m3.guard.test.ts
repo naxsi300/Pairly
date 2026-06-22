@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SELF = fileURLToPath(import.meta.url);
-const M3 = /\b(--m3-[a-z-]+|card-m3|card-m3-low|input-m3|surface-m3|navbar-m3|btn-m3-[a-z]+|text-m3-[a-z]+)\b/;
+const M3 = /\b(--m3-[a-z-]+|card-m3|card-m3-low|input-m3|surface-m3|navbar-m3|btn-m3-[a-z]+|text-m3-[a-z]+|text-red-[0-9]+)\b/;
 
 describe("no M3 references", () => {
   it("no source file or index.css references M3 tokens/classes", () => {

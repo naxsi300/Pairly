@@ -94,9 +94,11 @@ export function Mood() {
           <span className="emoji" style={{ fontSize: 24 }}>{moodEmoji(selfLive?.mood ?? null)}</span>
           <span>Вы — {selfLive?.mood ?? COPY.mood.notSet}</span>
         </div>
-        <div className={partner.hint ? "who card-sub" : "who"}>
+        <div className="who">
           <span className="emoji" style={{ fontSize: 24 }}>{partner.emoji}</span>
-          <span>{partner.who}</span>
+          <span style={partner.hint ? { color: "var(--tg-hint)" } : undefined}>
+            {partner.who}
+          </span>
         </div>
       </div>
 
