@@ -634,6 +634,7 @@ body {
   --tg-button: var(--m3-primary);
   --tg-button-text: var(--m3-on-primary);
   --tg-warm: var(--warm);
+  --tg-danger: #dc2626;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -641,6 +642,7 @@ body {
     --tg-text: #ffffff;
     --tg-hint: #98989f;
     --tg-sec: #2c2c2e;
+    --tg-danger: #ff453a;
   }
 }
 
