@@ -83,7 +83,7 @@ export function Bucket() {
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
       <h1 className="heading">{COPY.bucket.heading}</h1>
-      <Button variant="warm" onClick={() => setAdding(true)} disabled={atLimit} style={{ marginBottom: 12 }}>
+      <Button variant="warm" onClick={() => setAdding(true)} disabled={atLimit} className="mb-3">
         + {COPY.common.add}
       </Button>
 
@@ -100,9 +100,9 @@ export function Bucket() {
       ) : null}
 
       {loading ? (
-        <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
+        <p className="meta" style={{ textAlign: "center", padding: "40px 0" }}>{COPY.common.loading}</p>
       ) : error ? (
-        <p className="py-10 text-center text-red-500">{COPY.common.error}</p>
+        <p className="meta" style={{ textAlign: "center", padding: "40px 0", color: "var(--tg-danger)" }}>{COPY.common.error}</p>
       ) : items.length === 0 ? (
         <EmptyState emoji="🌌" text={COPY.bucket.empty} hint={COPY.bucket.hint} />
       ) : (
@@ -110,9 +110,9 @@ export function Bucket() {
           {items.map((item) => (
             <li key={item.id}>
               <Card>
-                <p className="text-[15px] font-medium text-tg-text">{item.title}</p>
-                {item.note ? <p className="mt-1 text-sm text-tg-hint">{item.note}</p> : null}
-                <p className="mt-1 text-xs text-tg-hint">{bucketStatusLabel(item.status)}</p>
+                <p className="card-title">{item.title}</p>
+                {item.note ? <p className="card-sub">{item.note}</p> : null}
+                <p className="meta">{bucketStatusLabel(item.status)}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {item.status !== "done" ? (
                     <Button variant="secondary" onClick={() => markDone(item)}>
@@ -120,7 +120,7 @@ export function Bucket() {
                     </Button>
                   ) : (
                     <>
-                      <span className="self-center text-sm text-tg-hint">🌌 сбылось</span>
+                      <span className="meta" style={{ alignSelf: "center" }}>🌌 сбылось</span>
                       <Button variant="ghost" onClick={() => undo(item)}>
                         ↶ Мечтать
                       </Button>
