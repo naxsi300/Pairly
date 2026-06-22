@@ -8,7 +8,19 @@ vi.mock("../sdk/api", async () => {
     ...actual,
     endpoints: {
       ...actual.endpoints,
-      listGifts: vi.fn().mockResolvedValue({ items: [], partnerName: "Маша" }),
+      listGifts: vi.fn().mockResolvedValue({
+        items: [
+          {
+            id: "g-w",
+            gesture: "Массаж",
+            description: "15 минут",
+            status: "received",
+            direction: "them",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        partnerName: "Маша",
+      }),
       sendGift: vi.fn(),
     },
   };
@@ -80,5 +92,20 @@ describe("Gifts — cluster 13 modal close race", () => {
     await waitFor(() => expect(sendMock).toHaveBeenCalledTimes(1));
     // After success, the picker should close — the custom-gesture toggle goes away.
     await waitFor(() => expect(screen.queryByText(/Свой жест/)).toBeNull());
+  });
+});
+
+describe("Gifts — action-first hero", () => {
+  it("renders a waiting gift in the hero with an accept button", async () => {
+    render(<Gifts />);
+    const hero = await screen.findByText("Ждёт вас");
+    expect(hero.closest(".hero-warm")).not.toBeNull();
+    // The gesture is rendered as "🎁 Массаж" inside the hero.
+    expect(hero.closest(".hero-warm")?.textContent).toMatch(/Массаж/);
+    // The Принять button is the warm (primary) action in the hero.
+    const heroAccept = screen
+      .getAllByRole("button", { name: /Принять/ })
+      .find((b) => b.closest(".hero-warm"));
+    expect(heroAccept).toBeTruthy();
   });
 });

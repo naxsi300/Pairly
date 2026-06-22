@@ -42,6 +42,8 @@ export function Gifts() {
 
   const active = items.filter((g) => !["declined", "archived"].includes(g.status));
   const goodDeeds = items.filter((g) => g.status === "complete");
+  const waiting =
+    items.find((g) => g.direction === "them" && g.status === "received") ?? null;
 
   async function send(gesture: string, description?: string | null) {
     if (busy) return;
@@ -102,6 +104,32 @@ export function Gifts() {
         🎁 {COPY.common.add}
       </Button>
 
+      {waiting ? (
+        <div className="hero-warm" style={{ marginTop: 12 }}>
+          <div className="section-label" style={{ margin: "0 0 4px" }}>
+            {COPY.gifts.waitingForYou}
+          </div>
+          <p className="card-title">🎁 {waiting.gesture}</p>
+          {waiting.description ? <p className="card-sub">{waiting.description}</p> : null}
+          <div className="card-actions">
+            <button
+              type="button"
+              className="card-act warm"
+              onClick={() => act(waiting, "accept")}
+            >
+              {COPY.gifts.acceptButton}
+            </button>
+            <button
+              type="button"
+              className="card-act"
+              onClick={() => act(waiting, "decline")}
+            >
+              {COPY.gifts.declineButton}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {loading ? (
         <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
       ) : error ? (
@@ -111,14 +139,16 @@ export function Gifts() {
       ) : (
         <>
           <ul className="flex flex-col gap-2">
-            {active.map((g) => (
+            {active
+              .filter((g) => g.id !== waiting?.id)
+              .map((g) => (
               <li key={g.id}>
                 <Card>
-                  <p className="text-[15px] font-medium text-tg-text">{g.gesture}</p>
+                  <p className="card-title">{g.gesture}</p>
                   {g.description ? (
-                    <p className="mt-1 text-sm text-tg-hint">{g.description}</p>
+                    <p className="card-sub">{g.description}</p>
                   ) : null}
-                  <p className="mt-1 text-xs text-tg-hint">
+                  <p className="meta">
                     {g.direction === "me" ? `→ ${partnerName}` : "← партнёр"} ·{" "}
                     {giftStatusLabel(g.status)}
                   </p>
@@ -156,7 +186,7 @@ export function Gifts() {
 
           {goodDeeds.length > 0 ? (
             <section className="mt-6">
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-tg-hint">
+              <h2 className="section-label">
                 {COPY.gifts.goodDeedsHeading}
               </h2>
               {/* Chronological, NOT ranked. */}
@@ -187,8 +217,8 @@ export function Gifts() {
               }}
               className="card p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
             >
-              <p className="text-sm font-medium text-tg-text">{g.gesture}</p>
-              <p className="mt-0.5 text-xs text-tg-hint">{g.description}</p>
+              <p className="card-title">{g.gesture}</p>
+              <p className="card-sub">{g.description}</p>
             </button>
           ))}
         </div>
