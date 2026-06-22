@@ -180,7 +180,7 @@ export function Wishlist() {
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
       <h1 className="heading">{COPY.wishlist.heading}</h1>
-      <button type="button" className="btn-warm" onClick={() => setAdding(true)} disabled={atLimit} style={{ marginBottom: 12 }}>
+      <button type="button" className="btn-warm mb-3" onClick={() => setAdding(true)} disabled={atLimit}>
         + {COPY.common.add}
       </button>
 
@@ -197,26 +197,24 @@ export function Wishlist() {
       ) : null}
 
       {loading ? (
-        <p className="py-10 text-center text-tg-hint">{COPY.common.loading}</p>
+        <p className="meta py-10 text-center">{COPY.common.loading}</p>
       ) : error ? (
         <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
         <EmptyState emoji="🗒" text={COPY.wishlist.empty} />
       ) : (
         <>
-        <div className="chip-row" style={{ marginBottom: 4 }}>
+        <div className="chip-row mb-1">
           <button
             type="button"
-            className={`chip ${filter === "active" ? "active" : ""}`}
-            style={{ flex: 1, textAlign: "center", justifyContent: "center" }}
+            className={`chip flex-1 text-center justify-center ${filter === "active" ? "active" : ""}`}
             onClick={() => setFilter("active")}
           >
             📋 Активные ({activeItems.length})
           </button>
           <button
             type="button"
-            className={`chip ${filter === "done" ? "active" : ""}`}
-            style={{ flex: 1, textAlign: "center", justifyContent: "center" }}
+            className={`chip flex-1 text-center justify-center ${filter === "done" ? "active" : ""}`}
             onClick={() => setFilter("done")}
           >
             ✓ Сделано ({doneItems.length})
@@ -240,15 +238,15 @@ export function Wishlist() {
                 <div className="card-actions">
                   {item.status === "pending" ? (
                     item.mine ? (
-                      <div className="banner banner-warm" style={{ flex: 1, padding: "8px 12px" }}>
+                      <div className="banner banner-warm flex-1 px-3 py-2">
                         <span className="emoji">⏳</span>
-                        <div style={{ flex: 1, fontSize: 13 }}>ждёт согласия партнёра</div>
+                        <div className="card-sub flex-1">ждёт согласия партнёра</div>
                       </div>
                     ) : (
                       <>
-                        <div className="banner banner-blue" style={{ flex: 1, padding: "8px 12px" }}>
+                        <div className="banner banner-blue flex-1 px-3 py-2">
                           <span className="emoji">👈</span>
-                          <div style={{ flex: 1, fontSize: 13 }}>партнёр предлагает — подтвердите</div>
+                          <div className="card-sub flex-1">партнёр предлагает — подтвердите</div>
                         </div>
                         <button type="button" className="card-act warm" onClick={() => approve(item)} disabled={busy}>
                           👍 Ок
@@ -318,20 +316,21 @@ function ItemBody({ item, onOpenSource }: { item: WishlistItem; onOpenSource: ()
   const clickable = !!item.sourceUrl;
   return (
     <div
-      style={{ minWidth: 0, flex: 1, cursor: clickable ? "pointer" : "default" }}
+      className="min-w-0 flex-1"
+      style={{ cursor: clickable ? "pointer" : "default" }}
       onClick={clickable ? onOpenSource : undefined}
     >
-      <div className="card-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div className="card-title truncate">
         {item.title}
-        {clickable ? <span style={{ fontSize: 13, color: "var(--tg-button)", marginLeft: 6 }}>↗</span> : null}
+        {clickable ? <span className="meta ml-1.5">↗</span> : null}
       </div>
       {item.address ? (
-        <div className="card-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {item.address}</div>
+        <div className="card-sub truncate">📍 {item.address}</div>
       ) : null}
       {item.notes ? (
-        <div className="card-sub" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.notes}</div>
+        <div className="card-sub line-clamp-2">{item.notes}</div>
       ) : null}
-      {clickable ? <div className="card-sub" style={{ marginTop: 2 }}>Открыть оригинал в Telegram ↗</div> : null}
+      {clickable ? <div className="card-sub mt-0.5">Открыть оригинал в Telegram ↗</div> : null}
     </div>
   );
 }
@@ -343,17 +342,17 @@ function ItemBody({ item, onOpenSource }: { item: WishlistItem; onOpenSource: ()
 function PhotoThumb({ item }: { item: WishlistItem }) {
   const url = usePhotoBlob(item.hasPhoto ? item.id : null, !!item.hasPhoto);
   if (!item.hasPhoto || !url) {
-    return <span className="emoji" style={{ fontSize: 28 }}>{categoryEmoji(item.category)}</span>;
+    return <span className="emoji text-3xl">{categoryEmoji(item.category)}</span>;
   }
   return (
     <img
       src={url}
       alt=""
       loading="lazy"
+      className="w-14 h-14 rounded-2xl object-cover shrink-0"
       onError={(e) => {
         (e.currentTarget as HTMLImageElement).style.display = "none";
       }}
-      style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", flexShrink: 0 }}
     />
   );
 }
