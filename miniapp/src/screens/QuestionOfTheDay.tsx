@@ -73,13 +73,13 @@ export function QuestionOfTheDay() {
       <h1 className="heading">{COPY.qotd.heading}</h1>
 
       <Card className="mb-3">
-        <p className="text-xs uppercase tracking-wide text-tg-hint">{data.question.category}</p>
-        <p className="mt-1 text-[15px] leading-relaxed text-tg-text">«{data.question.text}»</p>
+        <p className="section-label">{data.question.category}</p>
+        <p className="card-title">«{data.question.text}»</p>
       </Card>
 
       {answering ? (
         <Card className="mb-3">
-          <p className="mb-2 text-sm text-tg-text">{COPY.qotd.answerPrompt}</p>
+          <p className="card-sub">{COPY.qotd.answerPrompt}</p>
           <TextArea
             autoFocus
             rows={4}
@@ -88,7 +88,7 @@ export function QuestionOfTheDay() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
-          <p className="mt-1 text-right text-xs text-tg-hint">
+          <p className="meta text-right">
             {draft.length}/{MAX_ANSWER}
           </p>
           <div className="mt-2 flex gap-2">
@@ -105,7 +105,7 @@ export function QuestionOfTheDay() {
       {/* Reveal gate: branch strictly on iAnswered. */}
       {!iAnswered ? (
         <Card>
-          <p className="text-[15px] leading-relaxed text-tg-text">
+          <p className="card-title">
             {COPY.qotd.revealLocked(partnerName)}
           </p>
           <div className="mt-3">
@@ -114,18 +114,18 @@ export function QuestionOfTheDay() {
         </Card>
       ) : (
         <Card>
-          <p className="text-sm text-tg-text">
-            <span className="text-tg-hint">{COPY.qotd.myAnswerLabel}: </span>«{data.myAnswer}»
+          <p className="card-title">
+            <span className="meta">{COPY.qotd.myAnswerLabel}: </span>«{data.myAnswer}»
           </p>
           {data.partnerAnswered && data.partnerAnswer ? (
-            <p className="mt-2 text-sm text-tg-text">
-              <span className="text-tg-hint">
+            <p className="mt-2 card-title">
+              <span className="meta">
                 {COPY.qotd.partnerAnswerLabel(partnerName)}:
               </span>{" "}
               «{data.partnerAnswer}»
             </p>
           ) : (
-            <p className="mt-2 text-sm text-tg-hint">
+            <p className="mt-2 meta">
               {COPY.qotd.waitingForPartner(partnerName)}
             </p>
           )}
