@@ -181,7 +181,7 @@ export function Countdowns() {
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
       <h1 className="heading">{COPY.countdowns.heading}</h1>
-      <button type="button" className="btn-warm" onClick={() => setAdding(true)} disabled={atLimit} style={{ marginBottom: 12 }}>
+      <button type="button" className="btn-warm mb-3" onClick={() => setAdding(true)} disabled={atLimit}>
         + {COPY.common.add}
       </button>
 
@@ -211,7 +211,7 @@ export function Countdowns() {
             const ms = isMilestone ? nextMilestone(c) : null;
             return (
               <li key={c.id}>
-                <div className="card" style={{ alignItems: "center", textAlign: "center" }}>
+                <div className="card items-center text-center">
                   <div className="card-title">{countdownEmoji(c)} {c.label}</div>
                   {isMilestone ? (
                     <div className="card-sub">{Math.max(0, Math.abs(countdownDays(c)))} дней вместе</div>
@@ -220,11 +220,11 @@ export function Countdowns() {
                   ) : null}
                   {isMilestone && ms ? (
                     <>
-                      <div style={{ fontSize: 28, fontWeight: 700, color: "var(--tg-warm)", marginTop: 4 }}>{ms.label}</div>
-                      <div className="card-sub" style={{ marginTop: 2 }}>следующая круглая дата · через {ms.daysUntil} дн.</div>
+                      <div className="stat-big mt-1" style={{ color: "var(--tg-warm)" }}>{ms.label}</div>
+                      <div className="card-sub mt-0.5">следующая круглая дата · через {ms.daysUntil} дн.</div>
                     </>
                   ) : blocks ? (
-                    <div className="countdown" style={{ marginTop: 4 }}>
+                    <div className="countdown mt-1">
                       {blocks.map((b) => (
                         <div className="cd-unit" key={b.label}>
                           <div className="cd-num">{b.num}</div>
@@ -233,9 +233,9 @@ export function Countdowns() {
                       ))}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 28, fontWeight: 700, color: "var(--tg-button)", marginTop: 4 }}>{countdownDisplay(c)}</div>
+                    <div className="stat-big mt-1" style={{ color: "var(--tg-button)" }}>{countdownDisplay(c)}</div>
                   )}
-                  <div className="card-actions" style={{ justifyContent: "center", marginTop: 6 }}>
+                  <div className="card-actions justify-center mt-1.5">
                     <button type="button" className="card-act ghost" onClick={() => openEdit(c)}>
                       ✏️ {COPY.common.edit}
                     </button>
