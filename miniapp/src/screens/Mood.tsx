@@ -94,7 +94,7 @@ export function Mood() {
           <span className="emoji" style={{ fontSize: 24 }}>{moodEmoji(selfLive?.mood ?? null)}</span>
           <span>Вы — {selfLive?.mood ?? COPY.mood.notSet}</span>
         </div>
-        <div className="who" style={partner.hint ? { color: "var(--tg-hint)" } : undefined}>
+        <div className={partner.hint ? "who card-sub" : "who"}>
           <span className="emoji" style={{ fontSize: 24 }}>{partner.emoji}</span>
           <span>{partner.who}</span>
         </div>
@@ -118,11 +118,11 @@ export function Mood() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button type="button" className="btn-warm" style={{ flex: 1 }} onClick={save} disabled={busy}>
+          <div className="flex gap-2 mt-2">
+            <button type="button" className="btn-warm flex-1" onClick={save} disabled={busy}>
               {COPY.common.save}
             </button>
-            <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={() => { setPicked(null); setNote(""); }}>
+            <button type="button" className="btn-ghost flex-1" onClick={() => { setPicked(null); setNote(""); }}>
               {COPY.common.skip}
             </button>
           </div>
