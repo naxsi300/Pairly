@@ -11,10 +11,8 @@ export function EmptyState({ emoji = "✨", text, hint }: EmptyStateProps) {
       <span className="emoji" aria-hidden>
         {emoji}
       </span>
-      <div style={{ fontSize: 18, fontWeight: 600, color: "var(--tg-text)", marginBottom: 6 }}>
-        {text}
-      </div>
-      {hint ? <div style={{ fontSize: 14 }}>{hint}</div> : null}
+      <div className="title">{text}</div>
+      {hint ? <div className="desc">{hint}</div> : null}
     </div>
   );
 }

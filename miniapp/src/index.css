@@ -822,6 +822,15 @@ body {
   margin-bottom: 14px;
   opacity: 0.5;
 }
+.empty-state .title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--tg-text);
+  margin-bottom: 6px;
+}
+.empty-state .desc {
+  font-size: 14px;
+}
 
 /* — Counters/stat row — */
 .stat-row {

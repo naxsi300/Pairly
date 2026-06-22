@@ -36,7 +36,7 @@ export function CountdownStrip({ items }: { items: Countdown[] }) {
         return (
           <div className="stat" key={c.id} style={{ padding: "14px 8px", gap: 0 }}>
             <div style={{ fontSize: 24, lineHeight: 1.1 }}>{countdownEmoji(c)}</div>
-            <div className="stat-big" style={{ fontSize: 26 }}>{Math.abs(days)}</div>
+            <div className="stat-big">{Math.abs(days)}</div>
             <div className="stat-label">{milestone ? "дней вместе" : "дней назад"}</div>
             <div className="stat-label" style={{ color: "var(--tg-text)", fontWeight: 600, marginTop: 2 }}>
               {c.label}

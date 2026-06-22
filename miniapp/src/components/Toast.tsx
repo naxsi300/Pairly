@@ -115,7 +115,7 @@ export function MilestoneToast({
       >
         <div className="toast">
           {events.map((e, i) => (
-            <p key={`${e.kind}|${e.value}|${i}`} className="text-sm font-medium">
+            <p key={`${e.kind}|${e.value}|${i}`} className="card-sub">
               {KIND_LABEL[e.kind]?.(e.value) ?? COPY.milestones.generic}
             </p>
           ))}
