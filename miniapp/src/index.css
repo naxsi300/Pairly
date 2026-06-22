@@ -277,27 +277,6 @@ body {
     box-shadow: 0 0 0 1px var(--tg-button);
   }
 
-  /* ── Ripple (base) ─────────────────────────────────────────────────── */
-  .ripple-container {
-    position: relative;
-    overflow: hidden;
-  }
-  .ripple-effect {
-    position: absolute;
-    border-radius: 50%;
-    background: var(--tg-text);
-    opacity: 0.1;
-    transform: scale(0);
-    animation: ripple-expand 400ms ease-out forwards;
-    pointer-events: none;
-  }
-  @keyframes ripple-expand {
-    to {
-      transform: scale(4);
-      opacity: 0;
-    }
-  }
-
   /* ── M3 Surface (page-level) — replaces glass-elevated ─────────────── */
   .surface-m3 {
     background: var(--tg-bg);
@@ -937,6 +916,27 @@ body {
 }
 .nav-rw .nav-item.active .nav-emoji {
   transform: scale(1.2);
+}
+
+/* — Ripple (interaction primitive; relocated from the removed M3 layer) — */
+.ripple-container {
+  position: relative;
+  overflow: hidden;
+}
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--tg-text);
+  opacity: 0.1;
+  transform: scale(0);
+  animation: ripple-expand 400ms ease-out forwards;
+  pointer-events: none;
+}
+@keyframes ripple-expand {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
 }
 
 /* — Canonical R-warm base surface + buttons + hero (gallery primitives) — */
