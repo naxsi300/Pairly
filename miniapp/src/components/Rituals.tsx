@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { COPY } from "../copy";
-import { Card } from "./Card";
 import { haptic } from "../sdk/twa";
 
 /** A small weekly ritual checklist, persisted per ISO week in localStorage.
@@ -8,6 +7,9 @@ import { haptic } from "../sdk/twa";
  * No backend yet — this is an ambient nudge to be together. The check state is
  * keyed by year+week so it resets each week. If/when a backend ritual table is
  * added, this component is the UI surface to keep.
+ *
+ * Surface follows the home feed's warm-wash system (matches the home-cards):
+ * warm-tinted surface + a 🔁 tile anchor + warm eyebrow, with the checklist below.
  */
 function weekKey(d = new Date()): string {
   // ISO week year + week number (stable, resets Mondays).
@@ -53,20 +55,50 @@ export function Rituals() {
   const allDone = total > 0 && count === total;
 
   return (
-    <Card>
-      <div className="card-row" style={{ alignItems: "baseline", gap: 10 }}>
-        <div className="card-title">🔁 {COPY.home.cardRitualsTitle}</div>
-        <div className="card-sub" style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums" }}>
+    <div
+      style={{
+        background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+        borderRadius: 20,
+        padding: "14px 16px",
+        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.06)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span
+          aria-hidden
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+            flexShrink: 0,
+          }}
+        >🔁</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "var(--tg-warm)" }}>
+            {COPY.home.cardRitualsTitle}
+          </div>
+          <div className="card-sub" style={{ marginTop: 2 }}>{COPY.home.ritualsSub}</div>
+        </div>
+        <div className="card-sub" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, color: "var(--tg-text)" }}>
           {count}/{total}
         </div>
       </div>
-      <div className="progress" style={{ marginTop: 6 }}>
+
+      <div className="progress" style={{ marginTop: 4 }}>
         <div
           className="progress-fill"
           style={{ width: `${pct}%`, background: allDone ? "var(--tg-warm)" : "var(--tg-button)" }}
         />
       </div>
-      <div className="card-sub" style={{ margin: "8px 0 2px" }}>{COPY.home.ritualsSub}</div>
+
       <ul className="flex flex-col gap-1" style={{ marginTop: 6 }}>
         {COPY.home.rituals.map((r) => {
           const checked = !!done[r.id];
@@ -88,12 +120,13 @@ export function Rituals() {
           );
         })}
       </ul>
+
       {allDone ? (
         <div className="banner banner-warm" style={{ marginTop: 10 }}>
           <span className="emoji">🎉</span>
           <div style={{ flex: 1 }}>все ритуалы недели выполнены — вы молодцы</div>
         </div>
       ) : null}
-    </Card>
+    </div>
   );
 }
