@@ -5,6 +5,7 @@ import { haptic } from "../sdk/twa";
 import type { MoodValue } from "../types";
 import { moodIsStale } from "../lib/format";
 import { MoodPicker } from "../components/MoodPicker";
+import { ScreenHeader } from "../components/ScreenHeader";
 
 function moodEmoji(mood: string | null | undefined): string {
   if (!mood) return "⏳";
@@ -23,7 +24,48 @@ function partnerText(d: MoodResponse | null): { who: string; emoji: string; hint
   return { who: `⏳ ${d.partnerName || "Партнёр"} ещё не отметил(а)`, emoji: "⏳", hint: true };
 }
 
-/** Mood screen — 1:1 with the gallery: heading + pair-bar + emoji-grid + note. */
+/* ------------------------------------------------------------------ */
+/* styles (R-warm: warm-wash surfaces, --tg-* tokens, emoji anchors)  */
+/* ------------------------------------------------------------------ */
+
+const WARM_WASH: import("react").CSSProperties = {
+  background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+};
+
+const WARM_WASH_STRONG: import("react").CSSProperties = {
+  background:
+    "linear-gradient(135deg, color-mix(in srgb, var(--tg-warm) 16%, var(--tg-sec)), color-mix(in srgb, var(--tg-warm) 6%, var(--tg-sec)))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+};
+
+const EMOJI_TILE: import("react").CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 13,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 22,
+  background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+  flexShrink: 0,
+};
+
+const WHO_ROW: import("react").CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  minWidth: 0,
+};
+
+/** Mood screen — R-warm: ScreenHeader + warm-wash pair bar (self = emphasis
+ *  gradient, partner = warm wash) + warm-wash picker section + danger-tinted
+ *  clear ghost button. All behavior (pick/save/clear/note/refetch/privacy)
+ *  is unchanged. */
 export function Mood() {
   const { data, loading, error, refetch, setData } = useApi<MoodResponse>(endpoints.getMood);
   const [picked, setPicked] = useState<MoodValue | null>(null);
@@ -82,54 +124,78 @@ export function Mood() {
   }
 
   const partner = partnerText(data);
+  const selfEmoji = moodEmoji(selfLive?.mood ?? null);
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">{COPY.mood.heading}</h1>
-      <div className="sub">{COPY.mood.prompt}</div>
+      <ScreenHeader emoji="🙋" title={COPY.mood.heading} />
 
-      {/* Pair mood bar — gallery .pair-bar */}
-      <div className="pair-bar">
-        <div className="who">
-          <span className="emoji" style={{ fontSize: 24 }}>{moodEmoji(selfLive?.mood ?? null)}</span>
-          <span>Вы — {selfLive?.mood ?? COPY.mood.notSet}</span>
+      {/* Pair mood — R-warm: self card uses emphasis gradient (you + live),
+          partner card uses base warm wash (alive, present, not faded). */}
+      <div className="flex gap-2">
+        <div className="min-w-0 flex-1" style={WARM_WASH_STRONG}>
+          <div style={WHO_ROW}>
+            <span aria-hidden style={EMOJI_TILE}>{selfEmoji}</span>
+            <div className="min-w-0">
+              <div className="section-label" style={{ margin: 0 }}>{COPY.mood.youLabel}</div>
+              <div className="card-title" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {selfLive?.mood ?? COPY.mood.notSet}
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="who">
-          <span className="emoji" style={{ fontSize: 24 }}>{partner.emoji}</span>
-          <span style={partner.hint ? { color: "var(--tg-hint)" } : undefined}>
-            {partner.who}
-          </span>
+
+        <div className="min-w-0 flex-1" style={WARM_WASH}>
+          <div style={WHO_ROW}>
+            <span aria-hidden style={EMOJI_TILE}>{partner.emoji}</span>
+            <div className="min-w-0">
+              <div className="section-label" style={{ margin: 0 }}>{data?.partnerName || COPY.mood.partnerLabel}</div>
+              <div
+                className="card-title"
+                style={{
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  color: partner.hint ? "var(--tg-hint)" : "var(--tg-text)",
+                }}
+              >
+                {partner.who.replace(/^[^—]*—\s*/, "").trim() || COPY.mood.notSet}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Mood picker — gallery .emoji-grid */}
-      <div className="section-label">Как ты сейчас?</div>
-      <MoodPicker
-        value={picked ?? selfLive?.mood ?? null}
-        onPick={(m) => setPicked(m)}
-        disabled={busy}
-      />
+      {/* Picker + note — warm-wash surface so the section reads as one card. */}
+      <div className="section-label" style={{ marginTop: 18 }}>Как ты сейчас?</div>
+      <div style={WARM_WASH}>
+        <MoodPicker
+          value={picked ?? selfLive?.mood ?? null}
+          onPick={(m) => setPicked(m)}
+          disabled={busy}
+        />
 
-      {picked ? (
-        <>
-          <div className="section-label">{COPY.mood.notePrompt}</div>
-          <input
-            className="input"
-            placeholder={COPY.mood.notePlaceholder}
-            maxLength={60}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <div className="flex gap-2 mt-2">
-            <button type="button" className="btn-warm flex-1" onClick={save} disabled={busy}>
-              {COPY.common.save}
-            </button>
-            <button type="button" className="btn-ghost flex-1" onClick={() => { setPicked(null); setNote(""); }}>
-              {COPY.common.skip}
-            </button>
-          </div>
-        </>
-      ) : null}
+        {picked ? (
+          <>
+            <div className="section-label" style={{ marginTop: 14 }}>{COPY.mood.notePrompt}</div>
+            <input
+              className="input"
+              placeholder={COPY.mood.notePlaceholder}
+              maxLength={60}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <div className="flex gap-2 mt-2">
+              <button type="button" className="btn-warm flex-1" onClick={save} disabled={busy}>
+                {COPY.common.save}
+              </button>
+              <button type="button" className="btn-ghost flex-1" onClick={() => { setPicked(null); setNote(""); }}>
+                {COPY.common.skip}
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
 
       {selfLive ? (
         <button

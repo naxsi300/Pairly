@@ -92,7 +92,7 @@ export function countdownEmoji(c: Countdown): string {
  * ends so the result is robust to the creator's vs. viewer's TZ: a target
  * whose local day is "tomorrow" reads as +1 even when its UTC instant would
  * otherwise round to 0 or -1 against now. Pure helper — no React. */
-function localDayDelta(target: Date, now: Date): number {
+export function localDayDelta(target: Date, now: Date): number {
   const t = Number.isNaN(target.getTime()) ? now : target;
   const targetStart = new Date(t.getFullYear(), t.getMonth(), t.getDate());
   const nowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

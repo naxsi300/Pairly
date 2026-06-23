@@ -98,14 +98,15 @@ describe("Gifts — cluster 13 modal close race", () => {
 describe("Gifts — action-first hero", () => {
   it("renders a waiting gift in the hero with an accept button", async () => {
     render(<Gifts />);
-    const hero = await screen.findByText("Ждёт вас");
-    expect(hero.closest(".hero-warm")).not.toBeNull();
+    const hero = await screen.findByTestId("gifts-waiting-hero");
+    // The "Ждёт вас" label lives inside the hero.
+    expect(hero.textContent).toMatch(/Ждёт вас/);
     // The gesture is rendered as "🎁 Массаж" inside the hero.
-    expect(hero.closest(".hero-warm")?.textContent).toMatch(/Массаж/);
+    expect(hero.textContent).toMatch(/Массаж/);
     // The Принять button is the warm (primary) action in the hero.
     const heroAccept = screen
       .getAllByRole("button", { name: /Принять/ })
-      .find((b) => b.closest(".hero-warm"));
+      .find((b) => b.closest('[data-testid="gifts-waiting-hero"]'));
     expect(heroAccept).toBeTruthy();
   });
 });

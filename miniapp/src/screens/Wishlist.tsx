@@ -8,7 +8,25 @@ import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { TextInput } from "../components/Field";
+
+// R-warm item surface — replaces the flat `.card` so wishlist rows read as
+// cards in the same warm-card language as the home feed. Active (non-done)
+// rows get the stronger warm gradient so they pop at a glance.
+const warmWash = {
+  background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+} as const;
+const warmWashActive = {
+  background:
+    "linear-gradient(135deg, color-mix(in srgb, var(--tg-warm) 16%, var(--tg-sec)), color-mix(in srgb, var(--tg-warm) 6%, var(--tg-sec)))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+} as const;
 
 const CATS = CATEGORIES.map((c) => c.id);
 
@@ -179,10 +197,21 @@ export function Wishlist() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">{COPY.wishlist.heading}</h1>
-      <button type="button" className="btn-warm mb-3" onClick={() => setAdding(true)} disabled={atLimit}>
-        + {COPY.common.add}
-      </button>
+      <ScreenHeader
+        emoji="🗒"
+        title={COPY.wishlist.heading}
+        action={
+          <button
+            type="button"
+            className="btn-warm"
+            style={{ width: "auto", padding: "10px 16px", fontSize: 14 }}
+            onClick={() => setAdding(true)}
+            disabled={atLimit}
+          >
+            + {COPY.common.add}
+          </button>
+        }
+      />
 
       {atLimit ? (
         <div className="mb-3">
@@ -227,7 +256,12 @@ export function Wishlist() {
         <ul className="flex flex-col gap-2">
           {shown.map((item) => (
             <li key={item.id}>
-              <div className={`card ${item.status === "done" ? "done" : ""}`}>
+              <div
+                style={{
+                  ...(item.status === "done" ? warmWash : warmWashActive),
+                  opacity: item.status === "done" ? 0.6 : 1,
+                }}
+              >
                 <div className="card-row">
                   <PhotoThumb item={item} />
                   <ItemBody
@@ -338,11 +372,29 @@ function ItemBody({ item, onOpenSource }: { item: WishlistItem; onOpenSource: ()
 /** Photo thumbnail for a wishlist row. Fetches the bytes via the auth
  * header (never via a query param) and wraps them in an object URL. On
  * unmount / item change the URL is revoked to avoid leaks. Falls back to
- * the category emoji when the item has no photo or the fetch fails. */
+ * the category emoji in a warm tile when the item has no photo or the fetch
+ * fails — so every row has an emoji anchor at a glance. */
 function PhotoThumb({ item }: { item: WishlistItem }) {
   const url = usePhotoBlob(item.hasPhoto ? item.id : null, !!item.hasPhoto);
   if (!item.hasPhoto || !url) {
-    return <span className="emoji text-3xl">{categoryEmoji(item.category)}</span>;
+    return (
+      <span
+        aria-hidden
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 13,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 22,
+          flexShrink: 0,
+          background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+        }}
+      >
+        {categoryEmoji(item.category)}
+      </span>
+    );
   }
   return (
     <img

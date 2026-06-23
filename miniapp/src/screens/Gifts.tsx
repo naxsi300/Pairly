@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi, type GiftsResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
@@ -6,10 +7,10 @@ import type { GiftItem, GiftStatus } from "../types";
 import { giftStatusLabel } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Modal } from "../components/Modal";
 import { TextInput } from "../components/Field";
+import { ScreenHeader } from "../components/ScreenHeader";
 
 // Default catalog: docs/copy/gift-catalog.md (12 non-material gestures).
 export const GIFT_CATALOG = [
@@ -28,6 +29,52 @@ export const GIFT_CATALOG = [
 ] as const;
 
 type Action = "accept" | "decline" | "redeem" | "complete";
+
+// Warm-wash surface for gift items (per R-warm system).
+const itemSurface: CSSProperties = {
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+};
+
+// Stronger warm gradient for the waiting gift (the action-first hero) — it
+// needs emphasis to draw the eye to the only call-to-action on the screen.
+const heroSurface: CSSProperties = {
+  borderRadius: 22,
+  padding: 20,
+  boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+  background:
+    "linear-gradient(135deg, color-mix(in srgb, var(--tg-warm) 16%, var(--tg-sec)), color-mix(in srgb, var(--tg-warm) 6%, var(--tg-sec)))",
+  display: "flex",
+  gap: 14,
+  alignItems: "flex-start",
+};
+
+// 40px warm-tile emoji anchor (per R-warm system for items with identity at a glance).
+const emojiTile: CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 13,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 22,
+  background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+  flexShrink: 0,
+};
+
+// Larger tile for the hero (where there's more breathing room).
+const heroEmojiTile: CSSProperties = {
+  ...emojiTile,
+  width: 48,
+  height: 48,
+  borderRadius: 14,
+  fontSize: 26,
+};
 
 export function Gifts() {
   const { data, loading, error, refetch, setData } = useApi<GiftsResponse>(endpoints.listGifts);
@@ -99,33 +146,43 @@ export function Gifts() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">{COPY.gifts.heading}</h1>
-      <Button variant="warm" onClick={() => setPicking(true)} disabled={busy}>
-        🎁 {COPY.common.add}
-      </Button>
+      <ScreenHeader
+        emoji="🎁"
+        title={COPY.gifts.heading}
+        action={
+          <Button variant="warm" onClick={() => setPicking(true)} disabled={busy}>
+            🎁 {COPY.common.add}
+          </Button>
+        }
+      />
 
       {waiting ? (
-        <div className="hero-warm" style={{ marginTop: 12 }}>
-          <div className="section-label" style={{ margin: "0 0 4px" }}>
-            {COPY.gifts.waitingForYou}
-          </div>
-          <p className="card-title">🎁 {waiting.gesture}</p>
-          {waiting.description ? <p className="card-sub">{waiting.description}</p> : null}
-          <div className="card-actions">
-            <button
-              type="button"
-              className="card-act warm"
-              onClick={() => act(waiting, "accept")}
-            >
-              {COPY.gifts.acceptButton}
-            </button>
-            <button
-              type="button"
-              className="card-act"
-              onClick={() => act(waiting, "decline")}
-            >
-              {COPY.gifts.declineButton}
-            </button>
+        <div data-testid="gifts-waiting-hero" style={{ ...heroSurface, marginBottom: 12 }}>
+          <span aria-hidden style={heroEmojiTile}>
+            🎁
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="section-label" style={{ margin: "0 0 4px" }}>
+              {COPY.gifts.waitingForYou}
+            </div>
+            <p className="card-title">🎁 {waiting.gesture}</p>
+            {waiting.description ? <p className="card-sub">{waiting.description}</p> : null}
+            <div className="card-actions">
+              <button
+                type="button"
+                className="card-act warm"
+                onClick={() => act(waiting, "accept")}
+              >
+                {COPY.gifts.acceptButton}
+              </button>
+              <button
+                type="button"
+                className="card-act"
+                onClick={() => act(waiting, "decline")}
+              >
+                {COPY.gifts.declineButton}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -143,43 +200,46 @@ export function Gifts() {
               .filter((g) => g.id !== waiting?.id)
               .map((g) => (
               <li key={g.id}>
-                <Card>
-                  <p className="card-title">{g.gesture}</p>
-                  {g.description ? (
-                    <p className="card-sub">{g.description}</p>
-                  ) : null}
-                  <p className="meta">
-                    {g.direction === "me" ? `→ ${partnerName}` : "← партнёр"} ·{" "}
-                    {giftStatusLabel(g.status)}
-                  </p>
+                <div style={itemSurface}>
+                  <span aria-hidden style={emojiTile}>🎁</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p className="card-title">{g.gesture}</p>
+                    {g.description ? (
+                      <p className="card-sub">{g.description}</p>
+                    ) : null}
+                    <p className="meta">
+                      {g.direction === "me" ? `→ ${partnerName}` : "← партнёр"} ·{" "}
+                      {giftStatusLabel(g.status)}
+                    </p>
 
-                  {/* Recipient actions when they receive a gift. */}
-                  {g.direction === "them" && g.status === "received" ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button onClick={() => act(g, "accept")}>{COPY.gifts.acceptButton}</Button>
-                      <Button variant="secondary" onClick={() => act(g, "decline")}>
-                        {COPY.gifts.declineButton}
-                      </Button>
-                    </div>
-                  ) : null}
+                    {/* Recipient actions when they receive a gift. */}
+                    {g.direction === "them" && g.status === "received" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button onClick={() => act(g, "accept")}>{COPY.gifts.acceptButton}</Button>
+                        <Button variant="secondary" onClick={() => act(g, "decline")}>
+                          {COPY.gifts.declineButton}
+                        </Button>
+                      </div>
+                    ) : null}
 
-                  {/* Giver marks redeemed after the recipient claimed. */}
-                  {g.direction === "me" && g.status === "claimed" ? (
-                    <div className="mt-3">
-                      <Button onClick={() => act(g, "redeem")}>{COPY.gifts.redeemButton}</Button>
-                    </div>
-                  ) : null
+                    {/* Giver marks redeemed after the recipient claimed. */}
+                    {g.direction === "me" && g.status === "claimed" ? (
+                      <div className="mt-3">
+                        <Button onClick={() => act(g, "redeem")}>{COPY.gifts.redeemButton}</Button>
+                      </div>
+                    ) : null
 
-                  /* Either partner can move redeemed → complete (good deeds). */
-                  }
-                  {g.status === "redeemed" ? (
-                    <div className="mt-3">
-                      <Button onClick={() => act(g, "complete")}>
-                        {COPY.gifts.completeButton}
-                      </Button>
-                    </div>
-                  ) : null}
-                </Card>
+                    /* Either partner can move redeemed → complete (good deeds). */
+                    }
+                    {g.status === "redeemed" ? (
+                      <div className="mt-3">
+                        <Button onClick={() => act(g, "complete")}>
+                          {COPY.gifts.completeButton}
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
@@ -192,8 +252,21 @@ export function Gifts() {
               {/* Chronological, NOT ranked. */}
               <ul className="flex flex-col gap-1.5">
                 {goodDeeds.map((g) => (
-                  <li key={g.id} className="text-sm text-tg-text">
-                    💛 {g.gesture}
+                  <li
+                    key={g.id}
+                    style={{
+                      ...itemSurface,
+                      padding: "10px 14px",
+                      gap: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <span aria-hidden style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>
+                      💛
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: "var(--tg-text)" }}>
+                      {g.gesture}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -215,8 +288,19 @@ export function Gifts() {
                 // stays open and surfaces an inline error.
                 void send(g.gesture, g.description);
               }}
-              className="card p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
+              style={{
+                ...itemSurface,
+                display: "block",
+                textAlign: "left",
+                cursor: busy ? "default" : "pointer",
+                font: "inherit",
+                color: "inherit",
+                border: "none",
+                opacity: busy ? 0.5 : 1,
+                transition: "transform 0.08s",
+              }}
             >
+              <span aria-hidden style={{ ...emojiTile, marginBottom: 8 }}>🎁</span>
               <p className="card-title">{g.gesture}</p>
               <p className="card-sub">{g.description}</p>
             </button>

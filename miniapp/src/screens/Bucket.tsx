@@ -5,11 +5,32 @@ import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type BucketItem } from "../types";
 import { bucketStatusLabel } from "../lib/format";
 import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { TextInput } from "../components/Field";
+
+/** Default warm-wash surface for a list item. R-warm gallery primitive. */
+const warmWashSurface: React.CSSProperties = {
+  background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+};
+
+/** Inline-styled warm-tile anchor for the item's leading emoji. */
+const emojiTileStyle: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 12,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 22,
+  background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+  flexShrink: 0,
+};
 
 export function Bucket() {
   const { data, loading, error, refetch, setData } = useApi(endpoints.listBucket);
@@ -82,10 +103,21 @@ export function Bucket() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">{COPY.bucket.heading}</h1>
-      <Button variant="warm" onClick={() => setAdding(true)} disabled={atLimit} className="mb-3">
-        + {COPY.common.add}
-      </Button>
+      <ScreenHeader
+        emoji="🌌"
+        title={COPY.bucket.heading}
+        action={
+          <Button
+            variant="warm"
+            onClick={() => setAdding(true)}
+            disabled={atLimit}
+            className="px-3 py-1.5"
+            style={{ width: "auto" }}
+          >
+            + {COPY.common.add}
+          </Button>
+        }
+      />
 
       {atLimit ? (
         <div className="mb-3">
@@ -107,32 +139,65 @@ export function Bucket() {
         <EmptyState emoji="🌌" text={COPY.bucket.empty} hint={COPY.bucket.hint} />
       ) : (
         <ul className="flex flex-col gap-2">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Card>
-                <p className="card-title">{item.title}</p>
-                {item.note ? <p className="card-sub">{item.note}</p> : null}
-                <p className="meta">{bucketStatusLabel(item.status)}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {item.status !== "done" ? (
-                    <Button variant="secondary" onClick={() => markDone(item)}>
-                      Сбылось 🌌
-                    </Button>
-                  ) : (
-                    <>
-                      <span className="meta" style={{ alignSelf: "center" }}>🌌 сбылось</span>
-                      <Button variant="ghost" onClick={() => undo(item)}>
-                        ↶ Мечтать
-                      </Button>
-                    </>
-                  )}
-                  <Button variant="danger" onClick={() => remove(item)}>
-                    🗑 {COPY.common.delete}
-                  </Button>
+          {items.map((item) => {
+            const isDone = item.status === "done";
+            return (
+              <li key={item.id}>
+                <div
+                  className={isDone ? "card done" : "card"}
+                  style={{
+                    ...warmWashSurface,
+                    // For done items we want the "fulfilled" dimmed treatment to
+                    // be even softer on the warm-wash surface.
+                    opacity: isDone ? 0.55 : 1,
+                    gap: 8,
+                  }}
+                >
+                  <div className="card-row" style={{ alignItems: "flex-start", gap: 12 }}>
+                    <span aria-hidden style={emojiTileStyle}>
+                      {isDone ? "🌠" : "🌌"}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p className="card-title" style={isDone ? { textDecoration: "line-through" } : undefined}>
+                        {item.title}
+                      </p>
+                      {item.note ? <p className="card-sub">{item.note}</p> : null}
+                      <p className="meta" style={{ marginTop: 2 }}>{bucketStatusLabel(item.status)}</p>
+                    </div>
+                  </div>
+                  <div className="card-actions">
+                    {item.status !== "done" ? (
+                      <button
+                        type="button"
+                        className="card-act warm"
+                        onClick={() => markDone(item)}
+                      >
+                        Сбылось 🌌
+                      </button>
+                    ) : (
+                      <>
+                        <span className="meta" style={{ alignSelf: "center" }}>🌌 сбылось</span>
+                        <button
+                          type="button"
+                          className="card-act ghost"
+                          onClick={() => undo(item)}
+                        >
+                          ↶ Мечтать
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="card-act danger"
+                      onClick={() => remove(item)}
+                    >
+                      🗑 {COPY.common.delete}
+                    </button>
+                  </div>
                 </div>
-              </Card>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 

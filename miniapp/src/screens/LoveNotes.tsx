@@ -1,14 +1,17 @@
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import { COPY } from "../copy";
 import { ApiError, endpoints, useApi, type LoveNoteItem } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Modal } from "../components/Modal";
 import { TextArea } from "../components/Field";
+import { ScreenHeader } from "../components/ScreenHeader";
 
-/** Love-notes inbox + composer (R-warm). Scheduled via bot; no geo. */
+/** Love-notes inbox + composer, in the home feed's warm system (warm-wash note
+ *  cards + the shared ScreenHeader). Scheduled via bot; no geo. Privacy: a
+ *  note body is shown only inside this inbox, never on Home. */
 export function LoveNotes() {
   const { data, loading, error, refetch, setData } = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
   const [composing, setComposing] = useState(false);
@@ -43,40 +46,82 @@ export function LoveNotes() {
     }
   }
 
-  if (loading) return <p className="rw-empty">{COPY.common.loading}</p>;
-  if (error) return <p className="rw-empty" style={{ color: "var(--tg-danger)" }}>{COPY.common.error}</p>;
+  if (loading) return (
+    <div className="app-scroll mx-auto max-w-md px-4 py-4">
+      <ScreenHeader emoji="💌" title={COPY.notes.heading} />
+      <p className="rw-empty">{COPY.common.loading}</p>
+    </div>
+  );
+  if (error) return (
+    <div className="app-scroll mx-auto max-w-md px-4 py-4">
+      <ScreenHeader emoji="💌" title={COPY.notes.heading} />
+      <p className="rw-empty" style={{ color: "var(--tg-danger)" }}>{COPY.common.error}</p>
+    </div>
+  );
 
   const notes = data ?? [];
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <header className="mb-1 flex items-center justify-between">
-        <h1 className="rw-heading">{COPY.notes.heading}</h1>
-        <Button onClick={() => setComposing(true)}>+ {COPY.notes.send}</Button>
-      </header>
-      <p className="rw-sub mb-3">{COPY.notes.sub}</p>
+      <ScreenHeader
+        emoji="💌"
+        title={COPY.notes.heading}
+        action={
+          <Button variant="warm" onClick={() => setComposing(true)}>
+            + {COPY.notes.send}
+          </Button>
+        }
+      />
 
       {notes.length === 0 ? (
         <EmptyState emoji="💌" text={COPY.notes.empty} />
       ) : (
         <ul className="flex flex-col gap-2">
-          {notes.map((n) => (
-            <li key={n.id}>
-              <Card>
-                <button
-                  type="button"
-                  onClick={() => openNote(n)}
-                  className="w-full text-left"
-                >
-                  <p className="rw-meta mb-1">{n.mine ? COPY.notes.fromYou : COPY.notes.fromPartner}</p>
-                  <p className="card-title">{n.body}</p>
-                  {!n.mine && !n.readByRecipient ? (
-                    <span className="meta" style={{ color: "var(--tg-warm)" }}>● новое</span>
-                  ) : null}
+          {notes.map((n) => {
+            const unread = !n.mine && !n.readByRecipient;
+            const style: CSSProperties = {
+              width: "100%",
+              textAlign: "left",
+              border: "none",
+              cursor: "pointer",
+              font: "inherit",
+              color: "inherit",
+              display: "flex",
+              gap: 12,
+              alignItems: "flex-start",
+              borderRadius: 20,
+              padding: "14px 16px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+              background: unread
+                ? "linear-gradient(135deg, color-mix(in srgb, var(--tg-warm) 14%, var(--tg-sec)), color-mix(in srgb, var(--tg-warm) 6%, var(--tg-sec)))"
+                : "color-mix(in srgb, var(--tg-warm) 7%, var(--tg-sec))",
+            };
+            return (
+              <li key={n.id}>
+                <button type="button" onClick={() => openNote(n)} style={style} aria-label={n.mine ? COPY.notes.fromYou : COPY.notes.fromPartner}>
+                  <span aria-hidden style={{ fontSize: 22, flexShrink: 0, lineHeight: 1.2 }}>
+                    {n.mine ? "💌" : "✉️"}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span className="rw-meta" style={{ display: "block", marginBottom: 4 }}>
+                      {n.mine ? COPY.notes.fromYou : COPY.notes.fromPartner}
+                    </span>
+                    <span className="card-title" style={{ display: "block", whiteSpace: "pre-wrap" }}>
+                      {n.body}
+                    </span>
+                    {unread ? (
+                      <span
+                        className="meta"
+                        style={{ color: "var(--tg-warm)", display: "inline-block", marginTop: 6 }}
+                      >
+                        ● новое
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
-              </Card>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 

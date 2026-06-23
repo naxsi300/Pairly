@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
@@ -8,6 +8,7 @@ import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
+import { ScreenHeader } from "../components/ScreenHeader";
 import { TextInput } from "../components/Field";
 
 /** Split a countdown into day/hour/min blocks for the gallery `.countdown` layout.
@@ -52,6 +53,54 @@ function isoToRuDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+}
+
+/** Surface style for an item card: warm-wash on --tg-sec. Soon items get the
+ * emphasis gradient so they're visually distinct from the regular ones. */
+const warmWashSurface: CSSProperties = {
+  background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+const warmWashSurfaceSoon: CSSProperties = {
+  background:
+    "linear-gradient(135deg, color-mix(in srgb, var(--tg-warm) 16%, var(--tg-sec)), color-mix(in srgb, var(--tg-warm) 6%, var(--tg-sec)))",
+  borderRadius: 20,
+  padding: "14px 16px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+/** 40px warm-tile emoji anchor — gives every row an identity at a glance. */
+const emojiTile: CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 13,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 22,
+  flexShrink: 0,
+  background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+};
+
+/** A countdown is "soon" when its upcoming occurrence is within 7 days. We use
+ * this to switch the row to the emphasis gradient — same threshold used for
+ * the home-feed "next occasion" card, so a soon row reads the same in both
+ * places. */
+function isSoon(c: Countdown, now: Date = new Date()): boolean {
+  const occ = nextOccurrence(c, now);
+  const target = occ ?? new Date(c.targetDate);
+  const diff = target.getTime() - now.getTime();
+  if (diff <= 0) return false; // past — fall back to the stat-big display
+  const days = Math.floor(diff / 86_400_000);
+  return days <= 7;
 }
 
 export function Countdowns() {
@@ -180,10 +229,21 @@ export function Countdowns() {
 
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">{COPY.countdowns.heading}</h1>
-      <button type="button" className="btn-warm mb-3" onClick={() => setAdding(true)} disabled={atLimit}>
-        + {COPY.common.add}
-      </button>
+      <ScreenHeader
+        emoji="🎂"
+        title={COPY.countdowns.heading}
+        action={
+          <button
+            type="button"
+            className="btn-warm"
+            style={{ width: "auto", padding: "10px 16px", fontSize: 14 }}
+            onClick={() => setAdding(true)}
+            disabled={atLimit}
+          >
+            + {COPY.common.add}
+          </button>
+        }
+      />
 
       {atLimit ? (
         <div className="mb-3">
@@ -209,10 +269,16 @@ export function Countdowns() {
             const isMilestone = c.recurrence === "milestone";
             const blocks = cdBlocks(c);
             const ms = isMilestone ? nextMilestone(c) : null;
+            const soon = isSoon(c);
             return (
               <li key={c.id}>
-                <div className="card items-center text-center">
-                  <div className="card-title">{countdownEmoji(c)} {c.label}</div>
+                <div style={soon ? warmWashSurfaceSoon : warmWashSurface}>
+                  <div className="flex items-center gap-3">
+                    <span aria-hidden style={emojiTile}>
+                      {countdownEmoji(c)}
+                    </span>
+                    <div className="card-title min-w-0 flex-1 truncate">{c.label}</div>
+                  </div>
                   {isMilestone ? (
                     <div className="card-sub">{Math.max(0, Math.abs(countdownDays(c)))} дней вместе</div>
                   ) : c.recurrence ? (

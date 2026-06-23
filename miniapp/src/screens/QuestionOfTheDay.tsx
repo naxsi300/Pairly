@@ -4,9 +4,9 @@ import { endpoints, useApi, type QOTDResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { TextArea } from "../components/Field";
+import { ScreenHeader } from "../components/ScreenHeader";
 
 const MAX_ANSWER = 280;
 
@@ -60,6 +60,7 @@ export function QuestionOfTheDay() {
   if (!data?.question) {
     return (
       <div className="app-scroll mx-auto max-w-md px-4 py-4">
+        <ScreenHeader emoji="💬" title={COPY.qotd.heading} />
         <EmptyState emoji="💭" text={COPY.qotd.empty} />
       </div>
     );
@@ -68,17 +69,67 @@ export function QuestionOfTheDay() {
   const partnerName = data.partnerName ?? "Партнёр";
   const iAnswered = Boolean(data.myAnswer);
 
+  // Warm-wash question card — the day's question, with a chat-bubble tile so
+  // it reads as the anchor of the screen.
+  const questionCardStyle = {
+    background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+    borderRadius: 20,
+    padding: "14px 16px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+    display: "flex",
+    gap: 12,
+    alignItems: "flex-start",
+  };
+
+  // Stronger warm gradient for the answer / reveal card — this is the screen's
+  // action surface, so it gets the "awaiting you" emphasis.
+  const answerCardStyle = {
+    background:
+      "linear-gradient(135deg, color-mix(in srgb, var(--tg-warm) 16%, var(--tg-sec)), color-mix(in srgb, var(--tg-warm) 6%, var(--tg-sec)))",
+    borderRadius: 20,
+    padding: "14px 16px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  };
+
+  // Composer card — neutral warm-wash so the user's draft is the focus.
+  const composerCardStyle = {
+    background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+    borderRadius: 20,
+    padding: "14px 16px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  };
+
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
-      <h1 className="heading">{COPY.qotd.heading}</h1>
+      <ScreenHeader emoji="💬" title={COPY.qotd.heading} />
 
-      <Card className="mb-3">
-        <p className="section-label" style={{ margin: "0 0 6px" }}>{data.question.category}</p>
-        <p className="card-title">«{data.question.text}»</p>
-      </Card>
+      <div className="mb-3" style={questionCardStyle}>
+        <span
+          aria-hidden
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 22,
+            background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+            flexShrink: 0,
+          }}
+        >
+          💬
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span className="section-label" style={{ display: "block", margin: "0 0 6px" }}>
+            {data.question.category}
+          </span>
+          <span className="card-title" style={{ display: "block" }}>«{data.question.text}»</span>
+        </span>
+      </div>
 
       {answering ? (
-        <Card className="mb-3">
+        <div className="mb-3" style={composerCardStyle}>
           <p className="card-sub">{COPY.qotd.answerPrompt}</p>
           <TextArea
             autoFocus
@@ -99,37 +150,75 @@ export function QuestionOfTheDay() {
               {COPY.common.cancel}
             </Button>
           </div>
-        </Card>
+        </div>
       ) : null}
 
       {/* Reveal gate: branch strictly on iAnswered. */}
       {!iAnswered ? (
-        <Card>
-          <p className="card-title">
-            {COPY.qotd.revealLocked(partnerName)}
-          </p>
+        <div style={answerCardStyle}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span
+              aria-hidden
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+                background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+                flexShrink: 0,
+              }}
+            >
+              ✍️
+            </span>
+            <p className="card-title" style={{ flex: 1, minWidth: 0, margin: 0 }}>
+              {COPY.qotd.revealLocked(partnerName)}
+            </p>
+          </div>
           <div className="mt-3">
             <Button onClick={() => setAnswering(true)}>{COPY.qotd.answerButton}</Button>
           </div>
-        </Card>
+        </div>
       ) : (
-        <Card>
-          <p className="card-title">
-            <span className="meta">{COPY.qotd.myAnswerLabel}: </span>«{data.myAnswer}»
-          </p>
-          {data.partnerAnswered && data.partnerAnswer ? (
-            <p className="mt-2 card-title">
-              <span className="meta">
-                {COPY.qotd.partnerAnswerLabel(partnerName)}:
-              </span>{" "}
-              «{data.partnerAnswer}»
-            </p>
-          ) : (
-            <p className="mt-2 meta">
-              {COPY.qotd.waitingForPartner(partnerName)}
-            </p>
-          )}
-        </Card>
+        <div style={answerCardStyle}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span
+              aria-hidden
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+                background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
+                flexShrink: 0,
+              }}
+            >
+              💬
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p className="card-title" style={{ margin: 0 }}>
+                <span className="meta">{COPY.qotd.myAnswerLabel}: </span>«{data.myAnswer}»
+              </p>
+              {data.partnerAnswered && data.partnerAnswer ? (
+                <p className="mt-2 card-title" style={{ margin: "8px 0 0" }}>
+                  <span className="meta">
+                    {COPY.qotd.partnerAnswerLabel(partnerName)}:
+                  </span>{" "}
+                  «{data.partnerAnswer}»
+                </p>
+              ) : (
+                <p className="mt-2 meta" style={{ margin: "8px 0 0" }}>
+                  {COPY.qotd.waitingForPartner(partnerName)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

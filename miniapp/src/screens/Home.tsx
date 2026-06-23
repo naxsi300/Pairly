@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { endpoints, useApi } from "../sdk/api";
 import type { GiftsResponse, LoveNoteItem, MoodResponse, QOTDResponse } from "../sdk/api";
 import type { BucketItem, Countdown } from "../types";
-import { countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
+import { countdownDisplay, countdownEmoji, localDayDelta, nextMilestone, nextOccurrence } from "../lib/format";
 import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
@@ -26,12 +26,21 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const notes = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
 
   const occasion = nearestOccasion(cds.data);
-  const daysToOccasion = occasion
-    ? Math.round((occasion.at - Date.now()) / 86_400_000)
-    : null;
+  const occasionDate = occasion ? new Date(occasion.at) : null;
+  // Calendar-day delta (midnight-to-midnight) — matches what Countdowns shows,
+  // so the OccasionCard numeral never disagrees with other counts.
+  const daysToOccasion = occasionDate ? localDayDelta(occasionDate, new Date()) : null;
   const occasionSoon = daysToOccasion !== null && daysToOccasion <= 3;
   const occasionProp: Occasion | null = occasion
-    ? { emoji: occasion.emoji, label: occasion.label, sub: occasion.sub, daysToOccasion, occasionSoon }
+    ? {
+        emoji: occasion.emoji,
+        label: occasion.label,
+        // Context line = the date itself, not a second "через N дн." that could
+        // drift out of sync with the numeral.
+        sub: new Date(occasion.at).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }),
+        daysToOccasion,
+        occasionSoon,
+      }
     : null;
 
   const doneCount = (bucket.data ?? []).filter((b) => b.status === "done").length;
