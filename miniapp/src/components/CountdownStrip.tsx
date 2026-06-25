@@ -2,14 +2,14 @@ import type { Countdown } from "../types";
 import { countdownDays, countdownEmoji } from "../lib/format";
 
 /**
- * Home strip of elapsed-time countdowns — replaces the old "N дней вместе /
- * хотелок / сделано" stat row. Draws up to 3 PAST countdowns (the "together
- * since / how long ago" timeline, e.g. «Знакомство · 112 дней назад»). Cells
+ * Home strip of elapsed-time countdowns — the "how long ago" timeline
+ * (e.g. «Знакомство · 112 дней назад»). Draws up to 3 PAST countdowns. Cells
  * stretch (flex:1) to fill the row, so 1–3 items always look intentional.
  *
- * Milestone (reference) countdowns sort first and read "дней вместе"; ordinary
- * past ones read "дней назад". Future countdowns are NOT shown here — they live
- * in the "Ближайший повод" card.
+ * Milestone (reference-date) countdowns still count days since the date and
+ * read "дней назад" — neutral, no relationship bias (the date can be any
+ * reference event). Future countdowns are NOT shown here — they live in the
+ * "Ближайший повод" card.
  */
 export function CountdownStrip({ items }: { items: Countdown[] }) {
   const now = new Date();
@@ -32,12 +32,11 @@ export function CountdownStrip({ items }: { items: Countdown[] }) {
   return (
     <div className="stat-row">
       {rows.map(({ c, days }) => {
-        const milestone = c.recurrence === "milestone";
         return (
           <div className="stat" key={c.id} style={{ padding: "14px 8px", gap: 0 }}>
             <div style={{ fontSize: 24, lineHeight: 1.1 }}>{countdownEmoji(c)}</div>
             <div className="stat-big">{Math.abs(days)}</div>
-            <div className="stat-label">{milestone ? "дней вместе" : "дней назад"}</div>
+            <div className="stat-label">дней назад</div>
             <div className="stat-label" style={{ color: "var(--tg-text)", fontWeight: 600, marginTop: 2 }}>
               {c.label}
             </div>
