@@ -37,8 +37,8 @@ export const COPY = {
     giftsEmpty: "Подарите доброе дело →",
     cardNotesTitle: "Записки",
     notesMetaNew: (unread: number, days: number) =>
-      `${unread} новых · последняя ${days} дн. назад →`,
-    notesMeta: (days: number) => `последняя ${days} дн. назад →`,
+      `${unread} новых · последняя ${days === 0 ? "сегодня" : `${days} дн. назад`} →`,
+    notesMeta: (days: number) => `последняя ${days === 0 ? "сегодня" : `${days} дн. назад`} →`,
     notesEmpty: "Напишите тёплые слова →",
     cardQotdTitle: "Вопрос дня",
     qotdBothAnswered: "оба ответили — сравните →",

@@ -61,7 +61,10 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   // Calendar-day delta (local-midnight anchored) — matches every other
   // day-based count in the app and avoids the "1 dн. назад" drift that the
   // raw-ms Math.round had near midnight / across TZs.
-  const daysAgo = latest ? Math.max(0, localDayDelta(new Date(latest.createdAt), new Date())) : null;
+  // localDayDelta is target−now → negative for a past note; negate for elapsed
+  // days. (The Math.max(0, …) on the signed delta returned 0 for every past
+  // note, so the card always read «последняя 0 дн. назад».)
+  const daysAgo = latest ? Math.max(0, -localDayDelta(new Date(latest.createdAt), new Date())) : null;
 
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
