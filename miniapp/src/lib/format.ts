@@ -103,6 +103,36 @@ export function localDayDelta(target: Date, now: Date): number {
   return delta === 0 ? 0 : delta;
 }
 
+/** Human relative time in Russian from an ISO timestamp, coarse-grained to
+ * calendar days (matching the app's other day-based counts). null/invalid
+ * → "". Future instants within the same local day collapse to "сегодня" so
+ * timestamps a few hours ahead don't render as a confusing negative-delta
+ * label. Pure helper — no React. */
+export function relativeTime(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return "";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return "";
+  // localDayDelta is signed target−now (future = +N, past = −N). A "time ago"
+  // is a past instant → negative; negate so `days` is the positive elapsed count.
+  const days = -localDayDelta(t, now);
+  if (days <= 0) return "сегодня";    // today or (defensively) same-day future → today
+  if (days === 1) return "вчера";     // strictly yesterday
+  // Pluralize "N дней/дня назад" per Russian grammar:
+  //   mod10 === 1 && mod100 !== 11 → "день"
+  //   mod10 ∈ 2..4 && (mod100 < 10 || mod100 >= 20) → "дня"
+  //   otherwise → "дней"
+  const n = days;
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  const word =
+    mod10 === 1 && mod100 !== 11
+      ? "день"
+      : mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)
+        ? "дня"
+        : "дней";
+  return `${n} ${word} назад`;
+}
+
 /** Whole-day delta from now to a countdown's target (negative = past). */
 export function countdownDays(c: Countdown, now: Date = new Date()): number {
   return localDayDelta(new Date(c.targetDate), now);
@@ -160,15 +190,20 @@ export function nextOccurrence(c: Countdown, now: Date = new Date()): Date | nul
   return d;
 }
 
-// Round "together" day-count milestones generated from a reference date.
+// Round day-count milestones generated from a reference date. Day labels
+// are bare ("100 дней") so they read correctly regardless of what the
+// reference date anchors (relationship, sobriety, project start, etc.).
 const DAY_MILESTONES = [
   100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000,
 ];
 
 /**
  * For a "milestone" countdown (recurrence === "milestone"), target_date is a
- * reference point (e.g. дата знакомства). Returns the next upcoming round date —
- * a 100/…/1000-day or yearly anniversary — as a synthetic occasion, or null.
+ * reference point (the caller picks what it anchors: a relationship start, a
+ * move-in date, a sobriety date, etc. — the helper stays neutral). Returns
+ * the next upcoming round date — a 100/…/1000-day or yearly anniversary — as
+ * a synthetic occasion, or null. Labels are deliberately neutral ("100 дней",
+ * "1 год") so a non-relationship reference still reads correctly.
  */
 export function nextMilestone(
   c: Countdown,
@@ -179,12 +214,15 @@ export function nextMilestone(
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const candidates: { date: Date; label: string }[] = [];
   for (const d of DAY_MILESTONES) {
-    candidates.push({ date: new Date(ref.getTime() + d * 86_400_000), label: `${d} дней вместе` });
+    // Milestone copy is neutral — the reference date is not assumed to be a
+    // relationship start. Just the round day count, no "вместе".
+    candidates.push({ date: new Date(ref.getTime() + d * 86_400_000), label: `${d} дней` });
   }
   for (let y = 1; y <= 100; y++) {
     candidates.push({
       date: addYears(ref, y),
-      label: `${ruYears(y)} вместе`,
+      // Neutral: no "вместе" suffix on yearly milestones either.
+      label: `${ruYears(y)}`,
     });
   }
   const first = candidates

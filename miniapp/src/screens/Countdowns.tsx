@@ -55,6 +55,18 @@ function isoToRuDate(iso: string): string {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
 }
 
+/** Russian pluralization for whole days: 1 день / 2–4 дня / 5+ дней. Mirrors
+ * the rules used by `ruYears` in lib/format.ts (mod10/mod100 bracket) so the
+ * milestone count reads correctly regardless of what the reference date
+ * anchors. */
+function ruDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "день";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
+  return "дней";
+}
+
 /** Surface style for an item card: warm-wash on --tg-sec. Soon items get the
  * emphasis gradient so they're visually distinct from the regular ones. */
 const warmWashSurface: CSSProperties = {
@@ -270,6 +282,7 @@ export function Countdowns() {
             const blocks = cdBlocks(c);
             const ms = isMilestone ? nextMilestone(c) : null;
             const soon = isSoon(c);
+            const milestoneDays = isMilestone ? Math.max(0, Math.abs(countdownDays(c))) : 0;
             return (
               <li key={c.id}>
                 <div style={soon ? warmWashSurfaceSoon : warmWashSurface}>
@@ -280,7 +293,7 @@ export function Countdowns() {
                     <div className="card-title min-w-0 flex-1 truncate">{c.label}</div>
                   </div>
                   {isMilestone ? (
-                    <div className="card-sub">{Math.max(0, Math.abs(countdownDays(c)))} дней вместе</div>
+                    <div className="card-sub">{milestoneDays} {ruDays(milestoneDays)}</div>
                   ) : c.recurrence ? (
                     <div className="card-sub">{c.recurrence === "annual" ? "каждый год" : "каждый месяц"}</div>
                   ) : null}
@@ -356,7 +369,7 @@ export function Countdowns() {
         </button>
         {milestone ? (
           <p className="text-xs" style={{ color: "var(--tg-hint)" }}>
-            Например, укажите дату знакомства — и ближайший повод сам покажет круглую дату: 100 дней, 1 год, 1000 дней вместе.
+            Например, укажите любую важную дату — и ближайший повод сам покажет круглую отметку: 100 дней, 1 год, 1000 дней.
           </p>
         ) : null}
       </Modal>

@@ -15,6 +15,7 @@
  */
 import { COPY } from "../../copy";
 import type { GiftItem } from "../../types";
+import { relativeTime } from "../../lib/format";
 
 interface GiftsCardProps {
   /** Gift currently awaiting the recipient (direction: "them", status: "received"). */
@@ -30,7 +31,6 @@ interface GiftsCardProps {
 const STR: Record<string, string> = {
   waitingBadge: "Ждёт",
   waitingSender: "Партнёр прислал",
-  waitingAgo: "только что",
   giftSticker: "Жест",
   ctaAccept: "Принять",
   ctaOpen: "Открыть",
@@ -57,6 +57,11 @@ export function GiftsCard({ waiting, activeCount, goodDeeds, onClick }: GiftsCar
 
   // Pick the gesture label: waiting gift → that one; otherwise null (calm state).
   const gestureLabel = waiting?.gesture ?? "";
+  // "когда прислали" — calendar-day human label, empty if no createdAt (the
+  // card used to hardcode "только что" here, lying about the wait time).
+  const waitingAgoText = isWaiting && waiting?.createdAt
+    ? relativeTime(waiting.createdAt)
+    : "";
   const metaText = isWaiting
     ? COPY.home.giftsWaitingMeta
     : isEmpty
@@ -151,7 +156,7 @@ export function GiftsCard({ waiting, activeCount, goodDeeds, onClick }: GiftsCar
             <div style={{ color: "var(--tg-text)", fontWeight: 600 }}>
               {STR.waitingSender}
             </div>
-            <div>{STR.waitingAgo}</div>
+            {waitingAgoText ? <div>{waitingAgoText}</div> : null}
           </div>
         </div>
         {isWaiting ? (

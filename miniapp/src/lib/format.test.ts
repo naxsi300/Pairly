@@ -4,6 +4,7 @@ import {
   countdownDisplay,
   nextMilestone,
   nextOccurrence,
+  relativeTime,
 } from "./format";
 import type { Countdown } from "../types";
 
@@ -201,8 +202,23 @@ describe("nextMilestone.daysUntil local-midnight anchoring", () => {
     const localNow = new Date("2026-06-20T12:00:00Z");
     const m = nextMilestone(cd("2026-01-01T00:00:00Z", "milestone"), localNow)!;
     expect(m).not.toBeNull();
-    expect(m.label).toBe("200 дней вместе");
+    expect(m.label).toBe("200 дней");
     expect(m.daysUntil).toBe(30);
+  });
+
+  it("emits a neutral year label (e.g. '1 год', NOT '1 год вместе')", () => {
+    // Reference 2025-06-22 → year-1 = 2026-06-22 (future at NOW 2026-06-20 UTC).
+    // Earlier day-milestones like 200/300 will compete — pick a ref where a
+    // year candidate wins: ref exactly 100 days ago makes day-100 today
+    // (already passed) and day-200 in the future, so we'd get a day label.
+    // For a year label specifically, set ref so the closest upcoming
+    // candidate is year-1: ref = NOW - 365 days, + a few days buffer.
+    // Ref 2025-06-22 + 1 year = 2026-06-22; at NOW (2026-06-20 UTC) the
+    // closest future year candidate beats day-180 (which would be 2025-12-19).
+    const m = nextMilestone(cd("2025-06-22T00:00:00Z", "milestone"), NOW)!;
+    expect(m).not.toBeNull();
+    expect(m.label).toBe("1 год");
+    expect(m.label).not.toMatch(/вместе/);
   });
 
   it("daysUntil uses local-midnight anchoring (off-by-one near TZ boundary)", () => {
@@ -233,5 +249,77 @@ describe("nextMilestone.daysUntil local-midnight anchoring", () => {
     const m = nextMilestone(cd(ref.toISOString(), "milestone"), localNow)!;
     expect(m).not.toBeNull();
     expect(m.daysUntil).toBe(0);
+  });
+});
+
+// relativeTime: human-friendly Russian relative-time string from an ISO
+// timestamp, coarse-grained to calendar days and using the same local-day
+// anchoring as the rest of the time helpers. Tests pin `now` to a fixed Date
+// (and TZ) so the day boundaries are deterministic.
+describe("relativeTime", () => {
+  const savedTz = process.env.TZ;
+  afterEach(() => {
+    if (savedTz === undefined) delete process.env.TZ;
+    else process.env.TZ = savedTz;
+  });
+
+  it("returns 'сегодня' for an instant on the same local day", () => {
+    process.env.TZ = "UTC";
+    const now = new Date("2026-06-20T12:00:00Z");
+    expect(relativeTime("2026-06-20T03:00:00Z", now)).toBe("сегодня");
+  });
+
+  it("returns 'вчера' for an instant on the previous local day", () => {
+    process.env.TZ = "UTC";
+    const now = new Date("2026-06-20T12:00:00Z");
+    expect(relativeTime("2026-06-19T18:00:00Z", now)).toBe("вчера");
+  });
+
+  it("returns 'N дней назад' for 5 days ago (mod10=5 → 'дней')", () => {
+    process.env.TZ = "UTC";
+    const now = new Date("2026-06-20T12:00:00Z");
+    expect(relativeTime("2026-06-15T12:00:00Z", now)).toBe("5 дней назад");
+  });
+
+  it("uses the singular 'день' form for 21 days (mod10=1, mod100=21 → 'день')", () => {
+    process.env.TZ = "UTC";
+    const now = new Date("2026-06-20T12:00:00Z");
+    // NOW - 21 days: subtract 21 days from 2026-06-20 → 2026-05-30.
+    expect(relativeTime("2026-05-30T12:00:00Z", now)).toBe("21 день назад");
+  });
+
+  it("uses the genitive-singular 'дня' for 11 days (mod10=1, mod100=11 → 'дней')", () => {
+    // The mod100 !== 11 guard kicks in: 11 is the special case that uses 'дней'.
+    process.env.TZ = "UTC";
+    const now = new Date("2026-06-20T12:00:00Z");
+    expect(relativeTime("2026-06-09T12:00:00Z", now)).toBe("11 дней назад");
+  });
+
+  it("returns '22 дня назад' for 22 days ago (mod10=2, mod100=22 → 'дня')", () => {
+    process.env.TZ = "UTC";
+    const now = new Date("2026-06-20T12:00:00Z");
+    // NOW - 22 days: subtract 22 days from 2026-06-20 → 2026-05-29.
+    expect(relativeTime("2026-05-29T12:00:00Z", now)).toBe("22 дня назад");
+  });
+
+  it("returns '' for a null ISO", () => {
+    expect(relativeTime(null, NOW)).toBe("");
+  });
+
+  it("returns '' for an undefined ISO", () => {
+    expect(relativeTime(undefined, NOW)).toBe("");
+  });
+
+  it("returns '' for an unparseable ISO string", () => {
+    expect(relativeTime("not-a-date", NOW)).toBe("");
+  });
+
+  it("uses local-midnight anchoring across a TZ boundary", () => {
+    // In Asia/Tokyo (UTC+9), 2026-06-19T20:00Z = 2026-06-20 05:00 JST
+    // (local day = Jun 20). NOW (2026-06-20T12:00Z) is also Jun 20 local.
+    // Raw-ms would give ~16h → 1 day, but local-day delta is 0 → 'сегодня'.
+    process.env.TZ = "Asia/Tokyo";
+    const localNow = new Date("2026-06-20T12:00:00Z");
+    expect(relativeTime("2026-06-19T20:00:00Z", localNow)).toBe("сегодня");
   });
 });
