@@ -1,4 +1,3 @@
-import { COPY } from "../../copy";
 
 export interface NotesCardProps {
   unread: number;
@@ -27,6 +26,7 @@ const STR = {
           : "непрочитанных";
     return `${n} ${word}`;
   },
+  empty: "Напишите тёплые слова",
   // "последняя — вчера/сегодня/N дн. назад"
   latestRelative: (daysAgo: number) => {
     if (daysAgo === 0) return "последняя — сегодня";
@@ -64,11 +64,6 @@ export function NotesCard({ unread, latestDaysAgo, onClick }: NotesCardProps) {
   const sealCount = unread > 0 ? unread : 0;
   // Hide the pulsing unread dot when there's nothing new to read.
   const showDot = unread > 0;
-
-  const metaLine =
-    latestDaysAgo !== null
-      ? COPY.home.notesMetaNew(unread, latestDaysAgo)
-      : COPY.home.notesEmpty;
 
   return (
     <button
@@ -232,27 +227,21 @@ export function NotesCard({ unread, latestDaysAgo, onClick }: NotesCardProps) {
               gap: "6px",
             }}
           >
-            <span>{STR.unreadPhrase(unread)}</span>
-            {latestDaysAgo !== null ? (
+            {latestDaysAgo === null && unread === 0 ? (
+              <span>{STR.empty}</span>
+            ) : (
               <>
-                <span aria-hidden="true" style={{ opacity: 0.4 }}>
-                  ·
-                </span>
-                <span>{STR.latestRelative(latestDaysAgo)}</span>
+                <span>{STR.unreadPhrase(unread)}</span>
+                {latestDaysAgo !== null ? (
+                  <>
+                    <span aria-hidden="true" style={{ opacity: 0.4 }}>
+                      ·
+                    </span>
+                    <span>{STR.latestRelative(latestDaysAgo)}</span>
+                  </>
+                ) : null}
               </>
-            ) : null}
-          </div>
-          {/* Extra hint that mirrors COPY-driven meta so the chosen design's
-              visual rhythm is preserved without duplicating source-of-truth copy. */}
-          <div
-            style={{
-              font: "400 12px/1.3 system-ui",
-              color: "var(--tg-hint)",
-              marginTop: "2px",
-              opacity: 0.85,
-            }}
-          >
-            {metaLine}
+            )}
           </div>
         </div>
 

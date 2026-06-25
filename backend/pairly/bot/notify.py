@@ -458,15 +458,18 @@ async def notify_wishlist_pending(
 async def notify_love_note(
     session: AsyncSession, *, pair_id: str, actor_id: str, body: str
 ) -> None:
-    """Deliver a love note to the partner — the note body IS the message.
+    """Tell the partner a love note arrived — but never reveal the body.
 
-    Delivery is immediate (the optional HH:MM deliver_at is a future scheduled-
-    delivery hint; there's no cron yet, so we deliver now rather than dropping
-    it). Best-effort + silent on failure, like every notify.
+    The body lives only in the mini-app, so the recipient opens it there
+    (and so a glance at the chat can't expose something private). The `body`
+    arg is accepted for signature stability but not shown. Delivery is
+    immediate (the optional HH:MM deliver_at is a future scheduled-delivery
+    hint; no cron yet, so we deliver now). Best-effort + silent on failure.
     """
+    del body  # signature kept for callers; intentionally not shown
     actor = await session.get(User, actor_id)
     name = _actor_label(actor) if actor else "Партнёр"
-    text = f"💌 {name} оставил(а) вам записку:\n\n{body}"
+    text = f"💌 {name} прислал(а) записку — откройте, чтобы прочитать"
     await _send(session, pair_id=pair_id, actor_id=actor_id, text=text)
 
 
