@@ -137,7 +137,7 @@ const splitStyle: CSSProperties = {
   gap: 8,
 };
 
-const orbColStyle = (isYou: boolean, hasAnswer: boolean): CSSProperties => ({
+const orbColStyle = (isYou: boolean): CSSProperties => ({
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -150,11 +150,9 @@ const orbColStyle = (isYou: boolean, hasAnswer: boolean): CSSProperties => ({
   boxShadow: isYou
     ? "0 0 0 1px color-mix(in srgb, var(--tg-warm) 20%, transparent) inset"
     : "0 0 0 1px color-mix(in srgb, #ffd0a8 18%, transparent) inset",
-  // Suppress unused — kept for future pulse-on-empty logic.
-  opacity: hasAnswer ? 1 : 0.95,
 });
 
-const orbStyle = (isYou: boolean, hasAnswer: boolean): CSSProperties => ({
+const orbStyle = (isYou: boolean): CSSProperties => ({
   position: "relative",
   width: 42,
   height: 42,
@@ -175,8 +173,6 @@ const orbStyle = (isYou: boolean, hasAnswer: boolean): CSSProperties => ({
   boxShadow: isYou
     ? "0 4px 12px color-mix(in srgb, var(--tg-warm) 30%, transparent)"
     : "0 4px 12px color-mix(in srgb, #000 35%, transparent)",
-  // Suppress unused — kept for future pulse logic.
-  transform: hasAnswer ? "scale(1)" : "scale(1)",
 });
 
 const orbBadgeStyle = (isYou: boolean, hasAnswer: boolean): CSSProperties => ({
@@ -355,8 +351,8 @@ export function QotdCard({ qotd, onClick }: QotdCardProps) {
           {/* Two answer orbs side by side, each reflects identity + state */}
           <div style={splitStyle}>
             {/* Me */}
-            <div style={orbColStyle(true, myAnswered)}>
-              <div style={orbStyle(true, myAnswered)}>
+            <div style={orbColStyle(true)}>
+              <div style={orbStyle(true)}>
                 <span aria-hidden="true">{STR.youLetter}</span>
                 <div aria-hidden="true" style={orbBadgeStyle(true, myAnswered)}>
                   <span style={orbBadgeTextStyle}>
@@ -377,8 +373,8 @@ export function QotdCard({ qotd, onClick }: QotdCardProps) {
             </div>
 
             {/* Partner */}
-            <div style={orbColStyle(false, partnerAnswered)}>
-              <div style={orbStyle(false, partnerAnswered)}>
+            <div style={orbColStyle(false)}>
+              <div style={orbStyle(false)}>
                 <span aria-hidden="true">{partnerInitial(qotd?.partnerName)}</span>
                 <div
                   aria-hidden="true"

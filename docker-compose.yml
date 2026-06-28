@@ -1,5 +1,12 @@
 # Pairly — production docker-compose stack.
 #
+# Requires: Docker Compose v2+ (`docker compose`, not the legacy
+# `docker-compose` v1 Python tool). The `condition: service_completed_successfully`
+# and `condition: service_healthy` keys below are v2-only; v1 silently ignores
+# them and the deploy would race the init migration. We deliberately do NOT
+# set a top-level `version:` field — Compose v2 deprecates it and warns.
+# Run `docker compose version` to verify v2.x is installed.
+#
 # Usage:
 #   1. Copy .env.prod.example to .env.prod and fill in (especially your domain).
 #   2. `docker compose --env-file .env.prod build` — builds the api/bot image

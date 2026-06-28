@@ -145,7 +145,7 @@ def test_no_mood_notification_by_contract():
         "notify_mood_set must not exist — mood is ambient-only by hard contract "
         "(docs/copy/mood-sync.md: NEVER send an alert when partner's mood changes)."
     )
-    assert "mood" not in notify._COOLDOLD_SEC
+    assert "mood" not in notify._COOLDOWN_SEC
 
 
 # --- Cluster 3: outbox + drain + notify_gift_completed -----------------------
@@ -391,3 +391,70 @@ async def test_qotd_mutual_cooldown_key_independent_from_qotd(session, monkeypat
     # qotd-answered gate.
     await notify.notify_qotd_mutual(session, pair_id=a.pair_id, actor_id=a.id)
     assert len(calls) == 2
+
+
+# --- Cluster 5: cooldown dict pruning + constant rename ----------------------
+
+
+def test_cooldown_constant_typo_renamed():
+    """The constant must be spelled _COOLDOWN_SEC (not _COOLDOLD_SEC).
+    Pin the public name so a future rename or re-typo fails loud.
+    """
+    assert hasattr(notify, "_COOLDOWN_SEC"), (
+        "_COOLDOWN_SEC must exist (was _COOLDOLD_SEC — typo)"
+    )
+    assert not hasattr(notify, "_COOLDOLD_SEC"), (
+        "stale _COOLDOLD_SEC still present — the rename was incomplete"
+    )
+    # And it still has the cooldown values we expect.
+    assert notify._COOLDOWN_SEC["qotd"] == 60 * 60
+    assert notify._COOLDOWN_SEC["qotd_mutual"] == 60 * 60
+
+
+def test_cooldown_dict_pruned_when_stale():
+    """_past_cooldown prunes entries older than the max cooldown window, so
+    the in-memory _cooldowns dict can't grow unbounded across pairs×actions.
+    """
+    import time as _time
+
+    notify._cooldowns.clear()
+    # Plant 3 stale entries (older than the max cooldown = 3600s) and 1 fresh.
+    now = _time.monotonic()
+    notify._cooldowns[("p1", "qotd")] = now - 4000  # stale
+    notify._cooldowns[("p2", "qotd")] = now - 5000  # stale
+    notify._cooldowns[("p3", "qotd_mutual")] = now - 7200  # stale
+    notify._cooldowns[("p4", "qotd")] = now  # fresh (within window)
+    # Trigger a check that walks the dict.
+    notify._past_cooldown("p99", "qotd")
+    # Only the fresh entry should survive; the 3 stale ones pruned.
+    surviving = set(notify._cooldowns.keys())
+    assert ("p1", "qotd") not in surviving
+    assert ("p2", "qotd") not in surviving
+    assert ("p3", "qotd_mutual") not in surviving
+    assert ("p4", "qotd") in surviving
+    # The just-touched key from the check itself is also there.
+    assert ("p99", "qotd") in surviving
+
+
+def test_cooldown_dict_prune_does_not_affect_active_gates():
+    """Pruning must not let a still-cooled action slip through. The pruning
+    threshold is `now - ts >= max_cd`, strictly greater than any active
+    cooldown (which is `< cd`). So pruning never removes an entry that's
+    currently blocking a notify.
+    """
+    import time as _time
+
+    notify._cooldowns.clear()
+    now = _time.monotonic()
+    # Recently-touched entry: cd=3600s, ts = now - 10s -> active, must stay.
+    notify._cooldowns[("active", "qotd")] = now - 10
+    # Stale entry: will be pruned.
+    notify._cooldowns[("stale", "qotd")] = now - 5000
+    # Check the active one — should still be gated.
+    assert notify._past_cooldown("active", "qotd") is False
+    # The stale one was pruned, so a check on it lets the notify through.
+    assert notify._past_cooldown("stale", "qotd") is True
+    # Final state: the stale entry is now fresh (re-touched), the active one
+    # was preserved through the prune.
+    assert ("active", "qotd") in notify._cooldowns
+    assert ("stale", "qotd") in notify._cooldowns

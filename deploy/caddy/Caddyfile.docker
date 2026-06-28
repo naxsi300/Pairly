@@ -99,7 +99,20 @@ pairly.mnepo.fyi {
         # removed from script-src after a sweep of miniapp/index.html and
         # miniapp/src found NO inline scripts, dangerouslySetInnerHTML, or
         # eval(). Tighten further after audit.
-        Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org"
+        #
+        # frame-ancestors covers the known Telegram web origins that
+        # actually embed the Mini App:
+        #   https://web.telegram.org       — Telegram Web A (canonical)
+        #   https://k.web.telegram.org     — Telegram Web K
+        #   https://telegram.org           — shared Telegram web origin
+        # The native iOS/Android Telegram client opens Mini Apps WITHOUT
+        # sending an `Origin` header, so the browser-side check is vacuous
+        # for that path; CSRF defense is enforced server-side via
+        # `X-Telegram-Init-Data` validation, not via CSP. `frame-ancestors
+        # 'none'` would block ALL Telegram embeds (and is the only value
+        # we are NOT allowed to ship here), so we enumerate the real
+        # origins instead.
+        Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://telegram.org; frame-ancestors https://web.telegram.org https://k.web.telegram.org https://telegram.org"
     }
 
     # Health endpoint for uptime monitors (over HTTPS).

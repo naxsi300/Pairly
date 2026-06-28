@@ -314,12 +314,19 @@ def test_deploy_sh_uses_plain_up_minus_d() -> None:
 
 def test_deploy_sh_keeps_health_check() -> None:
     """The post-deploy curl /api/health check must stay — it's how the
-    operator confirms the new stack is actually serving.
+    operator confirms the new stack is actually serving. The URL may be in a
+    shell variable (HEALTH_URL) used inside a retry loop, so accept either a
+    literal /api/health on the curl line OR a HEALTH_URL var that ends with it.
     """
     body = DEPLOY_SH.read_text(encoding="utf-8")
-    assert re.search(r"curl\s+-fsS[^\n]*\/api\/health", body), (
-        "deploy.sh: post-deploy `/api/health` curl check is missing"
+    has_curl_health = bool(
+        re.search(r"curl\s+-fsS[^\n]*\/api\/health", body)
+        or (
+            re.search(r'HEALTH_URL="[^"]*/api/health"', body)
+            and re.search(r"curl\s+-fsS[^\n]*\$HEALTH_URL", body)
+        )
     )
+    assert has_curl_health, "deploy.sh: post-deploy `/api/health` curl check is missing"
 
 
 def test_install_sh_does_not_require_node() -> None:

@@ -89,6 +89,26 @@ describe("useApi signal wiring", () => {
     // The latest signal stays live until the next cleanup.
     expect(signals[1].aborted).toBe(false);
   });
+
+  it("swallows aborts surfaced as a generic Error (not a DOMException)", async () => {
+    // Some fetch shims / polyfills wrap aborts as plain Errors or TypeErrors
+    // instead of DOMException { name: 'AbortError' }. Pin the broadened
+    // detection so an unmount-then-reject never poisons `error` state.
+    const fetcher = vi.fn().mockImplementation(
+      () => new Promise<unknown>((_, reject) => {
+        // Defer to a microtask so we can unmount before the reject lands,
+        // matching the original race the broadened check was added for.
+        queueMicrotask(() => reject(new Error("The user aborted a request.")));
+      }),
+    );
+    const { result, unmount } = renderHook(() => useApi(fetcher));
+    unmount();
+    // Let the microtask run.
+    await Promise.resolve();
+    await Promise.resolve();
+    // No error should have been recorded — the abort was swallowed.
+    expect(result.current.error).toBeNull();
+  });
 });
 
 describe("endpoint helpers forward an optional signal", () => {

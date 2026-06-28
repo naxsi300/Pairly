@@ -89,6 +89,13 @@ install_packages() {
 install_packages
 
 # Ensure python3.12 specifically (may differ from default python3).
+# Strategy by distro:
+#   ubuntu  — add-apt-repository deadsnakes/ppa, install python3.12 + venv.
+#   debian  — try the official bookworm-backports slot first; if unavailable
+#             (e.g. older point release, custom apt pinning), fall back to
+#             the system `python3` (3.11 on bookworm) — pyproject.toml's
+#             `requires-python` is the source of truth and uv will raise a
+#             clear error if the running interpreter is too old.
 if ! command -v python3.12 >/dev/null 2>&1; then
 	case "$ID" in
 		ubuntu)
@@ -99,10 +106,31 @@ if ! command -v python3.12 >/dev/null 2>&1; then
 			apt-get install -y python3.12 python3.12-venv || log "WARN: could not install python3.12; falling back to default python3"
 			;;
 		debian)
-			# Debian bookworm ships 3.11; 3.12 may need backports. Skip if absent.
-			log "WARN: python3.12 not found on Debian; ensure pyproject requires-python is met by default python3"
+			# Try bookworm-backports first. Many providers don't enable
+			# backports by default, so this may no-op; that's fine.
+			export DEBIAN_FRONTEND=noninteractive
+			if apt-cache show python3.12/bookworm-backports >/dev/null 2>&1; then
+				echo "deb http://deb.debian.org/debian ${VERSION_CODENAME:-bookworm}-backports main" \
+					> /etc/apt/sources.list.d/pairly-bookworm-backports.list
+				apt-get update -y || true
+				apt-get install -y -t "${VERSION_CODENAME:-bookworm}-backports" \
+					python3.12 python3.12-venv \
+					|| log "WARN: python3.12 install from backports failed; falling back to default python3"
+			else
+				log "INFO: python3.12 not in backports for ${VERSION_CODENAME:-bookworm}; using default python3 (verify >=3.11)"
+			fi
 			;;
 	esac
+fi
+# Last-resort sanity check: if `python3` is older than 3.11, uv sync will
+# fail against the `requires-python` pin. Warn loudly so the operator sees
+# it in the install log.
+if ! command -v python3.12 >/dev/null 2>&1; then
+	default_py_major=$(python3 -c 'import sys; print(sys.version_info[0])' 2>/dev/null || echo 0)
+	default_py_minor=$(python3 -c 'import sys; print(sys.version_info[1])' 2>/dev/null || echo 0)
+	if (( default_py_major < 3 )) || { (( default_py_major == 3 )) && (( default_py_minor < 11 )); }; then
+		log "WARN: default python3 is $default_py_major.$default_py_minor (<3.11); uv sync will likely fail"
+	fi
 fi
 
 # --- 3. uv --------------------------------------------------------------
@@ -114,9 +142,22 @@ install_uv() {
 	fi
 	log "installing uv"
 	curl -LsSf https://astral.sh/uv/install.sh | sh
-	# uv lands in ~/.local/bin for root; make it system-wide.
-	ln -sf /root/.local/bin/uv /usr/local/bin/uv || \
-		ln -sf /usr/local/bin/uv /usr/local/bin/uv
+	# uv's installer lands the binary in ~/.local/bin for root, but it
+	# may also land in /usr/local/bin if the operator's $PATH already
+	# includes it. Make BOTH possible locations visible to subsequent
+	# `command -v uv` checks (run by systemd units via Environment=PATH).
+	local uv_src=""
+	for cand in /root/.local/bin/uv /root/.cargo/bin/uv; do
+		if [[ -x "$cand" ]]; then
+			uv_src="$cand"
+			break
+		fi
+	done
+	if [[ -z "$uv_src" ]]; then
+		die "uv installer ran but no binary found in /root/.local/bin or /root/.cargo/bin"
+	fi
+	ln -sf "$uv_src" /usr/local/bin/uv
+	log "uv linked: $uv_src -> /usr/local/bin/uv"
 }
 
 install_uv
@@ -293,6 +334,10 @@ install_cron() {
 $CRON_MARKER
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# Route any cron stderr (e.g. backup.sh failures) to root's local mailbox.
+# Without MAILTO, cron silently drops output and a broken S3 upload /
+# missing CLI will go unnoticed until the next manual restore attempt.
+MAILTO=root
 7 * * * * root /usr/local/sbin/pairly-backup.sh
 EOF
 	chmod 0644 "$CRON_FILE"

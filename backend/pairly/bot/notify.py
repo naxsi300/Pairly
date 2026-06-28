@@ -50,7 +50,7 @@ _cooldowns: dict[tuple[str, str], float] = {}
 # first-cross guard (capture mine_existed_before in app.py) is the primary
 # gate; this cooldown is defense-in-depth so a direct call to
 # notify_qotd_mutual (or a buggy caller) cannot spam the partner.
-_COOLDOLD_SEC = {"qotd": 60 * 60, "qotd_mutual": 60 * 60}  # 60 min
+_COOLDOWN_SEC = {"qotd": 60 * 60, "qotd_mutual": 60 * 60}  # 60 min
 
 # Server-error / network-blip backoff for the outbox. We don't know how long the
 # Telegram side will be grumpy; a small constant keeps the message tryable soon
@@ -95,11 +95,19 @@ def _actor_label(actor: User) -> str:
 
 
 def _past_cooldown(pair_id: str, action: str) -> bool:
-    cd = _COOLDOLD_SEC.get(action)
+    cd = _COOLDOWN_SEC.get(action)
     if cd is None:
         return True  # no cooldown configured -> always notify
     key = (pair_id, action)
     now = time.monotonic()
+    # Prune stale entries so the dict can't grow unbounded across pairs×actions
+    # that haven't fired in a while. Anything older than the max cooldown is
+    # safe to drop: the next call would have cleared the gate anyway.
+    if _cooldowns:
+        max_cd = max(_COOLDOWN_SEC.values())
+        stale = [k for k, ts in _cooldowns.items() if now - ts >= max_cd]
+        for k in stale:
+            _cooldowns.pop(k, None)
     last = _cooldowns.get(key)
     if last is not None and now - last < cd:
         return False
@@ -131,9 +139,11 @@ async def _enqueue_outbox(
                 created_at=datetime.now(UTC),
             )
         )
-        # Caller is inside a larger transaction in the API process; we don't
-        # commit here — they'll commit. In the bot process there's no caller
-        # transaction, so we commit explicitly.
+        # We commit here explicitly: the API process may be inside a larger
+        # transaction, but the outbox row is its own logical unit — if we don't
+        # commit, a crash before the outer commit would lose the parked message.
+        # (The caller may still commit again; the second commit is a no-op for
+        # an already-flushed transaction.)
         await session.commit()
     except Exception:  # noqa: BLE001
         log.exception("failed to enqueue notify_outbox row; message dropped")
@@ -275,37 +285,43 @@ async def notify_gift_received(
     session: AsyncSession, *, pair_id: str, actor_id: str, gesture: str
 ) -> None:
     """Partner got a new gift/action from the actor. Always notifies."""
-    actor = await session.get(User, actor_id)
-    if actor is None:
-        return
-    name = _actor_label(actor)
-    lines = [
-        f"{name} дарит тебе «{gesture}» 💝",
-        f"Кое-что приятное от {name}: «{gesture}» 🎁",
-        f"{name} добавил(а) действие для тебя: «{gesture}» ✨",
-    ]
-    # random.choice is fine here — this is not crypto, and not in the workflow sandbox.
-    await _send(
-        session,
-        pair_id=pair_id,
-        actor_id=actor_id,
-        text=random.choice(lines),  # noqa: S311
-    )
+    try:
+        actor = await session.get(User, actor_id)
+        if actor is None:
+            return
+        name = _actor_label(actor)
+        lines = [
+            f"{name} дарит тебе «{gesture}» 💝",
+            f"Кое-что приятное от {name}: «{gesture}» 🎁",
+            f"{name} добавил(а) действие для тебя: «{gesture}» ✨",
+        ]
+        # random.choice is fine here — this is not crypto, and not in the workflow sandbox.
+        await _send(
+            session,
+            pair_id=pair_id,
+            actor_id=actor_id,
+            text=random.choice(lines),  # noqa: S311
+        )
+    except Exception:  # noqa: BLE001 — notify is best-effort; never break the caller
+        log.exception("notify_gift_received failed; ignored")
 
 
 async def notify_gift_redeemed(
     session: AsyncSession, *, pair_id: str, actor_id: str, gesture: str
 ) -> None:
     """The gift was marked done/redeemed — let the receiver know it happened."""
-    actor = await session.get(User, actor_id)
-    if actor is None:
-        return
-    name = _actor_label(actor)
-    lines = [
-        f"{name} отметил(а) «{gesture}» как состоявшееся ✅",
-        f"«{gesture}» — теперь в истории, спасибо {name} 🌿",
-    ]
-    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    try:
+        actor = await session.get(User, actor_id)
+        if actor is None:
+            return
+        name = _actor_label(actor)
+        lines = [
+            f"{name} отметил(а) «{gesture}» как состоявшееся ✅",
+            f"«{gesture}» — теперь в истории, спасибо {name} 🌿",
+        ]
+        await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    except Exception:  # noqa: BLE001 — notify is best-effort; never break the caller
+        log.exception("notify_gift_redeemed failed; ignored")
 
 
 async def notify_gift_completed(
@@ -316,15 +332,18 @@ async def notify_gift_completed(
     notifies the partner symmetrically. Always-notify (gifts are rare, the
     COMPLETE beat is a relationship-core moment — "we did this together").
     """
-    actor = await session.get(User, actor_id)
-    if actor is None:
-        return
-    name = _actor_label(actor)
-    lines = [
-        f"{name} завершил(а) «{gesture}» — теперь в добрых делах 🌟",
-        f"«{gesture}» — закрыто вместе, спасибо {name} 💛",
-    ]
-    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    try:
+        actor = await session.get(User, actor_id)
+        if actor is None:
+            return
+        name = _actor_label(actor)
+        lines = [
+            f"{name} завершил(а) «{gesture}» — теперь в добрых делах 🌟",
+            f"«{gesture}» — закрыто вместе, спасибо {name} 💛",
+        ]
+        await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    except Exception:  # noqa: BLE001 — notify is best-effort; never break the caller
+        log.exception("notify_gift_completed failed; ignored")
 
 
 async def notify_gift_accepted(
@@ -333,30 +352,36 @@ async def notify_gift_accepted(
     """Receiver accepted the gift — tell the giver. actor_id is the RECEIVER,
     so _partner() resolves to the giver. Always notifies (rare, relationship-core).
     """
-    actor = await session.get(User, actor_id)
-    if actor is None:
-        return
-    name = _actor_label(actor)
-    lines = [
-        f"{name} принял(а) твой подарок «{gesture}» 🥰",
-        f"{name} с радостью принял(а) «{gesture}» 💛",
-    ]
-    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    try:
+        actor = await session.get(User, actor_id)
+        if actor is None:
+            return
+        name = _actor_label(actor)
+        lines = [
+            f"{name} принял(а) твой подарок «{gesture}» 🥰",
+            f"{name} с радостью принял(а) «{gesture}» 💛",
+        ]
+        await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    except Exception:  # noqa: BLE001 — notify is best-effort; never break the caller
+        log.exception("notify_gift_accepted failed; ignored")
 
 
 async def notify_gift_declined(
     session: AsyncSession, *, pair_id: str, actor_id: str, gesture: str
 ) -> None:
     """Receiver declined — tell the giver, warmly (no guilt). actor_id is the RECEIVER."""
-    actor = await session.get(User, actor_id)
-    if actor is None:
-        return
-    name = _actor_label(actor)
-    lines = [
-        f"{name} пропустил(а) «{gesture}». Это нормально — может, в другой раз.",
-        f"{name} пока не готов(а) к «{gesture}» — ничего страшного 🌱",
-    ]
-    await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    try:
+        actor = await session.get(User, actor_id)
+        if actor is None:
+            return
+        name = _actor_label(actor)
+        lines = [
+            f"{name} пропустил(а) «{gesture}». Это нормально — может, в другой раз.",
+            f"{name} пока не готов(а) к «{gesture}» — ничего страшного 🌱",
+        ]
+        await _send(session, pair_id=pair_id, actor_id=actor_id, text=random.choice(lines))  # noqa: S311
+    except Exception:  # noqa: BLE001 — notify is best-effort; never break the caller
+        log.exception("notify_gift_declined failed; ignored")
 
 
 async def notify_qotd_mutual(session: AsyncSession, *, pair_id: str, actor_id: str) -> None:
@@ -456,17 +481,15 @@ async def notify_wishlist_pending(
 
 
 async def notify_love_note(
-    session: AsyncSession, *, pair_id: str, actor_id: str, body: str
+    session: AsyncSession, *, pair_id: str, actor_id: str
 ) -> None:
     """Tell the partner a love note arrived — but never reveal the body.
 
     The body lives only in the mini-app, so the recipient opens it there
-    (and so a glance at the chat can't expose something private). The `body`
-    arg is accepted for signature stability but not shown. Delivery is
+    (and so a glance at the chat can't expose something private). Delivery is
     immediate (the optional HH:MM deliver_at is a future scheduled-delivery
     hint; no cron yet, so we deliver now). Best-effort + silent on failure.
     """
-    del body  # signature kept for callers; intentionally not shown
     actor = await session.get(User, actor_id)
     name = _actor_label(actor) if actor else "Партнёр"
     text = f"💌 {name} прислал(а) записку — откройте, чтобы прочитать"

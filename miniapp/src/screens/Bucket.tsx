@@ -40,6 +40,10 @@ export function Bucket() {
   const [busy, setBusy] = useState(false);
   /** Item awaiting delete confirmation; null = no confirm modal open. */
   const [confirmingDelete, setConfirmingDelete] = useState<BucketItem | null>(null);
+  /** Last action failure surfaced inline (matches the soft-error pattern used
+   *  by sibling screens — see Mood.saveError / Gifts.sendError). Cleared on
+   *  any successful subsequent action or when the user starts a new add. */
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.bucket;
@@ -50,6 +54,7 @@ export function Bucket() {
     if (busy) return;
     if (!title.trim()) return;
     setBusy(true);
+    setActionError(null);
     try {
       const item = await endpoints.addBucket({
         title: title.trim(),
@@ -61,6 +66,10 @@ export function Bucket() {
       setNote("");
       haptic("success");
     } catch {
+      // Optimistic update was NOT applied here — surface a soft inline error
+      // AND refetch so server truth is reflected on next render. This matches
+      // Mood.save()'s error UX.
+      setActionError(COPY.common.sendFailed);
       refetch();
     } finally {
       setBusy(false);
@@ -68,27 +77,31 @@ export function Bucket() {
   }
 
   async function markDone(item: BucketItem) {
+    setActionError(null);
     setData((prev) =>
       (prev ?? []).map((b) =>
         b.id === item.id ? { ...b, status: "done", completedAt: new Date().toISOString() } : b,
       ),
     );
-    haptic("success");
     try {
       await endpoints.setBucketStatus(item.id, "done");
+      haptic("success");
     } catch {
+      setActionError(COPY.common.sendFailed);
       refetch();
     }
   }
 
   async function undo(item: BucketItem) {
+    setActionError(null);
     setData((prev) =>
       (prev ?? []).map((b) => (b.id === item.id ? { ...b, status: "dreaming" } : b)),
     );
-    haptic("light");
     try {
       await endpoints.setBucketStatus(item.id, "dreaming");
+      haptic("light");
     } catch {
+      setActionError(COPY.common.sendFailed);
       refetch();
     }
   }
@@ -97,11 +110,13 @@ export function Bucket() {
     // Destructive action — the click handler is responsible for opening the
     // confirm modal; this is the "yes, really delete" path. Optimistic
     // remove + rollback on failure stays the same.
+    setActionError(null);
     setData((prev) => (prev ?? []).filter((b) => b.id !== item.id));
-    haptic("light");
     try {
       await endpoints.deleteBucket(item.id);
+      haptic("light");
     } catch {
+      setActionError(COPY.common.sendFailed);
       refetch();
     }
   }
@@ -123,6 +138,16 @@ export function Bucket() {
           </Button>
         }
       />
+
+      {actionError ? (
+        <p
+          role="alert"
+          className="text-sm text-[var(--tg-danger)]"
+          style={{ marginTop: 8 }}
+        >
+          {actionError}
+        </p>
+      ) : null}
 
       {atLimit ? (
         <div className="mb-3">
@@ -155,7 +180,13 @@ export function Bucket() {
                     // For done items we want the "fulfilled" dimmed treatment to
                     // be even softer on the warm-wash surface.
                     opacity: isDone ? 0.55 : 1,
-                    gap: 8,
+                    // NOTE: status="planning" is part of BucketStatus and the
+                    // backend accepts it (see bucketStatusLabel), but this UI
+                    // doesn't expose a way to set/transition into it. Skipped
+                    // here: a third "Планируем" toggle would need new copy and
+                    // a new flow (date? countdown link?) — out of scope for
+                    // the bucket-med sweep. Add when the planning UX is
+                    // designed.
                   }}
                 >
                   <div className="card-row" style={{ alignItems: "flex-start", gap: 12 }}>
@@ -180,16 +211,13 @@ export function Bucket() {
                         Сбылось 🌌
                       </button>
                     ) : (
-                      <>
-                        <span className="meta" style={{ alignSelf: "center" }}>🌌 сбылось</span>
-                        <button
-                          type="button"
-                          className="card-act ghost"
-                          onClick={() => undo(item)}
-                        >
-                          ↶ Мечтать
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        className="card-act ghost"
+                        onClick={() => undo(item)}
+                      >
+                        ↶ Мечтать
+                      </button>
                     )}
                     <button
                       type="button"

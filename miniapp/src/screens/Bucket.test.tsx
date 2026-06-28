@@ -11,6 +11,7 @@ vi.mock("../sdk/api", async () => {
       listBucket: vi.fn().mockResolvedValue([]),
       addBucket: vi.fn(),
       deleteBucket: vi.fn().mockResolvedValue({ ok: true }),
+      setBucketStatus: vi.fn().mockResolvedValue({ ok: true }),
     },
   };
 });
@@ -25,12 +26,15 @@ import { endpoints } from "../sdk/api";
 const addMock = endpoints.addBucket as unknown as ReturnType<typeof vi.fn>;
 const deleteMock = endpoints.deleteBucket as unknown as ReturnType<typeof vi.fn>;
 const listMock = endpoints.listBucket as unknown as ReturnType<typeof vi.fn>;
+const setStatusMock = endpoints.setBucketStatus as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   addMock.mockReset();
   deleteMock.mockClear();
   listMock.mockReset();
   listMock.mockResolvedValue([]);
+  setStatusMock.mockReset();
+  setStatusMock.mockResolvedValue({ ok: true });
 });
 
 describe("Bucket — cluster 13 double-submit guard", () => {
@@ -123,5 +127,61 @@ describe("Bucket — destructive confirm (delete modal)", () => {
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith("b-2"));
     // Row optimistically removed.
     await waitFor(() => expect(screen.queryByText("Съездить на океан")).toBeNull());
+  });
+});
+
+describe("Bucket — soft error on action failure", () => {
+  it("surfaces an inline error when markDone() PATCH fails", async () => {
+    listMock.mockResolvedValue([
+      {
+        id: "b-3",
+        title: "Полёт на воздушном шаре",
+        note: null,
+        category: null,
+        status: "dreaming",
+      },
+    ]);
+    setStatusMock.mockRejectedValueOnce(new Error("network"));
+    render(<Bucket />);
+
+    fireEvent.click(await screen.findByText(/Сбылось/));
+
+    // Optimistic update flips the row to "done" (status label shows in meta).
+    await waitFor(() =>
+      expect(screen.getAllByText(/сбылось/).length).toBeGreaterThan(0),
+    );
+    // Inline error toast appears once the PATCH rejects.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/Не отправилось|Попробуйте/i),
+    );
+    // PATCH was attempted exactly once.
+    expect(setStatusMock).toHaveBeenCalledWith("b-3", "done");
+  });
+
+  it("clears the inline error when a subsequent action succeeds", async () => {
+    listMock.mockResolvedValue([
+      {
+        id: "b-4",
+        title: "Прыжок с парашютом",
+        note: null,
+        category: null,
+        status: "dreaming",
+      },
+    ]);
+    setStatusMock
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({ ok: true });
+    render(<Bucket />);
+
+    // First attempt: fails -> alert appears. markDone rolls back (item stays
+    // dreaming) so the "Сбылось" button is still the affordance.
+    fireEvent.click(await screen.findByText(/Сбылось/));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+
+    // Recovery: tap "Сбылось" again — this time setBucketStatus resolves, the
+    // alert clears, and the item flips to done.
+    fireEvent.click(await screen.findByText(/Сбылось/));
+    await waitFor(() => expect(setStatusMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });

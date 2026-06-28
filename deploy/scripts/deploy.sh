@@ -33,8 +33,39 @@ echo "==> restart services"
 docker compose --env-file .env.prod up -d --remove-orphans
 
 echo "==> health"
-sleep 3
-curl -fsS https://"${PAIRLY_PUBLIC_DOMAIN:-localhost}"/api/health || \
-  curl -fsS http://127.0.0.1:8000/api/health
+# Poll the public endpoint until /api/health responds 200, OR fall back to
+# the in-cluster 127.0.0.1:8000. The previous `sleep 3` was racy: Caddy may
+# still be reloading its TLS listener after `up -d` swapped the web
+# container, in which case the very first curl hits a half-open TLS socket
+# and the deploy falsely "succeeds" with the fallback URL — hiding a broken
+# TLS path. We retry the public URL up to 30 × 1s, then the localhost
+# fallback once, and emit diagnostics on failure.
+HEALTH_URL="https://${PAIRLY_PUBLIC_DOMAIN:-localhost}/api/health"
+LOCAL_HEALTH_URL="http://127.0.0.1:8000/api/health"
+HEALTH_TRIES=30
+ok=0
+for ((i = 1; i <= HEALTH_TRIES; i++)); do
+	if curl -fsS --max-time 3 "$HEALTH_URL" >/dev/null 2>&1; then
+		echo "==> public health OK after ${i}s ($HEALTH_URL)"
+		ok=1
+		break
+	fi
+	# 1s between attempts. Total budget: ~30s; the api service healthcheck
+	# uses start_period=20s + interval=30s, so 30s covers the worst case.
+	sleep 1
+done
+if (( ok == 0 )); then
+	echo "==> WARN: public $HEALTH_URL did not respond after ${HEALTH_TRIES}s; trying localhost"
+	if ! curl -fsS --max-time 3 "$LOCAL_HEALTH_URL"; then
+		echo "==> ERROR: both public and localhost /api/health failed" >&2
+		echo "    public   : $HEALTH_URL" >&2
+		echo "    fallback : $LOCAL_HEALTH_URL" >&2
+		echo "==> Recent web container logs:" >&2
+		docker compose --env-file .env.prod logs --tail=80 web >&2 || true
+		echo "==> Recent api container logs:" >&2
+		docker compose --env-file .env.prod logs --tail=80 api >&2 || true
+		exit 1
+	fi
+fi
 echo
 echo "==> done"

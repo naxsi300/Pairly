@@ -15,6 +15,10 @@ export function CountdownStrip({ items }: { items: Countdown[] }) {
   const now = new Date();
   const rows = items
     .map((c) => ({ c, days: countdownDays(c, now) }))
+    // Drop countdowns whose targetDate is unparseable — they would render
+    // as "0 дней назад" (countdownDays falls back to 0 on NaN targets),
+    // which is both wrong and confusing on the home strip.
+    .filter((r) => Number.isFinite(r.days))
     // Elapsed only — the together/ago timeline. Recurring (annual/monthly)
     // countdowns are excluded: they roll forward to "Ближайщий повод" instead
     // of freezing as "N дней назад".
@@ -23,7 +27,9 @@ export function CountdownStrip({ items }: { items: Countdown[] }) {
       const am = a.c.recurrence === "milestone" ? 0 : 1;
       const bm = b.c.recurrence === "milestone" ? 0 : 1;
       if (am !== bm) return am - bm;
-      return Math.abs(a.days) - Math.abs(b.days);
+      // Within a group, longest-ago first so the row anchors on the
+      // biggest, most emotionally-weighted interval.
+      return Math.abs(b.days) - Math.abs(a.days);
     })
     .slice(0, 3);
 

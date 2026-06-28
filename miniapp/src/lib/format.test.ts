@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
+  bucketStatusLabel,
   countdownDays,
   countdownDisplay,
   nextMilestone,
@@ -321,5 +322,25 @@ describe("relativeTime", () => {
     process.env.TZ = "Asia/Tokyo";
     const localNow = new Date("2026-06-20T12:00:00Z");
     expect(relativeTime("2026-06-19T20:00:00Z", localNow)).toBe("сегодня");
+  });
+});
+
+// bucketStatusLabel: defensive fallback for unknown status codes. The backend
+// may add a new state before the frontend learns about it; rendering `undefined`
+// would crash any `${label}` template in the UI.
+describe("bucketStatusLabel", () => {
+  it("translates the three known statuses", () => {
+    expect(bucketStatusLabel("dreaming")).toBe("мечтаем");
+    expect(bucketStatusLabel("planning")).toBe("планируем");
+    expect(bucketStatusLabel("done")).toBe("сбылось");
+  });
+
+  it("returns the raw status string for an unknown code (defensive fallback)", () => {
+    // Cast through unknown — simulates a backend that introduces a new state
+    // before the frontend type is updated. Must NOT return undefined.
+    const unknown = "archived" as unknown as Parameters<typeof bucketStatusLabel>[0];
+    const out = bucketStatusLabel(unknown);
+    expect(out).toBe("archived");
+    expect(out).toBeDefined();
   });
 });

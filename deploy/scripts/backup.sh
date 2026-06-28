@@ -103,6 +103,14 @@ log "pairly backup start host=${HOST} scheme=${scheme}"
 # --- produce the dump ---------------------------------------------------
 
 DUMP_FILE="${LOCAL_DIR}/pairly-${NOW}.dump"
+# Clean up the local dump file on ANY script exit (success, error, signal).
+# This trap lives at script scope, so it fires once at the END of the script.
+# Inside `apply_retention()` below, a SEPARATE function-scoped `RETURN` trap
+# cleans up its own `$tmp` scratch files when the function returns — those
+# are a different lifecycle, so the two traps are NOT redundant. See the
+# comment inside `apply_retention` for why the inner trap must be `RETURN`,
+# not `EXIT` (a script-scope EXIT trap would leave the scratch files behind
+# if the function short-circuited via `set -e`).
 trap 'rm -f "$DUMP_FILE"' EXIT
 
 case "$scheme" in
@@ -161,6 +169,17 @@ log "upload -> ${HOURLY_KEY}"
 apply_retention() {
 	local tmp
 	tmp="$(mktemp)"
+	# Function-scoped RETURN trap: cleans up the two scratch files
+	# (`$tmp` for `aws s3 ls` output, `${tmp}.age` for parsed per-key
+	# metadata) when this function returns — whether by reaching the end
+	# of the block or by `set -e` short-circuiting on a failed command.
+	# This is intentionally NOT a script-scope EXIT trap, because the
+	# retention scratch files are only meaningful while this function
+	# runs. A script-scope trap would also fire (correctly) when the
+	# script exits, but would NOT fire when the function returns mid-way
+	# via `return 0` from the s3 ls WARN branch below, leaking `$tmp`
+	# on that path. RETURN traps are bash 4.0+ (Ubuntu 20.04+, the
+	# minimum supported platform), so they are safe to rely on.
 	trap 'rm -f "$tmp" "${tmp}.age"' RETURN
 
 	# List keys under the prefix. Output: "DATE TIME SIZE KEY"
@@ -183,7 +202,7 @@ apply_retention() {
 		# key is either  s3://bucket/pairly/2026-06-15T07:07:00Z.dump  (full)
 		#          or    pairly/2026-06-15T07:07:00Z.dump               (relative)
 		case "$key" in
-			s3://*) rel="${key#s3://${PAIRLY_BACKUP_BUCKET}/}" ;;
+			s3://*) rel="${key#s3://"${PAIRLY_BACKUP_BUCKET}"/}" ;;
 			*)      rel="$key" ;;
 		esac
 		base="$(basename "$rel")"

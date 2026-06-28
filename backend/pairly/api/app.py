@@ -473,7 +473,7 @@ def create_app() -> FastAPI:
         from pairly.bot.notify import notify_love_note
 
         await notify_love_note(
-            session, pair_id=pair_id, actor_id=auth.user.id, body=note.body
+            session, pair_id=pair_id, actor_id=auth.user.id
         )
         return LoveNoteOut(
             id=note.id,

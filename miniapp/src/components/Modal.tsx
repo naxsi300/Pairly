@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { Button } from "./Button";
 import { COPY } from "../copy";
 
@@ -28,6 +28,12 @@ export function Modal({
   submitVariant = "primary",
   children,
 }: ModalProps) {
+  // Stable id so the dialog can announce its title to screen readers via
+  // aria-labelledby. The body container gets aria-describedby so AT users
+  // hear the descriptive content (form fields, prompts) on open.
+  const titleId = useId();
+  const bodyId = useId();
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -55,9 +61,17 @@ export function Modal({
         className="w-full max-w-md card p-5"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={bodyId}
       >
-        {title ? <h2 className="heading">{title}</h2> : null}
-        <div className="flex flex-col gap-3">{children}</div>
+        {title ? (
+          <h2 id={titleId} className="heading">
+            {title}
+          </h2>
+        ) : null}
+        <div id={bodyId} className="flex flex-col gap-3">
+          {children}
+        </div>
         <div className="mt-5 flex gap-2">
           {onSubmit ? (
             <Button type="submit" full variant={submitVariant} disabled={submitDisabled}>

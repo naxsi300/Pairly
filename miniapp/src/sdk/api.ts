@@ -436,8 +436,27 @@ export function useApi<T>(
       })
       .catch((e: unknown) => {
         // Aborted fetches intentionally resolve with no state change; the
-        // alive guard already prevents post-unmount writes. Swallow AbortError.
-        if (!alive || (e instanceof DOMException && e.name === "AbortError")) return;
+        // alive guard already prevents post-unmount writes. We match three
+        // signals because not every runtime surfaces an abort as a
+        // DOMException with name "AbortError":
+        //   1. alive === false — the effect's cleanup already ran.
+        //   2. The standard AbortError DOMException.
+        //   3. Any error that mentions "abort" in name/message (some
+        //      fetch shims wrap it as a plain TypeError or generic Error).
+        //   4. The controller's signal already aborted (last-resort).
+        if (
+          !alive ||
+          (e instanceof DOMException && e.name === "AbortError") ||
+          (typeof e === "object" &&
+            e !== null &&
+            "name" in e &&
+            typeof (e as { name?: unknown }).name === "string" &&
+            /abort/i.test((e as { name: string }).name)) ||
+          (e instanceof Error && /abort/i.test(e.message)) ||
+          ctrl.signal.aborted
+        ) {
+          return;
+        }
         if (alive) {
           setError(e instanceof ApiError ? e : new ApiError(0, e instanceof Error ? e.message : "error"));
           setLoading(false);

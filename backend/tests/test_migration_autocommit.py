@@ -43,7 +43,6 @@ from pathlib import Path
 
 import pytest
 
-
 _MIGRATION_PATH = (
     Path(__file__).resolve().parents[2]
     / "backend"

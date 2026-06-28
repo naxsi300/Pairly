@@ -33,7 +33,10 @@ export function wishlistStatusLabel(s: WishlistStatus): string {
 }
 
 export function bucketStatusLabel(s: BucketStatus): string {
-  return { dreaming: "мечтаем", planning: "планируем", done: "сбылось" }[s];
+  // Fall back to the raw status string for unknown codes (defensive — the
+  // backend may add a new state before the frontend learns about it, and
+  // rendering `undefined` would crash any `${label}` template).
+  return { dreaming: "мечтаем", planning: "планируем", done: "сбылось" }[s] ?? s;
 }
 
 /** Human label for a gift status (kept neutral, never "rejected"). */
