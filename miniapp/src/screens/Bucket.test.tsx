@@ -10,6 +10,7 @@ vi.mock("../sdk/api", async () => {
       ...actual.endpoints,
       listBucket: vi.fn().mockResolvedValue([]),
       addBucket: vi.fn(),
+      deleteBucket: vi.fn().mockResolvedValue({ ok: true }),
     },
   };
 });
@@ -22,9 +23,14 @@ import { Bucket } from "./Bucket";
 import { endpoints } from "../sdk/api";
 
 const addMock = endpoints.addBucket as unknown as ReturnType<typeof vi.fn>;
+const deleteMock = endpoints.deleteBucket as unknown as ReturnType<typeof vi.fn>;
+const listMock = endpoints.listBucket as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   addMock.mockReset();
+  deleteMock.mockClear();
+  listMock.mockReset();
+  listMock.mockResolvedValue([]);
 });
 
 describe("Bucket — cluster 13 double-submit guard", () => {
@@ -76,5 +82,46 @@ describe("Bucket — cluster 13 double-submit guard", () => {
     await waitFor(() => expect(addMock).toHaveBeenCalled());
     // After success: modal closes, title clears.
     await waitFor(() => expect(screen.queryByPlaceholderText(/Например: увидеть/)).toBeNull());
+  });
+});
+
+describe("Bucket — destructive confirm (delete modal)", () => {
+  it("tapping 🗑 opens a confirm modal and only commits delete on confirm", async () => {
+    listMock.mockResolvedValue([
+      { id: "b-1", title: "Увидеть северное сияние", note: null, category: null, status: "dreaming" },
+    ]);
+    render(<Bucket />);
+    fireEvent.click(await screen.findByText("🗑 Удалить"));
+
+    // Confirm modal appears with the title in the heading.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /Удалить мечту/ })).toBeTruthy(),
+    );
+    // The row is still in the list (delete is gated, not optimistic until confirm).
+    expect(screen.getByText("Увидеть северное сияние")).toBeTruthy();
+    // No DELETE fired yet.
+    expect(deleteMock).not.toHaveBeenCalled();
+
+    // Cancel — the modal disappears, the row stays, no delete fired.
+    fireEvent.click(screen.getByText("Отмена"));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: /Удалить мечту/ })).toBeNull());
+    expect(screen.getByText("Увидеть северное сияние")).toBeTruthy();
+    expect(deleteMock).not.toHaveBeenCalled();
+  });
+
+  it("confirming the delete modal triggers optimistic remove + DELETE call", async () => {
+    listMock.mockResolvedValue([
+      { id: "b-2", title: "Съездить на океан", note: null, category: null, status: "dreaming" },
+    ]);
+    render(<Bucket />);
+    fireEvent.click(await screen.findByText("🗑 Удалить"));
+
+    const heading = await screen.findByRole("heading", { name: /Удалить мечту/ });
+    const modal = heading.closest("form")!;
+    fireEvent.submit(modal);
+
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith("b-2"));
+    // Row optimistically removed.
+    await waitFor(() => expect(screen.queryByText("Съездить на океан")).toBeNull());
   });
 });

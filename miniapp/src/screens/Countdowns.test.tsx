@@ -26,14 +26,20 @@ vi.mock("../lib/milestoneBus", () => ({
 
 import { Countdowns } from "./Countdowns";
 import { endpoints } from "../sdk/api";
+import { COPY } from "../copy";
 
 const addMock = endpoints.addCountdown as unknown as ReturnType<typeof vi.fn>;
 const listMock = endpoints.listCountdowns as unknown as ReturnType<typeof vi.fn>;
+const updateMock = endpoints.updateCountdown as unknown as ReturnType<typeof vi.fn>;
+const deleteMock = endpoints.deleteCountdown as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   addMock.mockReset();
+  updateMock.mockReset();
+  deleteMock.mockReset();
   listMock.mockReset();
   listMock.mockResolvedValue([]);
+  deleteMock.mockResolvedValue({ ok: true });
 });
 
 describe("Countdowns — cluster 7 emoji fallback (no Intl.Segmenter)", () => {
@@ -178,5 +184,144 @@ describe("Countdowns — cluster 12 fixes", () => {
       // UTC: any encoding is fine; we just need a valid date.
       expect(Number.isNaN(storedMs)).toBe(false);
     }
+  });
+});
+
+describe("Countdowns — MED cluster (confirm-delete, cdBlocks, recurrence, aria)", () => {
+  function cd(label: string, targetIso: string, recurrence: "annual" | "monthly" | "milestone" | null = null) {
+    return { id: label, label, targetDate: targetIso, emoji: null, recurrence };
+  }
+
+  it("trash-click opens a confirm Modal and does NOT delete until confirmed", async () => {
+    // Pre-load one countdown so the row renders.
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    listMock.mockResolvedValue([cd("c1", soon)]);
+    render(<Countdowns />);
+
+    // Wait for the row, then click its delete button.
+    const deleteBtn = await screen.findByRole("button", { name: /Удалить отсчёт c1/ });
+    fireEvent.click(deleteBtn);
+
+    // Confirm dialog appears with the label echoed in the title.
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toMatch(/Удалить отсчёт «c1»/);
+
+    // Until the user confirms, the API must NOT be hit and the row must remain.
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("c1")).not.toBeNull();
+
+    // Cancel via the secondary button (Отмена) → dialog gone, row still there.
+    fireEvent.click(screen.getByRole("button", { name: COPY.common.cancel }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("c1")).not.toBeNull();
+
+    // Reopen, this time confirm via the submit button (scoped to the dialog
+    // so we don't accidentally click the row's delete button which has the
+    // same accessible name "🗑 Удалить" / "Удалить").
+    fireEvent.click(deleteBtn);
+    const dialog2 = await screen.findByRole("dialog");
+    const submit = dialog2.querySelector('button[type="submit"]') as HTMLButtonElement;
+    fireEvent.click(submit);
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledWith("c1"));
+  });
+
+  it("edit row uses Russian aria-labels for both delete and edit buttons", async () => {
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString();
+    listMock.mockResolvedValue([cd("Годовщина", soon)]);
+    render(<Countdowns />);
+    // Sanity: both labels include the countdown label so screen readers
+    // disambiguate rows with identical visible text.
+    expect(await screen.findByRole("button", { name: /Изменить отсчёт Годовщина/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Удалить отсчёт Годовщина/ })).toBeTruthy();
+  });
+
+  it("cdBlocks returns null when remaining time is < 1 minute (no '0 часов 0 минут')", async () => {
+    // 30s in the future → all three of d/h/m will be 0 with the old formula;
+    // the new guard returns null and the row renders the friendly "сегодня!"
+    // fallback via countdownDisplay() instead of "0 часов 0 минут".
+    const in30s = new Date(Date.now() + 30_000).toISOString();
+    listMock.mockResolvedValue([cd("Almost", in30s)]);
+    render(<Countdowns />);
+    await screen.findByText("Almost");
+    // The text "0 часов 0 минут" must never appear; same-day fallback renders "сегодня!".
+    expect(screen.queryByText(/0\s*часов\s*0\s*минут/)).toBeNull();
+    expect(screen.queryByText(/сегодня/)).not.toBeNull();
+  });
+
+  it("cdBlocks still renders hour+minute blocks when sub-day but >= 1 minute", async () => {
+    // 5h 30m away: sub-day boundary, but minutes is non-zero → blocks must show.
+    const inHours = new Date(Date.now() + (5 * 3600 + 30 * 60) * 1000).toISOString();
+    listMock.mockResolvedValue([cd("Soon", inHours)]);
+    render(<Countdowns />);
+    await screen.findByText("Soon");
+    // The "X часов" and "Y минут" labels should be present.
+    expect(screen.queryByText("часов")).not.toBeNull();
+    expect(screen.queryByText("минут")).not.toBeNull();
+  });
+
+  it("editing a milestone countdown without toggling keeps recurrence='milestone'", async () => {
+    // Cluster: ensure the milestone chip OFF state during edit doesn't accidentally
+    // null out the recurrence on save — the chip maps to recurrence="milestone"
+    // directly, and the user just leaving it on should round-trip cleanly.
+    updateMock.mockResolvedValue({
+      id: "m1",
+      label: "Вместе",
+      targetDate: "2024-01-01T00:00:00.000Z",
+      emoji: null,
+      recurrence: "milestone",
+    });
+    listMock.mockResolvedValue([
+      cd("Вместе", "2024-01-01T00:00:00.000Z", "milestone"),
+    ]);
+    render(<Countdowns />);
+
+    // Open the edit modal for the existing milestone.
+    const editBtn = await screen.findByRole("button", { name: /Изменить отсчёт Вместе/ });
+    fireEvent.click(editBtn);
+
+    // The milestone chip is already pressed from the prefilled state.
+    const chip = await screen.findByRole("button", { name: /Считать круглые даты/ });
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+
+    // Save without touching the chip.
+    const saveBtn = await screen.findByText(COPY.common.save);
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    const body = updateMock.mock.calls[0]?.[1] as { recurrence: "milestone" | null };
+    expect(body.recurrence).toBe("milestone");
+  });
+
+  it("editing an annual countdown without toggling preserves recurrence='annual'", async () => {
+    // The MED finding: openEdit pre-filled milestone from c.recurrence === "milestone"
+    // only, so an existing "annual" countdown would have its recurrence silently
+    // wiped to null on save. Fix: track originalRecurrence and preserve it.
+    updateMock.mockResolvedValue({
+      id: "a1",
+      label: "Годовщина",
+      targetDate: "2024-06-15T00:00:00.000Z",
+      emoji: null,
+      recurrence: "annual",
+    });
+    listMock.mockResolvedValue([
+      cd("Годовщина", "2024-06-15T00:00:00.000Z", "annual"),
+    ]);
+    render(<Countdowns />);
+
+    const editBtn = await screen.findByRole("button", { name: /Изменить отсчёт Годовщина/ });
+    fireEvent.click(editBtn);
+
+    // Chip should be unpressed (annual != milestone).
+    const chip = await screen.findByRole("button", { name: /Считать круглые даты/ });
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+
+    const saveBtn = await screen.findByText(COPY.common.save);
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => expect(updateMock).toHaveBeenCalled());
+    const body = updateMock.mock.calls[0]?.[1] as { recurrence: string | null };
+    // Pre-fix this would have been null; post-fix it stays "annual".
+    expect(body.recurrence).toBe("annual");
   });
 });

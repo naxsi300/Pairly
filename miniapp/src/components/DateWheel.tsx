@@ -35,10 +35,17 @@ export function DateWheelScreen({
   const [mode, setMode] = useState<Mode>("random");
   const [idea, setIdea] = useState<DateIdeaResponse | null>(null);
   const [paywall, setPaywall] = useState(false);
+  /** Shown in the result area when a spin fails — replaces the previous
+   * silent no-op so the user knows to retry. Cleared on next spin. */
+  const [spinError, setSpinError] = useState<string | null>(null);
   /** Handle for the post-fetch 1100ms "phase → result" flip. Stored so rapid
    * re-spins and unmounts cancel the previous timer instead of letting a
    * stale handle call setState (potentially with the wrong idea). */
   const spinTimerRef = useRef<number | null>(null);
+  /** Abort the in-flight getDateIdea fetch on unmount or on a re-spin. Without
+   * this, a slow response can call setState after the user navigated away or
+   * after a fresh spin already started — both race the new request. */
+  const spinAbortRef = useRef<AbortController | null>(null);
 
   function pickMode(m: Mode) {
     if (m === mode) return;
@@ -61,18 +68,33 @@ export function DateWheelScreen({
       clearTimeout(spinTimerRef.current);
       spinTimerRef.current = null;
     }
+    // Abort any in-flight getDateIdea from a previous spin so its late
+    // setState can't race the new one.
+    if (spinAbortRef.current) {
+      spinAbortRef.current.abort();
+      spinAbortRef.current = null;
+    }
     setPhase("spinning");
+    setSpinError(null);
     haptic("light");
+    const ctrl = new AbortController();
+    spinAbortRef.current = ctrl;
     try {
-      const result = await endpoints.getDateIdea(cat || undefined, mode);
+      const result = await endpoints.getDateIdea(cat || undefined, mode, ctrl.signal);
+      // If the user already kicked off another spin (or unmounted), drop this.
+      if (spinAbortRef.current !== ctrl) return;
       setIdea(result);
       spinTimerRef.current = window.setTimeout(() => {
         spinTimerRef.current = null;
         setPhase("result");
         haptic("success");
       }, 1100);
-    } catch {
+    } catch (e) {
+      // AbortError on an unmount/re-spin is expected — keep the UI clean.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      if (ctrl.signal.aborted) return;
       setPhase("filters");
+      setSpinError("Не удалось получить идею — попробуйте ещё раз");
     }
   }
 
@@ -83,6 +105,10 @@ export function DateWheelScreen({
       if (spinTimerRef.current !== null) {
         clearTimeout(spinTimerRef.current);
         spinTimerRef.current = null;
+      }
+      if (spinAbortRef.current) {
+        spinAbortRef.current.abort();
+        spinAbortRef.current = null;
       }
     };
   }, []);
@@ -109,6 +135,7 @@ export function DateWheelScreen({
         onPointerDown={startLong}
         onPointerUp={cancelLong}
         onPointerLeave={cancelLong}
+        onPointerCancel={cancelLong}
         style={{ userSelect: "none" }}
       >
         🎡 Колесо свиданий
@@ -141,6 +168,11 @@ export function DateWheelScreen({
 
         {phase === "filters" && (
           <>
+            {spinError ? (
+              <div className="banner-warm" role="alert" style={{ marginTop: 6 }}>
+                {spinError}
+              </div>
+            ) : null}
             <p className="sub" style={{ marginTop: 6 }}>Сузим варианты под вас</p>
             <p className="section-label">Категория</p>
             <div className="chip-row">
@@ -192,7 +224,7 @@ export function DateWheelScreen({
             ) : null}
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={spin}>🔄 Ещё</button>
-              <button type="button" className="btn-warm" style={{ flex: 1 }} onClick={() => { setPhase("filters"); setIdea(null); }}>👍 Готово</button>
+              <button type="button" className="btn-warm" style={{ flex: 1 }} onClick={() => { setPhase("filters"); setIdea(null); setSpinError(null); }}>👍 Готово</button>
             </div>
           </>
         )}

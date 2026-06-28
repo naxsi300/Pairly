@@ -13,7 +13,9 @@ import { TextInput } from "../components/Field";
 
 /** Split a countdown into day/hour/min blocks for the gallery `.countdown` layout.
  * Recurring countdowns roll forward to their next occurrence. Returns null when
- * the (effective) target has passed (caller falls back to countdownDisplay). */
+ * the (effective) target has passed OR the remaining time is < 1 minute (so the
+ * caller falls back to countdownDisplay's "сегодня!" / same-day label instead of
+ * rendering a flat "0 часов 0 минут"). */
 function cdBlocks(c: Countdown, now: Date = new Date()): { num: string; label: string }[] | null {
   const target = (nextOccurrence(c, now) ?? new Date(c.targetDate)).getTime();
   const diff = target - now.getTime();
@@ -22,6 +24,12 @@ function cdBlocks(c: Countdown, now: Date = new Date()): { num: string; label: s
   const h = Math.floor((diff % 86_400_000) / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
   if (d >= 1) return [{ num: String(d), label: "дней" }, { num: String(h), label: "часов" }];
+  // Sub-day: collapse the "<1 min" tail to a "ну почти!" / "сегодня!" friendly
+  // fallback. Returning null here routes the render to countdownDisplay(c),
+  // which already produces "сегодня!" for same-day targets and "через N ч" for
+  // the (hours > 0, minutes = 0) boundary. Only when ALL three are zero do we
+  // bail — that's the "event is here right now" instant.
+  if (h === 0 && m === 0) return null;
   return [{ num: String(h), label: "часов" }, { num: String(m), label: "минут" }];
 }
 
@@ -125,6 +133,14 @@ export function Countdowns() {
   const [busy, setBusy] = useState(false);
   const [dateErr, setDateErr] = useState(false);
   const [milestone, setMilestone] = useState(false);
+  /** Original recurrence from the countdown being edited — preserved on save so
+   * the edit modal doesn't silently strip an existing "annual"/"monthly"
+   * recurrence just because the milestone toggle isn't on. */
+  const [originalRecurrence, setOriginalRecurrence] =
+    useState<Countdown["recurrence"]>(null);
+  /** Item pending deletion — set on trash-click, consumed by a confirm Modal
+   * before we actually call remove(). null = no dialog open. */
+  const [confirmDelete, setConfirmDelete] = useState<Countdown | null>(null);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
@@ -139,6 +155,7 @@ export function Countdowns() {
     setMilestone(false);
     setDateErr(false);
     setEditingId(null);
+    setOriginalRecurrence(null);
   }
   const closeModal = () => {
     resetForm();
@@ -152,6 +169,7 @@ export function Countdowns() {
     setDate(isoToRuDate(c.targetDate));
     setEmoji(c.emoji ?? "");
     setMilestone(c.recurrence === "milestone");
+    setOriginalRecurrence(c.recurrence);
     setDateErr(false);
   }
 
@@ -197,11 +215,22 @@ export function Countdowns() {
     }
     setDateErr(false);
     setBusy(true);
+    // When editing, preserve any pre-existing non-milestone recurrence
+    // (annual/monthly) so toggling "milestone" off doesn't silently wipe it.
+    // For a brand-new countdown, the only recurrence the UI can set is
+    // "milestone" via the chip — annual/monthly aren't user-creatable here.
+    const recurrence = milestone
+      ? "milestone"
+      : editingId
+        ? originalRecurrence && originalRecurrence !== "milestone"
+          ? originalRecurrence
+          : null
+        : null;
     const body = {
       label: label.trim(),
       targetDate: target,
       emoji: emoji.trim() || null,
-      recurrence: milestone ? "milestone" : null,
+      recurrence,
     } as const;
     try {
       if (editingId) {
@@ -237,6 +266,14 @@ export function Countdowns() {
     } catch {
       refetch();
     }
+  }
+
+  /** User confirmed the delete in the second Modal — fire the actual removal. */
+  function confirmRemove() {
+    if (!confirmDelete) return;
+    const item = confirmDelete;
+    setConfirmDelete(null);
+    void remove(item);
   }
 
   return (
@@ -282,7 +319,7 @@ export function Countdowns() {
             const blocks = cdBlocks(c);
             const ms = isMilestone ? nextMilestone(c) : null;
             const soon = isSoon(c);
-            const milestoneDays = isMilestone ? Math.max(0, Math.abs(countdownDays(c))) : 0;
+            const milestoneDays = isMilestone ? Math.abs(countdownDays(c)) : 0;
             return (
               <li key={c.id}>
                 <div style={soon ? warmWashSurfaceSoon : warmWashSurface}>
@@ -315,10 +352,20 @@ export function Countdowns() {
                     <div className="stat-big mt-1" style={{ color: "var(--tg-button)" }}>{countdownDisplay(c)}</div>
                   )}
                   <div className="card-actions justify-center mt-1.5">
-                    <button type="button" className="card-act ghost" onClick={() => openEdit(c)}>
+                    <button
+                      type="button"
+                      className="card-act ghost"
+                      aria-label={`Изменить отсчёт ${c.label}`}
+                      onClick={() => openEdit(c)}
+                    >
                       ✏️ {COPY.common.edit}
                     </button>
-                    <button type="button" className="card-act danger" aria-label={COPY.common.delete} onClick={() => remove(c)}>
+                    <button
+                      type="button"
+                      className="card-act danger"
+                      aria-label={`Удалить отсчёт ${c.label}`}
+                      onClick={() => setConfirmDelete(c)}
+                    >
                       🗑 {COPY.common.delete}
                     </button>
                   </div>
@@ -372,6 +419,19 @@ export function Countdowns() {
             Например, укажите любую важную дату — и ближайший повод сам покажет круглую отметку: 100 дней, 1 год, 1000 дней.
           </p>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={confirmDelete !== null}
+        title={confirmDelete ? `Удалить отсчёт «${confirmDelete.label}»?` : ""}
+        onClose={() => setConfirmDelete(null)}
+        onSubmit={confirmRemove}
+        submitLabel={COPY.common.delete}
+        submitVariant="danger"
+      >
+        <p className="text-sm" style={{ color: "var(--tg-hint)" }}>
+          Это действие нельзя отменить. Отсчёт исчезнет у вас обоих.
+        </p>
       </Modal>
     </div>
   );

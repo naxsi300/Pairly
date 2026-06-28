@@ -36,12 +36,19 @@ export function onMilestone(fn: Listener) {
  * a `useEffect` without re-running their auto-dismiss timer on every
  * parent render. Without this, every state change in App.tsx would
  * reset the 4-second dismissal timer and the toast would never go away.
+ *
+ * `dismiss` also clears the module-level `lastEvent` so a dismissed
+ * toast can't be re-seeded on remount: `useState(() => lastEvent)` would
+ * otherwise pull the stale event back into a freshly mounted consumer.
  */
 export function useMilestoneToast() {
   const [event, setEvent] = useState<MilestoneEvent | null>(lastEvent);
   useEffect(() => {
     return onMilestone((e) => setEvent(e));
   }, []);
-  const dismiss = useCallback(() => setEvent(null), []);
+  const dismiss = useCallback(() => {
+    lastEvent = null;
+    setEvent(null);
+  }, []);
   return [event, dismiss] as const;
 }

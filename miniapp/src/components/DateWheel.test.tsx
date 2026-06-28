@@ -113,4 +113,153 @@ describe("DateWheel — cluster 13 stale-idea timer fix", () => {
     // Touch the unused binding so TS doesn't complain.
     void setTimeoutCallsBeforeUnmount;
   });
+
+  it("long-press cancelled by pointerCancel/pointerLeave does not open admin", () => {
+    // Hidden admin entry: long-press on the heading. pointerCancel and
+    // pointerLeave must abort the 600ms timer, otherwise a quick tap-and-drag
+    // away would still trigger admin.
+    const onOpenAdmin = vi.fn();
+    vi.useFakeTimers();
+    render(<DateWheelScreen isPro={false} onOpenAdmin={onOpenAdmin} />);
+    const heading = screen.getByRole("heading", { name: /Колесо свиданий/ });
+
+    // Case A: pointerCancel after pointerDown — drag-away scenario.
+    fireEvent.pointerDown(heading);
+    fireEvent.pointerCancel(heading);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(onOpenAdmin).not.toHaveBeenCalled();
+
+    // Case B: pointerLeave after pointerDown — also drag-away scenario.
+    fireEvent.pointerDown(heading);
+    fireEvent.pointerLeave(heading);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(onOpenAdmin).not.toHaveBeenCalled();
+
+    // Case C: a clean down→up within 600ms must NOT open admin either
+    // (otherwise a quick tap would).
+    fireEvent.pointerDown(heading);
+    fireEvent.pointerUp(heading);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(onOpenAdmin).not.toHaveBeenCalled();
+  });
+
+  it("long-press that holds for 600ms does open admin (regression check)", () => {
+    const onOpenAdmin = vi.fn();
+    vi.useFakeTimers();
+    render(<DateWheelScreen isPro={false} onOpenAdmin={onOpenAdmin} />);
+    const heading = screen.getByRole("heading", { name: /Колесо свиданий/ });
+
+    fireEvent.pointerDown(heading);
+    act(() => {
+      vi.advanceTimersByTime(700);
+    });
+    expect(onOpenAdmin).toHaveBeenCalledTimes(1);
+  });
+
+  it("getDateIdea is called with the AbortSignal from the spin's controller", () => {
+    // The fix wires the spin's AbortController into getDateIdea so unmount
+    // and rapid re-spin can cancel the in-flight request.
+    getDateIdea.mockResolvedValue({
+      source: "wishlist",
+      title: "Идея",
+      category: "eat",
+      reason: "",
+    });
+    vi.useFakeTimers();
+    render(<DateWheelScreen isPro={false} onOpenAdmin={() => {}} />);
+    fireEvent.click(screen.getByText(/Крутить/));
+    expect(getDateIdea).toHaveBeenCalledTimes(1);
+    const args = getDateIdea.mock.calls[0];
+    // Third arg is the AbortSignal.
+    expect(args[2]).toBeInstanceOf(AbortSignal);
+  });
+
+  it("unmounting during an in-flight spin aborts the request", async () => {
+    // The fix wires the spin's AbortController into getDateIdea so unmount
+    // (the only user-reachable re-spin path during the spinning phase) can
+    // cancel the in-flight request and prevent a late setState on a dead
+    // component.
+    let resolveSpin!: (v: unknown) => void;
+    getDateIdea.mockImplementation(
+      () => new Promise((resolve) => { resolveSpin = resolve; }),
+    );
+
+    vi.useFakeTimers();
+    const { unmount } = render(<DateWheelScreen isPro={false} onOpenAdmin={() => {}} />);
+    fireEvent.click(screen.getByText(/Крутить/));
+
+    const inflightSignal = getDateIdea.mock.calls[0][2] as AbortSignal;
+    expect(inflightSignal.aborted).toBe(false);
+
+    // Unmounting (e.g. user switches tab) during the in-flight spin must
+    // abort the request so a late resolve doesn't fire setState on a dead
+    // component.
+    unmount();
+    expect(inflightSignal.aborted).toBe(true);
+
+    // Resolve so we don't leave a dangling promise — must not throw because
+    // the AbortError path is swallowed inside spin().
+    resolveSpin({ source: "wishlist", title: "ignored", category: "eat", reason: "" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  });
+
+  it("failed spin shows an inline error instead of failing silently", async () => {
+    getDateIdea.mockRejectedValueOnce(new Error("network down"));
+
+    render(<DateWheelScreen isPro={false} onOpenAdmin={() => {}} />);
+    fireEvent.click(screen.getByText(/Крутить/));
+
+    // Wait for the rejected promise to settle.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Back on filters, error banner visible.
+    expect(
+      screen.getByText(/Не удалось получить идею — попробуйте ещё раз/),
+    ).toBeInTheDocument();
+    // The filters chip row is still rendered (user can retry).
+    expect(screen.getByText(/Любая/)).toBeInTheDocument();
+  });
+
+  it("re-spinning clears the previous error banner", async () => {
+    getDateIdea
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValueOnce({
+        source: "wishlist",
+        title: "Свежая",
+        category: "eat",
+        reason: "",
+      });
+
+    vi.useFakeTimers();
+    render(<DateWheelScreen isPro={false} onOpenAdmin={() => {}} />);
+    fireEvent.click(screen.getByText(/Крутить/));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(
+      screen.getByText(/Не удалось получить идею — попробуйте ещё раз/),
+    ).toBeInTheDocument();
+
+    // Second spin succeeds → error clears, result renders.
+    fireEvent.click(screen.getByText(/Крутить/));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+    expect(
+      screen.queryByText(/Не удалось получить идею — попробуйте ещё раз/),
+    ).toBeNull();
+    expect(screen.queryByText("Свежая")).not.toBeNull();
+  });
 });

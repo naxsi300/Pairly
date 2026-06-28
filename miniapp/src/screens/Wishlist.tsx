@@ -92,6 +92,8 @@ export function Wishlist() {
   const [category, setCategory] = useState<string>("");
   const [filter, setFilter] = useState<"active" | "done">("active");
   const [busy, setBusy] = useState(false);
+  /** Item awaiting delete confirmation; null = no confirm modal open. */
+  const [confirmingDelete, setConfirmingDelete] = useState<WishlistItem | null>(null);
 
   const items = data ?? [];
   // Gallery pattern: active vs done live in separate filter tabs, so a done
@@ -143,6 +145,11 @@ export function Wishlist() {
   }
 
   async function markDone(item: WishlistItem) {
+    // Pending items still need partner approval first — marking them done
+    // would skip the two-tap consent and could land a done row that the
+    // partner never saw. Refuse the transition and let the UI's pending
+    // branch take over.
+    if (item.status === "pending") return;
     setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "done" } : w)));
     haptic("success");
     try {
@@ -186,6 +193,9 @@ export function Wishlist() {
   }
 
   async function remove(item: WishlistItem) {
+    // Destructive action — the click handler is responsible for opening the
+    // confirm modal; this is the "yes, really delete" path. Optimistic
+    // remove + rollback on failure stays the same.
     setData((prev) => (prev ?? []).filter((w) => w.id !== item.id));
     haptic("light");
     try {
@@ -296,7 +306,7 @@ export function Wishlist() {
                       ↶ {COPY.wishlist.repeat}
                     </button>
                   )}
-                  <button type="button" className="card-act danger" aria-label="Удалить" onClick={() => remove(item)}>
+                  <button type="button" className="card-act danger" aria-label="Удалить" onClick={() => setConfirmingDelete(item)}>
                     🗑
                   </button>
                 </div>
@@ -340,6 +350,25 @@ export function Wishlist() {
           ))}
         </div>
       </Modal>
+
+      <Modal
+        open={confirmingDelete !== null}
+        title={`Удалить «${confirmingDelete?.title ?? ""}»?`}
+        submitLabel={COPY.common.delete}
+        submitVariant="danger"
+        onClose={() => setConfirmingDelete(null)}
+        onSubmit={() => {
+          if (confirmingDelete) {
+            const target = confirmingDelete;
+            setConfirmingDelete(null);
+            remove(target);
+          }
+        }}
+      >
+        <p className="card-sub" style={{ marginTop: 0 }}>
+          Без возможности восстановить.
+        </p>
+      </Modal>
     </div>
   );
 }
@@ -378,20 +407,7 @@ function PhotoThumb({ item }: { item: WishlistItem }) {
   const url = usePhotoBlob(item.hasPhoto ? item.id : null, !!item.hasPhoto);
   if (!item.hasPhoto || !url) {
     return (
-      <span
-        aria-hidden
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 13,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 22,
-          flexShrink: 0,
-          background: "color-mix(in srgb, var(--tg-warm) 18%, var(--tg-sec))",
-        }}
-      >
+      <span aria-hidden className="warm-tile">
         {categoryEmoji(item.category)}
       </span>
     );

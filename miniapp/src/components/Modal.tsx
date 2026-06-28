@@ -11,6 +11,9 @@ interface ModalProps {
   onSubmit?: () => void;
   submitLabel?: string;
   submitDisabled?: boolean;
+  /** Submit-button variant. Defaults to "primary"; use "danger" for destructive
+   * confirms (Bucket/Wishlist delete). */
+  submitVariant?: "primary" | "danger";
   children: ReactNode;
 }
 
@@ -22,6 +25,7 @@ export function Modal({
   onSubmit,
   submitLabel,
   submitDisabled,
+  submitVariant = "primary",
   children,
 }: ModalProps) {
   useEffect(() => {
@@ -56,7 +60,7 @@ export function Modal({
         <div className="flex flex-col gap-3">{children}</div>
         <div className="mt-5 flex gap-2">
           {onSubmit ? (
-            <Button type="submit" full disabled={submitDisabled}>
+            <Button type="submit" full variant={submitVariant} disabled={submitDisabled}>
               {submitLabel ?? COPY.common.save}
             </Button>
           ) : null}

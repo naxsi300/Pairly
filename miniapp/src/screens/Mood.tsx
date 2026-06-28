@@ -12,16 +12,34 @@ function moodEmoji(mood: string | null | undefined): string {
   return COPY.mood.moods.find((m) => m.value === mood)?.emoji ?? "🙂";
 }
 
-function partnerText(d: MoodResponse | null): { who: string; emoji: string; hint: boolean } {
-  if (!d) return { who: COPY.mood.notSet, emoji: "⏳", hint: true };
+/** Partner-side data: name + mood are kept as separate fields so a name
+ * that contains an em-dash (e.g. "Анна-Мария") is never mangled by a
+ * dash-stripping regex. Render them as separate DOM nodes. */
+function partnerText(d: MoodResponse | null): {
+  name: string;
+  mood: string;
+  ariaLabel: string;
+  emoji: string;
+  hint: boolean;
+} {
+  const name = d?.partnerName || COPY.mood.partnerLabel;
+  if (!d) return { name, mood: COPY.mood.notSet, ariaLabel: `${name}: ${COPY.mood.notSet}`, emoji: "⏳", hint: true };
   if (d.partner && !moodIsStale(d.partner.setAt)) {
     return {
-      who: `${d.partnerName || COPY.mood.partnerLabel} — ${d.partner.mood}`,
+      name,
+      mood: d.partner.mood,
+      ariaLabel: `${name}: ${d.partner.mood}`,
       emoji: moodEmoji(d.partner.mood),
       hint: false,
     };
   }
-  return { who: `⏳ ${d.partnerName || "Партнёр"} ещё не отметил(а)`, emoji: "⏳", hint: true };
+  return {
+    name,
+    mood: `⏳ ${name} ещё не отметил(а)`,
+    ariaLabel: `${name} ещё не отметил(а)`,
+    emoji: "⏳",
+    hint: true,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -71,6 +89,8 @@ export function Mood() {
   const [picked, setPicked] = useState<MoodValue | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   const self = data?.self ?? null;
   const selfLive = self && !moodIsStale(self.setAt) ? self : null;
@@ -78,6 +98,7 @@ export function Mood() {
   async function save() {
     if (!picked) return;
     setBusy(true);
+    setSaveError(null);
     try {
       const entry = await endpoints.setMood({ mood: picked, note: note.trim() || null });
       setData((prev) => ({ ...(prev ?? ({} as MoodResponse)), self: entry }));
@@ -85,6 +106,10 @@ export function Mood() {
       setNote("");
       haptic("success");
     } catch {
+      // The optimistic update we did NOT apply on this branch — show a soft
+      // inline error AND keep the existing refetch-on-catch behavior so the
+      // server's truth is reflected on next render.
+      setSaveError(COPY.mood.saveFailed);
       refetch();
     } finally {
       setBusy(false);
@@ -93,6 +118,7 @@ export function Mood() {
 
   async function clear() {
     setBusy(true);
+    setClearError(null);
     try {
       setData((prev) => ({ ...(prev ?? ({} as MoodResponse)), self: null }));
       setPicked(null);
@@ -100,6 +126,9 @@ export function Mood() {
       haptic("light");
       await endpoints.clearMood();
     } catch {
+      // Roll back the optimistic self=null we applied and surface a soft
+      // error so the user isn't left thinking they cleared successfully.
+      setClearError(COPY.mood.clearFailed);
       refetch();
     } finally {
       setBusy(false);
@@ -145,11 +174,15 @@ export function Mood() {
           </div>
         </div>
 
-        <div className="min-w-0 flex-1" style={WARM_WASH}>
+        <div
+          className="min-w-0 flex-1"
+          style={WARM_WASH}
+          aria-label={partner.ariaLabel}
+        >
           <div style={WHO_ROW}>
             <span aria-hidden style={EMOJI_TILE}>{partner.emoji}</span>
             <div className="min-w-0">
-              <div className="section-label" style={{ margin: 0 }}>{data?.partnerName || COPY.mood.partnerLabel}</div>
+              <div className="section-label" style={{ margin: 0 }}>{partner.name}</div>
               <div
                 className="card-title"
                 style={{
@@ -159,7 +192,7 @@ export function Mood() {
                   color: partner.hint ? "var(--tg-hint)" : "var(--tg-text)",
                 }}
               >
-                {partner.who.replace(/^[^—]*—\s*/, "").trim() || COPY.mood.notSet}
+                {partner.mood}
               </div>
             </div>
           </div>
@@ -167,12 +200,19 @@ export function Mood() {
       </div>
 
       {/* Picker + note — warm-wash surface so the section reads as one card. */}
-      <div className="section-label" style={{ marginTop: 18 }}>Как ты сейчас?</div>
+      <div
+        className="section-label"
+        id="mood-prompt"
+        style={{ marginTop: 18 }}
+      >
+        Как ты сейчас?
+      </div>
       <div style={WARM_WASH}>
         <MoodPicker
           value={picked ?? selfLive?.mood ?? null}
-          onPick={(m) => setPicked(m)}
+          onPick={(m) => { setPicked(m); setSaveError(null); }}
           disabled={busy}
+          labelledBy="mood-prompt"
         />
 
         {picked ? (
@@ -189,24 +229,42 @@ export function Mood() {
               <button type="button" className="btn-warm flex-1" onClick={save} disabled={busy}>
                 {COPY.common.save}
               </button>
-              <button type="button" className="btn-ghost flex-1" onClick={() => { setPicked(null); setNote(""); }}>
+              <button type="button" className="btn-ghost flex-1" onClick={() => { setPicked(null); setNote(""); setSaveError(null); }}>
                 {COPY.common.skip}
               </button>
             </div>
+            {saveError ? (
+              <p
+                role="alert"
+                className="text-sm text-[var(--tg-danger)] mt-2"
+              >
+                {saveError}
+              </p>
+            ) : null}
           </>
         ) : null}
       </div>
 
       {selfLive ? (
-        <button
-          type="button"
-          className="btn-ghost"
-          style={{ marginTop: 8, color: "var(--tg-danger)", borderColor: "color-mix(in srgb, var(--tg-danger) 30%, transparent)" }}
-          onClick={clear}
-          disabled={busy}
-        >
-          {COPY.mood.clearButton}
-        </button>
+        <>
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ marginTop: 8, color: "var(--tg-danger)", borderColor: "color-mix(in srgb, var(--tg-danger) 30%, transparent)" }}
+            onClick={clear}
+            disabled={busy}
+          >
+            {COPY.mood.clearButton}
+          </button>
+          {clearError ? (
+            <p
+              role="alert"
+              className="text-sm text-[var(--tg-danger)] mt-2"
+            >
+              {clearError}
+            </p>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

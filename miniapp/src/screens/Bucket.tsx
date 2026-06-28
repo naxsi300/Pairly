@@ -38,6 +38,8 @@ export function Bucket() {
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  /** Item awaiting delete confirmation; null = no confirm modal open. */
+  const [confirmingDelete, setConfirmingDelete] = useState<BucketItem | null>(null);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.bucket;
@@ -92,6 +94,9 @@ export function Bucket() {
   }
 
   async function remove(item: BucketItem) {
+    // Destructive action — the click handler is responsible for opening the
+    // confirm modal; this is the "yes, really delete" path. Optimistic
+    // remove + rollback on failure stays the same.
     setData((prev) => (prev ?? []).filter((b) => b.id !== item.id));
     haptic("light");
     try {
@@ -189,7 +194,7 @@ export function Bucket() {
                     <button
                       type="button"
                       className="card-act danger"
-                      onClick={() => remove(item)}
+                      onClick={() => setConfirmingDelete(item)}
                     >
                       🗑 {COPY.common.delete}
                     </button>
@@ -219,6 +224,25 @@ export function Bucket() {
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
+      </Modal>
+
+      <Modal
+        open={confirmingDelete !== null}
+        title={`Удалить мечту «${confirmingDelete?.title ?? ""}»?`}
+        submitLabel={COPY.common.delete}
+        submitVariant="danger"
+        onClose={() => setConfirmingDelete(null)}
+        onSubmit={() => {
+          if (confirmingDelete) {
+            const target = confirmingDelete;
+            setConfirmingDelete(null);
+            remove(target);
+          }
+        }}
+      >
+        <p className="card-sub" style={{ marginTop: 0 }}>
+          Без возможности восстановить.
+        </p>
       </Modal>
     </div>
   );

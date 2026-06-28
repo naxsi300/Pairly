@@ -41,4 +41,26 @@ describe("useMilestoneToast — cluster 5 (stable dismiss ref)", () => {
     });
     expect(result.current[0]).toBeNull();
   });
+
+  it("dismiss clears the module-level lastEvent so a new hook instance returns null", () => {
+    // First mount: seed a toast.
+    const first = renderHook(() => useMilestoneToast());
+    act(() => {
+      emitMilestone({ kind: "wishlist_count", value: 7 });
+    });
+    expect(first.result.current[0]).toEqual({ kind: "wishlist_count", value: 7 });
+
+    // User dismisses.
+    act(() => {
+      first.result.current[1]();
+    });
+    expect(first.result.current[0]).toBeNull();
+
+    // Remount (HMR, navigation, etc.) — without the fix, useState's lazy
+    // initializer would re-seed from the stale module-level lastEvent and
+    // the toast would reappear.
+    first.unmount();
+    const second = renderHook(() => useMilestoneToast());
+    expect(second.result.current[0]).toBeNull();
+  });
 });
