@@ -2,12 +2,19 @@
 #
 # Usage:
 #   1. Copy .env.prod.example to .env.prod and fill in (especially your domain).
-#   2. Build the Mini App: `cd miniapp && npm install && npm run build` — this
-#      produces miniapp/dist which we mount into Caddy.
+#   2. `docker compose --env-file .env.prod build` — builds the api/bot image
+#      (Dockerfile) AND the web image (Dockerfile.web, multi-stage: builds
+#      miniapp/dist with node:22-alpine and bakes it into the Caddy image).
 #   3. `docker compose --env-file .env.prod up -d`
 #
 # The init service runs migrations + QOTD seed once and exits; bring it up first.
 # It binds the same SQLite volume so other services see the migrated DB.
+#
+# The Mini App's static assets are baked into the `web` (Caddy) image — there
+# is NO host bind-mount of miniapp/dist. This eliminates the previous
+# stale-dist / force-recreate / TLS-gap deploy failure mode (npm run build
+# replaces dist atomically with new inodes; the bind-mount served stale bytes
+# until the container was force-recreated).
 
 services:
   init:
@@ -48,24 +55,31 @@ services:
     command: ["bot"]
     env_file: .env.prod
     # bot listens on PAIRLY_WEBHOOK_PORT (8080) for /telegram-webhook
-    # only reachable from the Caddy network (not published to host).
+    # only reachable from the web (Caddy) network (not published to host).
     expose:
       - "8080"
     volumes:
       - pairly-data:/data
     restart: unless-stopped
 
-  caddy:
-    image: caddy:2-alpine
+  web:
+    # Caddy-based static + reverse-proxy tier. Built from Dockerfile.web
+    # (multi-stage): node:22-alpine builds miniapp/dist, then caddy:2-alpine
+    # runtime bakes /srv/miniapp into the image. The Caddyfile ships in the
+    # same image — no host bind-mounts of either the Caddyfile or dist.
+    build:
+      context: .
+      dockerfile: Dockerfile.web
     depends_on:
-      - api
-      - bot
+      api:
+        condition: service_healthy
+      bot:
+        condition: service_started
+    env_file: .env.prod
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/caddy/Caddyfile.docker:/etc/caddy/Caddyfile:ro
-      - ./miniapp/dist:/srv/miniapp:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped

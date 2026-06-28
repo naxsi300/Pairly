@@ -87,4 +87,52 @@ describe("GiftsCard", () => {
     );
     expect(screen.getByLabelText("Подарить")).toBeTruthy();
   });
+
+  it("uses the partner's first letter (uppercased) as the waiting-gift avatar", () => {
+    // The avatar used to be a hardcoded "А" — same letter for every user.
+    // It must now reflect the partner's name.
+    const { rerender } = render(
+      <GiftsCard
+        waiting={waiting}
+        activeCount={1}
+        goodDeeds={1}
+        partnerName="Аня"
+        onClick={() => {}}
+      />,
+    );
+    // First grapheme of "Аня", uppercased.
+    expect(screen.getByText("А")).toBeTruthy();
+
+    // Latin names work too — "olya" -> "O".
+    rerender(
+      <GiftsCard
+        waiting={waiting}
+        activeCount={1}
+        goodDeeds={1}
+        partnerName="olya"
+        onClick={() => {}}
+      />,
+    );
+    expect(screen.getByText("O")).toBeTruthy();
+  });
+
+  it("falls back to a bullet for the waiting-gift avatar when partnerName is missing", () => {
+    // No partnerName at all — the avatar slot must not be blank, but it
+    // also must not be the old hardcoded "А".
+    const { container } = render(
+      <GiftsCard
+        waiting={waiting}
+        activeCount={1}
+        goodDeeds={1}
+        onClick={() => {}}
+      />,
+    );
+    expect(screen.queryByText("А")).toBeNull();
+    // The fallback glyph lives in the avatar circle next to "Партнёр прислал".
+    // It can legitimately appear more than once; assert at least one and that
+    // the avatar slot (the circle next to "Партнёр прислал") carries the bullet.
+    const bullets = screen.getAllByText("•");
+    expect(bullets.length).toBeGreaterThan(0);
+    expect(container.textContent).toContain("Партнёр прислал");
+  });
 });

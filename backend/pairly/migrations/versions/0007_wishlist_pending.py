@@ -24,8 +24,15 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    # ALTER TYPE ... ADD VALUE cannot run inside a transaction block on Postgres
+    # (SQLSTATE 25001 — ALTER TYPE ... ADD cannot run inside a transaction block).
+    # Wrap the statement in `autocommit_block()` so the migration commits the
+    # surrounding tx, drops to AUTOCOMMIT isolation, runs the ALTER, and lets the
+    # migration continue. On SQLite the column is a plain VARCHAR so we no-op
+    # (SQLite has no ALTER TYPE syntax and no enum type to extend).
     if bind.dialect.name == "postgresql":
-        op.execute("ALTER TYPE wishliststatus ADD VALUE IF NOT EXISTS 'PENDING'")
+        with op.get_context().autocommit_block():
+            op.execute("ALTER TYPE wishliststatus ADD VALUE IF NOT EXISTS 'PENDING'")
 
 
 def downgrade() -> None:

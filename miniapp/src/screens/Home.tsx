@@ -25,6 +25,12 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const gifts = useApi<GiftsResponse>(endpoints.listGifts);
   const notes = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
 
+  // Aggregate loading/error across all 6 hooks so a single banner can
+  // surface any problem without each card silently disappearing.
+  const allHooks = [mood, qotd, cds, bucket, gifts, notes] as const;
+  const anyError = allHooks.find((h) => h.error) ?? null;
+  const anyLoadingNoData = allHooks.some((h) => h.loading && h.data == null) && !anyError;
+
   const occasion = nearestOccasion(cds.data);
   const occasionDate = occasion ? new Date(occasion.at) : null;
   // Calendar-day delta (midnight-to-midnight) — matches what Countdowns shows,
@@ -45,9 +51,19 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
 
   const doneCount = (bucket.data ?? []).filter((b) => b.status === "done").length;
   const dreamingCount = (bucket.data ?? []).filter((b) => b.status === "dreaming").length;
+  // Stable per local day + list length so it doesn't re-randomize on every
+  // data refresh / tab return. Hash is computed once per render and is
+  // stable within the same calendar day; deps stay [bucket.data] so it
+  // refreshes when the underlying list changes (new dreams, status flips).
   const dream = useMemo(() => {
     const d = (bucket.data ?? []).filter((b) => b.status === "dreaming");
-    return d.length ? d[Math.floor(Math.random() * d.length)] : null;
+    if (d.length === 0) return null;
+    const dayKey = `${new Date().toDateString()}|${d.length}`;
+    let hash = 0;
+    for (let i = 0; i < dayKey.length; i++) {
+      hash = (hash * 31 + dayKey.charCodeAt(i)) | 0;
+    }
+    return d[Math.abs(hash) % d.length];
   }, [bucket.data]);
 
   const gItems = gifts.data?.items ?? [];
@@ -57,7 +73,10 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
 
   const nItems = notes.data ?? [];
   const unread = nItems.filter((n) => !n.mine && !n.readByRecipient).length;
-  const latest = nItems[0] ?? null;
+  // "последняя" should be the last note FROM the partner, not the user's
+  // own sent note (otherwise the card ages by the user's own activity and
+  // the partner's incoming note is invisible).
+  const latest = nItems.find((n) => !n.mine) ?? nItems[0] ?? null;
   // Calendar-day delta (local-midnight anchored) — matches every other
   // day-based count in the app and avoids the "1 dн. назад" drift that the
   // raw-ms Math.round had near midnight / across TZs.
@@ -69,6 +88,47 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
       <CountdownStrip items={cds.data ?? []} />
+
+      {anyError ? (
+        <button
+          type="button"
+          onClick={() => anyError.refetch()}
+          aria-label="Не удалось обновить — нажмите, чтобы повторить"
+          style={{
+            alignSelf: "center",
+            padding: "6px 12px",
+            borderRadius: 999,
+            background:
+              "color-mix(in srgb, var(--tg-danger) 14%, var(--tg-sec))",
+            border:
+              "1px solid color-mix(in srgb, var(--tg-danger) 35%, transparent)",
+            color: "var(--tg-danger)",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Не удалось обновить — потянитe, чтобы повторить
+        </button>
+      ) : anyLoadingNoData ? (
+        <div
+          aria-live="polite"
+          style={{
+            alignSelf: "center",
+            padding: "6px 12px",
+            borderRadius: 999,
+            background:
+              "color-mix(in srgb, var(--tg-hint) 12%, var(--tg-sec))",
+            border:
+              "1px solid color-mix(in srgb, var(--tg-hint) 25%, transparent)",
+            color: "var(--tg-hint)",
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          обновляем…
+        </div>
+      ) : null}
 
       <MoodCard mood={mood.data} onClick={() => onOpen("mood")} />
       <OccasionCard occasion={occasionProp} onClick={() => onOpen("countdowns")} />
@@ -88,6 +148,7 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
         waiting={waiting}
         activeCount={activeCount}
         goodDeeds={goodDeeds}
+        partnerName={gifts.data?.partnerName ?? null}
         onClick={() => onOpen("gifts")}
       />
       <NotesCard unread={unread} latestDaysAgo={daysAgo} onClick={() => onOpen("notes")} />

@@ -1,11 +1,15 @@
-# Pairly Caddyfile for docker-compose deploy.
+# Pairly Caddyfile baked into the `web` Docker image (Dockerfile.web).
+#
+# This file is COPYed into the image at /etc/caddy/Caddyfile — no host
+# bind-mount. To pick up edits, rebuild + recreate the web service:
+#   docker compose --env-file .env.prod up -d --build web
 #
 # Replace `pairly.mnepo.fyi` with your real domain (then point its DNS A
 # record at the VPS). Caddy will issue and renew Let's Encrypt certificates
 # automatically.
 #
 # Layout:
-#   https://<domain>/             -> static Mini App (mounted at /srv/miniapp)
+#   https://<domain>/             -> static Mini App (baked at /srv/miniapp)
 #   https://<domain>/api/*        -> FastAPI (service: api:8000)
 #   https://<domain>/telegram-webhook -> aiogram webhook (service: bot:8080)
 #   /.well-known/telegram-bot-app.json -> manifest for @BotFather /setdomain check
@@ -60,7 +64,8 @@ pairly.mnepo.fyi {
         }
     }
 
-    # Mini App static (built by `npm run build` in miniapp/).
+    # Mini App static — baked into the web image at /srv/miniapp by the
+    # node build stage in Dockerfile.web (no host bind-mount).
     handle {
         root * /srv/miniapp
         try_files {path} /index.html

@@ -24,6 +24,9 @@ interface GiftsCardProps {
   activeCount: number;
   /** Gifts marked "complete" — completed good deeds. */
   goodDeeds: number;
+  /** Partner's display name — drives the sender avatar letter when a gift
+   *  is waiting. Optional; falling back keeps the avatar slot non-blank. */
+  partnerName?: string | null;
   onClick: () => void;
 }
 
@@ -51,7 +54,18 @@ const resetBtn: React.CSSProperties = {
   color: "inherit",
 };
 
-export function GiftsCard({ waiting, activeCount, goodDeeds, onClick }: GiftsCardProps) {
+/** Avatar letter for the sender — first grapheme of the partner's name,
+ *  uppercased so it visually matches the capital initial the user types
+ *  into the input. Falls back to a bullet when the name is absent so the
+ *  avatar slot is never blank (was hardcoded "А" before — same letter
+ *  for every user). */
+function partnerInitial(name?: string | null): string {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return "•";
+  return trimmed.charAt(0).toUpperCase();
+}
+
+export function GiftsCard({ waiting, activeCount, goodDeeds, partnerName, onClick }: GiftsCardProps) {
   const isWaiting = waiting !== null;
   const isEmpty = !isWaiting && activeCount === 0 && goodDeeds === 0;
 
@@ -137,7 +151,7 @@ export function GiftsCard({ waiting, activeCount, goodDeeds, onClick }: GiftsCar
               boxShadow: "0 2px 6px rgba(0,0,0,.4)",
             }}
           >
-            <span aria-hidden>А</span>
+            <span aria-hidden>{partnerInitial(partnerName)}</span>
             <div
               aria-hidden
               style={{

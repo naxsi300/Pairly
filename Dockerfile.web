@@ -1,0 +1,46 @@
+# Pairly Dockerfile for the static-Mini-App web tier (Caddy + baked dist).
+#
+# Used by docker-compose.yml's `web` service. Multi-stage: a Node build stage
+# produces `miniapp/dist`, and the runtime stage is `caddy:2-alpine` with that
+# dist baked into the image at `/srv/miniapp`. Eliminates the previous
+# `./miniapp/dist:/srv/miniapp:ro` host bind-mount that caused stale/empty
+# content after every deploy (npm run build replaces dist atomically with new
+# inodes; the bind-mount served stale bytes; the operator had to force-recreate
+# the container, which caused a brief TLS gap).
+#
+# TLS is terminated here too (Caddy auto-issues/renews Let's Encrypt certs);
+# the api/bot reverse-proxy blocks live in the same Caddyfile.
+
+# ---- stage 1: build the Mini App ----------------------------------------
+FROM node:22-alpine AS frontend-build
+
+WORKDIR /build/miniapp
+
+# Install deps first to leverage Docker layer cache.
+COPY miniapp/package.json miniapp/package-lock.json* ./
+RUN npm ci --no-audit --no-fund
+
+# Now copy the source. Any edit to src/ invalidates only this layer.
+COPY miniapp/ ./
+
+# `npm run build` runs `tsc -b && vite build` (see miniapp/package.json).
+# Output lands at /build/miniapp/dist.
+RUN npm run build
+
+# ---- stage 2: runtime (Caddy) -------------------------------------------
+FROM caddy:2-alpine
+
+# Bake the Mini App static assets into the image. /srv/miniapp is the root
+# served by Caddy (see deploy/caddy/Caddyfile.docker). No host bind-mount —
+# the image is the source of truth; `docker compose build` rebuilds it and
+# `up -d` swaps the running container atomically.
+COPY --from=frontend-build /build/miniapp/dist /srv/miniapp
+
+# Ship the production Caddyfile into the image so the runtime is fully
+# self-contained (no bind-mount required). Caddy's stock entrypoint reads
+# /etc/caddy/Caddyfile by default.
+COPY deploy/caddy/Caddyfile.docker /etc/caddy/Caddyfile
+
+# caddy:2-alpine already runs as root with caddy user for child processes.
+# Caddy's default data dirs are /data and /config (named volumes in compose).
+EXPOSE 80 443
