@@ -27,7 +27,10 @@ echo "==> restart services"
 # A plain `up -d` picks up the new image references and replaces running
 # containers. No --force-recreate needed: the previous host bind-mount of
 # miniapp/dist (the source of the inode-replacement deploy failure) is gone.
-docker compose --env-file .env.prod up -d
+# --remove-orphans: a service rename (e.g. caddy -> web) would otherwise leave
+# the old container holding the host ports (80/443), so the new service can't
+# bind and the deploy silently serves nothing. Orphans are dropped here.
+docker compose --env-file .env.prod up -d --remove-orphans
 
 echo "==> health"
 sleep 3
