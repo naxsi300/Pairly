@@ -1,4 +1,6 @@
 import { Modal } from "./Modal";
+import { UpgradeModal } from "./UpgradeModal";
+import { useState } from "react";
 
 /**
  * Pro paywall — shown when a non-Pro user reaches a Pro-only action (the wheel's
@@ -15,43 +17,55 @@ export function Paywall({
   /** Optional: a subtle "test as Pro" affordance (the hidden admin menu). Dev-only. */
   onAdminHint?: () => void;
 }) {
+  // The "Оформить Pro" CTA used to fire a native alert() — replaced with a
+  // warm UpgradeModal so the user sees consistent bottom-sheet UI instead of
+  // an OS-level dialog breaking the R-warm tone.
+  const [upgradeSoon, setUpgradeSoon] = useState(false);
+
   return (
-    <Modal open={open} onClose={onClose} title="✨ Pairly Pro">
-      <div className="hero-warm" style={{ textAlign: "center", padding: "22px 18px" }}>
-        <div style={{ fontSize: 44, marginBottom: 8 }}>💞</div>
-        <div style={{ fontSize: 18, fontWeight: 700 }}>Больше свиданий — меньше рутины</div>
-        <div style={{ fontSize: 13, color: "var(--tg-hint)", marginTop: 4 }}>
-          Колесо работает умнее, пока вы просто наслаждаетесь вечером
+    <>
+      <Modal open={open} onClose={onClose} title="✨ Pairly Pro">
+        <div className="hero-warm" style={{ textAlign: "center", padding: "22px 18px" }}>
+          <div style={{ fontSize: 44, marginBottom: 8 }}>💞</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Больше свиданий — меньше рутины</div>
+          <div style={{ fontSize: 13, color: "var(--tg-hint)", marginTop: 4 }}>
+            Колесо работает умнее, пока вы просто наслаждаетесь вечером
+          </div>
         </div>
-      </div>
 
-      <div className="card">
-        <div className="card-title">Что открывает Pro</div>
-      </div>
-      <ul className="flex flex-col gap-2" style={{ marginTop: 2 }}>
-        {[
-          ["🧠", "«Умный» режим", "подбор из вишлиста по городу, погоде и настроению пары"],
-          ["🍀", "«Мне повезёт»", "нейросеть предлагает свидание — даже не из вашего списка"],
-          ["♾️", "Без лимитов", "неограниченный вишлист, отсчёты и мечты"],
-        ].map(([emoji, title, desc]) => (
-          <li key={title} className="card card-row" style={{ alignItems: "flex-start" }}>
-            <span className="emoji" style={{ fontSize: 24 }}>{emoji}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="card-title">{title}</div>
-              <div className="card-sub">{desc}</div>
-            </div>
-          </li>
-        ))}
-      </ul>
+        <div className="card">
+          <div className="card-title">Что открывает Pro</div>
+        </div>
+        <ul className="flex flex-col gap-2" style={{ marginTop: 2 }}>
+          {[
+            ["🧠", "«Умный» режим", "подбор из вишлиста по городу, погоде и настроению пары"],
+            ["🍀", "«Мне повезёт»", "нейросеть предлагает свидание — даже не из вашего списка"],
+            ["♾️", "Без лимитов", "неограниченный вишлист, отсчёты и мечты"],
+          ].map(([emoji, title, desc]) => (
+            <li key={title} className="card card-row" style={{ alignItems: "flex-start" }}>
+              <span className="emoji" style={{ fontSize: 24 }}>{emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="card-title">{title}</div>
+                <div className="card-sub">{desc}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
 
-      <button type="button" className="btn-warm" style={{ marginTop: 10 }} onClick={() => alert("Оплата подключается позже (USDT/СБП).")}>
-        Оформить Pro
-      </button>
-      {onAdminHint ? (
-        <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={onAdminHint}>
-          Тестировать как Pro
+        <button type="button" className="btn-warm" style={{ marginTop: 10 }} onClick={() => setUpgradeSoon(true)}>
+          Оформить Pro
         </button>
-      ) : null}
-    </Modal>
+        {onAdminHint ? (
+          <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={onAdminHint}>
+            Тестировать как Pro
+          </button>
+        ) : null}
+      </Modal>
+
+      <UpgradeModal
+        open={upgradeSoon}
+        onClose={() => setUpgradeSoon(false)}
+      />
+    </>
   );
 }

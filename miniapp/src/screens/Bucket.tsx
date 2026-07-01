@@ -10,6 +10,7 @@ import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { TextInput } from "../components/Field";
+import { UpgradeModal } from "../components/UpgradeModal";
 
 /** Default warm-wash surface for a list item. R-warm gallery primitive. */
 const warmWashSurface: React.CSSProperties = {
@@ -44,6 +45,10 @@ export function Bucket() {
    *  by sibling screens — see Mood.saveError / Gifts.sendError). Cleared on
    *  any successful subsequent action or when the user starts a new add. */
   const [actionError, setActionError] = useState<string | null>(null);
+  /** Warm UpgradeModal trigger — opened by the LimitBanner's "Оформить Pro"
+   *  CTA. Replaces the old native alert() so the limit-hit dialog matches
+   *  the R-warm tone of every other screen. */
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.bucket;
@@ -155,8 +160,8 @@ export function Bucket() {
             text={COPY.bucket.limitHit}
             count={items.length}
             max={DEFAULT_LIMITS.bucket}
-            onUpgrade={() => alert("Pro: оплата подключается позже (USDT/СБП).")}
-            onDeleteOld={() => alert("Отпустите или удалите старую мечту.")}
+            onUpgrade={() => setUpgradeOpen(true)}
+            onDeleteOld={() => setUpgradeOpen(true)}
           />
         </div>
       ) : null}
@@ -272,6 +277,11 @@ export function Bucket() {
           Без возможности восстановить.
         </p>
       </Modal>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+      />
     </div>
   );
 }

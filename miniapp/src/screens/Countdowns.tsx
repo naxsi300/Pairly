@@ -10,6 +10,7 @@ import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { TextInput } from "../components/Field";
+import { UpgradeModal } from "../components/UpgradeModal";
 
 /** Split a countdown into day/hour/min blocks for the gallery `.countdown` layout.
  * Recurring countdowns roll forward to their next occurrence. Returns null when
@@ -133,6 +134,9 @@ export function Countdowns() {
    * free-form label). null = nothing picked yet. Reset to null on every modal
    * open (add + edit) so editing never resurrects the previous preset. */
   const [presetId, setPresetId] = useState<string | null>(null);
+  /** Warm UpgradeModal trigger — opened by the LimitBanner's CTAs. Replaces
+   *  the old native alert() so the limit-hit dialog matches the R-warm tone. */
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
@@ -339,8 +343,8 @@ export function Countdowns() {
             text={COPY.countdowns.limitHit}
             count={items.length}
             max={DEFAULT_LIMITS.countdown}
-            onUpgrade={() => alert("Pro: оплата подключается позже (USDT/СБП).")}
-            onDeleteOld={() => alert("Удалите старый отсчёт.")}
+            onUpgrade={() => setUpgradeOpen(true)}
+            onDeleteOld={() => setUpgradeOpen(true)}
           />
         </div>
       ) : null}
@@ -490,6 +494,11 @@ export function Countdowns() {
           Это действие нельзя отменить. Отсчёт исчезнет у вас обоих.
         </p>
       </Modal>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+      />
     </div>
   );
 }
