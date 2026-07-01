@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
-import { countdownDays, countdownDisplay, countdownEmoji, milestoneTitle, nextMilestone, nextOccurrence, ruDays } from "../lib/format";
+import { countdownDisplay, countdownEmoji, milestoneTitle, nextMilestone, nextOccurrence } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -358,7 +358,6 @@ export function Countdowns() {
             const blocks = cdBlocks(c);
             const ms = isMilestone ? nextMilestone(c) : null;
             const soon = isSoon(c);
-            const milestoneDays = isMilestone ? Math.abs(countdownDays(c)) : 0;
             return (
               <li key={c.id}>
                 <div style={soon ? warmWashSurfaceSoon : warmWashSurface}>
@@ -368,9 +367,12 @@ export function Countdowns() {
                     </span>
                     <div className="card-title min-w-0 flex-1 truncate">{c.label}</div>
                   </div>
-                  {isMilestone ? (
-                    <div className="card-sub">{milestoneDays} {ruDays(milestoneDays)}</div>
-                  ) : c.recurrence ? (
+                  {/* Milestone rows: the next-round stat-big + "следующая круглая
+                      дата" line below carry the live info, so we skip the plain
+                      elapsed-days sub-line here (it duplicated the round count
+                      on the day a round lands). Recurring countdowns keep their
+                      "каждый год/месяц" cadence line. */}
+                  {c.recurrence && c.recurrence !== "milestone" ? (
                     <div className="card-sub">{c.recurrence === "annual" ? "каждый год" : "каждый месяц"}</div>
                   ) : null}
                   {isMilestone && ms ? (
