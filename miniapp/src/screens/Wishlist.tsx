@@ -10,6 +10,7 @@ import { LimitBanner } from "../components/LimitBanner";
 import { Modal } from "../components/Modal";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { TextInput } from "../components/Field";
+import { UpgradeModal } from "../components/UpgradeModal";
 
 // R-warm item surface — replaces the flat `.card` so wishlist rows read as
 // cards in the same warm-card language as the home feed. Active (non-done)
@@ -103,6 +104,9 @@ export function Wishlist() {
   /** Collapsed by default. Tracks whether the "Архив · N" disclosure at the
    *  bottom of the screen is expanded. */
   const [archiveOpen, setArchiveOpen] = useState(false);
+  /** Warm UpgradeModal trigger — opened by the LimitBanner's CTAs. Replaces
+   *  the old native alert() so the limit-hit dialog matches the R-warm tone. */
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const items = data ?? [];
   // Gallery pattern: active vs done live in separate filter tabs, so a done
@@ -255,8 +259,8 @@ export function Wishlist() {
             text={COPY.wishlist.limitHit}
             count={items.length}
             max={DEFAULT_LIMITS.wishlist}
-            onUpgrade={() => alert("Pro: оплата подключается позже (USDT/СБП).")}
-            onDeleteOld={() => alert("Отметьте или удалите старую хотелку.")}
+            onUpgrade={() => setUpgradeOpen(true)}
+            onDeleteOld={() => setUpgradeOpen(true)}
           />
         </div>
       ) : null}
@@ -266,7 +270,11 @@ export function Wishlist() {
       ) : error ? (
         <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
-        <EmptyState emoji="🗒" text={COPY.wishlist.empty} />
+        <EmptyState
+          emoji="🗒"
+          text={COPY.wishlist.empty}
+          action={{ label: `+ ${COPY.common.add}`, onClick: () => setAdding(true) }}
+        />
       ) : (
         <>
         <div className="chip-row mb-1">
@@ -287,7 +295,15 @@ export function Wishlist() {
         </div>
 
         {shown.length === 0 ? (
-          <EmptyState emoji={filter === "done" ? "✅" : "🗒"} text={filter === "done" ? "Пока ничего не отмечено" : COPY.wishlist.empty} />
+          filter === "done" ? (
+            <EmptyState emoji="✅" text="Пока ничего не отмечено" />
+          ) : (
+            <EmptyState
+              emoji="🗒"
+              text={COPY.wishlist.empty}
+              action={{ label: `+ ${COPY.common.add}`, onClick: () => setAdding(true) }}
+            />
+          )
         ) : (
         <ul className="flex flex-col gap-2">
           {shown.map((item) => (
@@ -470,6 +486,11 @@ export function Wishlist() {
           {COPY.wishlist.archivedLabel}
         </p>
       </Modal>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+      />
     </div>
   );
 }

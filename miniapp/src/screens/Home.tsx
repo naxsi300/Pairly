@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { endpoints, useApi } from "../sdk/api";
 import type { GiftsResponse, LoveNoteItem, MoodResponse, QOTDResponse } from "../sdk/api";
-import type { BucketItem, Countdown } from "../types";
+import type { BucketItem, Countdown, WishlistItem } from "../types";
 import { countdownDisplay, countdownEmoji, localDayDelta, nextMilestone, nextOccurrence } from "../lib/format";
+import { usePairStatus } from "../lib/useIsPro";
 import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
@@ -13,6 +14,10 @@ import { QotdCard } from "../components/home-cards/QotdCard";
 import { DreamsCard } from "../components/home-cards/DreamsCard";
 import { GiftsCard } from "../components/home-cards/GiftsCard";
 import { NotesCard } from "../components/home-cards/NotesCard";
+import { PairNotLinkedBanner } from "../components/PairNotLinkedBanner";
+import { WelcomeHero } from "../components/WelcomeHero";
+
+const WELCOMED_KEY = "pairly.welcomed";
 
 /** Home — R-warm dashboard: countdown strip + six live cards (mood, next occasion,
  *  QOTD, dreams, gifts, notes) + rituals / weekly challenge / gratitude. Each card
@@ -22,12 +27,17 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const qotd = useApi<QOTDResponse>(endpoints.getQotd);
   const cds = useApi<Countdown[]>(endpoints.listCountdowns);
   const bucket = useApi<BucketItem[]>(endpoints.listBucket);
+  const wishlist = useApi<WishlistItem[]>((signal) => endpoints.listWishlist(signal, false));
   const gifts = useApi<GiftsResponse>(endpoints.listGifts);
   const notes = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
+  // Pair-status: false while loading or after a 412 ("pair up first"). The
+  // banner only mounts once we know for sure the user is unpaired (loading
+  // finished + error), so it doesn't flash on first paint.
+  const { hasPair } = usePairStatus();
 
-  // Aggregate loading/error across all 6 hooks so a single banner can
+  // Aggregate loading/error across the data hooks so a single banner can
   // surface any problem without each card silently disappearing.
-  const allHooks = [mood, qotd, cds, bucket, gifts, notes] as const;
+  const allHooks = [mood, qotd, cds, bucket, wishlist, gifts, notes] as const;
   const anyError = allHooks.find((h) => h.error) ?? null;
   const anyLoadingNoData = allHooks.some((h) => h.loading && h.data == null) && !anyError;
 
@@ -85,6 +95,53 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   // note, so the card always read «последняя 0 дн. назад».)
   const daysAgo = latest ? Math.max(0, -localDayDelta(new Date(latest.createdAt), new Date())) : null;
 
+  // First-run welcome hero: show only when the three "content" streams are
+  // all empty AND the user hasn't dismissed it before. Dismissal sticks per
+  // device (no pairId is reliably available here — keyed by plain key, as
+  // the brief instructs). Treats `loading` as "not empty yet" so the hero
+  // doesn't flash during the initial fetch.
+  const [welcomed, setWelcomed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(WELCOMED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const bucketEmpty = (bucket.data ?? []).length === 0;
+  const wishlistEmpty = (wishlist.data ?? []).length === 0;
+  const notesEmpty = (notes.data ?? []).length === 0;
+  const isFirstRun =
+    !bucket.loading && !wishlist.loading && !notes.loading &&
+    bucketEmpty && wishlistEmpty && notesEmpty;
+  const showWelcome = isFirstRun && !welcomed;
+
+  // Persist dismissal (best-effort; storage may throw in private mode).
+  const dismissWelcome = () => {
+    try {
+      localStorage.setItem(WELCOMED_KEY, "1");
+    } catch {
+      /* swallow — state still updates in-memory */
+    }
+    setWelcomed(true);
+  };
+
+  // When the user has actually taken an action (any of the three streams
+  // now has content), hide the hero even if they didn't tap the dismiss
+  // button. We deliberately do NOT auto-dismiss on "loading finished" —
+  // a fresh empty load is exactly when the hero should appear, so we
+  // wait until at least one stream has length>0.
+  const hasEngagement =
+    (bucket.data?.length ?? 0) > 0 ||
+    (wishlist.data?.length ?? 0) > 0 ||
+    (notes.data?.length ?? 0) > 0;
+  useEffect(() => {
+    if (hasEngagement && !welcomed) {
+      // No persist here — they've engaged with the app, so subsequent
+      // empties should still feel fresh if data ever churns.
+      setWelcomed(true);
+    }
+  }, [hasEngagement, welcomed]);
+
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
       <CountdownStrip items={cds.data ?? []} />
@@ -128,6 +185,29 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
         >
           обновляем…
         </div>
+      ) : null}
+
+      {hasPair === false ? <PairNotLinkedBanner /> : null}
+
+      {showWelcome ? (
+        <WelcomeHero
+          onGift={() => {
+            dismissWelcome();
+            onOpen("gifts");
+          }}
+          onForward={() => {
+            // Bot deep-link isn't wired through TWA here; the wishlist is
+            // where forwarded posts surface, so we route the user there as
+            // the closest affordance.
+            dismissWelcome();
+            onOpen("wishlist");
+          }}
+          onNote={() => {
+            dismissWelcome();
+            onOpen("notes");
+          }}
+          onDismiss={dismissWelcome}
+        />
       ) : null}
 
       <MoodCard mood={mood.data} onClick={() => onOpen("mood")} />

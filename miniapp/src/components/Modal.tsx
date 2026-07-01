@@ -14,6 +14,11 @@ interface ModalProps {
   /** Submit-button variant. Defaults to "primary"; use "danger" for destructive
    * confirms (Bucket/Wishlist delete). */
   submitVariant?: "primary" | "danger";
+  /** Override the secondary/ghost button label. Defaults to "Отмена" when a
+   * submit handler is present, and "Закрыть" when it isn't. Useful for
+   * one-off dialogs (e.g. UpgradeModal's soft "Ладно") that need a custom
+   * dismiss copy without rebuilding the whole modal. */
+  secondaryLabel?: string;
   children: ReactNode;
 }
 
@@ -26,6 +31,7 @@ export function Modal({
   submitLabel,
   submitDisabled,
   submitVariant = "primary",
+  secondaryLabel,
   children,
 }: ModalProps) {
   // Stable id so the dialog can announce its title to screen readers via
@@ -79,7 +85,7 @@ export function Modal({
             </Button>
           ) : null}
           <Button type="button" variant="secondary" full={false} onClick={onClose}>
-            {onSubmit ? COPY.common.cancel : COPY.common.close}
+            {secondaryLabel ?? (onSubmit ? COPY.common.cancel : COPY.common.close)}
           </Button>
         </div>
       </form>
