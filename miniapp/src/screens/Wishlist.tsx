@@ -85,7 +85,9 @@ function usePhotoBlob(itemId: string | null, enabled: boolean): string {
 }
 
 export function Wishlist() {
-  const { data, loading, error, refetch, setData } = useApi(endpoints.listWishlist);
+  const { data, loading, error, refetch, setData } = useApi<WishlistItem[]>(
+    (signal) => endpoints.listWishlist(signal, true),
+  );
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
@@ -98,12 +100,17 @@ export function Wishlist() {
    *  Archive is a soft "hide" — the row stays in the DB (visible via the
    *  `?include_archived=1` path) but drops out of the active feed. */
   const [confirmingArchive, setConfirmingArchive] = useState<WishlistItem | null>(null);
+  /** Collapsed by default. Tracks whether the "Архив · N" disclosure at the
+   *  bottom of the screen is expanded. */
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const items = data ?? [];
   // Gallery pattern: active vs done live in separate filter tabs, so a done
   // item never shows its reopen/delete actions next to an active one.
+  // Archived items live in their own section below — outside both filter tabs.
   const activeItems = items.filter((i) => i.status !== "done" && i.status !== "archived");
   const doneItems = items.filter((i) => i.status === "done");
+  const archivedItems = items.filter((i) => i.status === "archived");
   const shown = filter === "active" ? activeItems : doneItems;
   const atLimit = activeItems.length >= DEFAULT_LIMITS.wishlist;
 
@@ -344,6 +351,53 @@ export function Wishlist() {
           ))}
         </ul>
         )}
+        {archivedItems.length > 0 ? (
+          <div style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              style={{
+                width: "100%",
+                textAlign: "left",
+                cursor: "pointer",
+                background: "none",
+                border: "none",
+                padding: "8px 0",
+                color: "var(--tg-hint)",
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "0.02em",
+              }}
+              onClick={() => setArchiveOpen((v) => !v)}
+              aria-expanded={archiveOpen}
+            >
+              {archiveOpen
+                ? `${COPY.wishlist.archiveSectionOpen} ▾`
+                : `${COPY.wishlist.archiveSectionClosed(archivedItems.length)} ▸`}
+            </button>
+            {archiveOpen ? (
+              archivedItems.length === 0 ? (
+                <p className="card-sub">{COPY.wishlist.archiveEmpty}</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {archivedItems.map((item) => (
+                    <li key={item.id}>
+                      <div
+                        style={{
+                          ...warmWash,
+                          opacity: 0.5,
+                          padding: "12px 14px",
+                        }}
+                      >
+                        <div className="card-title">{item.title}</div>
+                        <div className="meta">{COPY.wishlist.archivedLabel}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
+          </div>
+        ) : null}
         </>
       )}
 

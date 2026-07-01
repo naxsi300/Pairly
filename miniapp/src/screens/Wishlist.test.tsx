@@ -231,3 +231,36 @@ describe("Wishlist — archive action (Bundle A, Task 3)", () => {
     expect(await screen.findByLabelText("В архив")).toBeTruthy();
   });
 });
+
+describe("Wishlist — Архив section (Bundle A, Task 4)", () => {
+  it("shows the Архив header collapsed with count, expands on tap to reveal archived items", async () => {
+    listMock.mockResolvedValue([
+      { id: "w1", title: "Пицца", address: null, category: "eat", status: "open", mine: true },
+      { id: "w2", title: "Старое", address: null, category: null, status: "archived", mine: true },
+    ]);
+    render(<Wishlist />);
+    // Wait for the open row to render (proves the fetch resolved) — also
+    // proves the list call included archived items (otherwise the active
+    // filter would still show "Пицца" because it's the only "open" row,
+    // so this only validates wire-up once the header assertion below
+    // succeeds).
+    await screen.findByText("Пицца");
+
+    // Header text uses the closed format `Архив · N` — confirm N=1.
+    const header = await screen.findByText(/Архив · 1/);
+    // Archived item is present in the fetched data but hidden until expanded.
+    expect(screen.queryByText("Старое")).toBeNull();
+
+    fireEvent.click(header);
+    expect(await screen.findByText("Старое")).toBeTruthy();
+  });
+
+  it("does not render the Архив section when there are no archived items", async () => {
+    listMock.mockResolvedValue([
+      { id: "w-only", title: "Активное", address: null, category: null, status: "open", mine: true },
+    ]);
+    render(<Wishlist />);
+    await screen.findByText("Активное");
+    expect(screen.queryByText(/Архив/)).toBeNull();
+  });
+});
