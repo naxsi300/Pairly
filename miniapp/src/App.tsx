@@ -88,6 +88,7 @@ function DestinationView({ dest, onBack }: { dest: Destination; onBack: () => vo
       {dest === "mood" ? <Mood /> : null}
       {dest === "qotd" ? <QuestionOfTheDay /> : null}
       {dest === "notes" ? <LoveNotes /> : null}
+      {dest === "wishlist" ? <Wishlist /> : null}
     </div>
   );
 }

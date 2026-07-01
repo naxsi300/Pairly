@@ -70,6 +70,11 @@ export const COPY = {
     moreGifts: "🎁 Подарки",
     moreQotd: "💭 Вопрос дня",
     moreNotes: "💌 Записки",
+    welcomeTitle: "Ваш уголок 👋",
+    welcomeSub: "Пара тапов — и здесь станет уютно",
+    welcomeGift: "🎁 Отправить первый жест",
+    welcomeForward: "🗒 Переслать пост боту",
+    welcomeNote: "💌 Написать записку",
   },
   notes: {
     heading: "Записки",

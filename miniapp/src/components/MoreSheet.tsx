@@ -1,7 +1,7 @@
 import { COPY } from "../copy";
 import { Modal } from "./Modal";
 
-export type Destination = "bucket" | "countdowns" | "gifts" | "mood" | "qotd" | "notes";
+export type Destination = "bucket" | "countdowns" | "gifts" | "mood" | "qotd" | "notes" | "wishlist";
 
 /** Bottom-sheet listing the non-tab destination screens. */
 export function MoreSheet({
