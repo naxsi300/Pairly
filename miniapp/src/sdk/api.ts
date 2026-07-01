@@ -195,8 +195,11 @@ export interface LoveNoteItem {
 }
 
 export const endpoints = {
-  listWishlist: (signal?: AbortSignal) =>
-    request<WishlistItem[]>("/api/wishlist", { signal }),
+  listWishlist: (signal?: AbortSignal, includeArchived?: boolean) =>
+    request<WishlistItem[]>(
+      `/api/wishlist${includeArchived ? "?include_archived=1" : ""}`,
+      { signal },
+    ),
   addWishlist: (b: { title: string; address?: string | null; category?: string | null }, signal?: AbortSignal) =>
     request<WishlistItem>("/api/wishlist", { method: "POST", body: b, signal }),
 

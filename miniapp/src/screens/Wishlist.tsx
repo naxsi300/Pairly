@@ -85,7 +85,9 @@ function usePhotoBlob(itemId: string | null, enabled: boolean): string {
 }
 
 export function Wishlist() {
-  const { data, loading, error, refetch, setData } = useApi(endpoints.listWishlist);
+  const { data, loading, error, refetch, setData } = useApi<WishlistItem[]>(
+    (signal) => endpoints.listWishlist(signal, true),
+  );
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
@@ -94,12 +96,21 @@ export function Wishlist() {
   const [busy, setBusy] = useState(false);
   /** Item awaiting delete confirmation; null = no confirm modal open. */
   const [confirmingDelete, setConfirmingDelete] = useState<WishlistItem | null>(null);
+  /** Item awaiting archive confirmation; null = no archive modal open.
+   *  Archive is a soft "hide" — the row stays in the DB (visible via the
+   *  `?include_archived=1` path) but drops out of the active feed. */
+  const [confirmingArchive, setConfirmingArchive] = useState<WishlistItem | null>(null);
+  /** Collapsed by default. Tracks whether the "Архив · N" disclosure at the
+   *  bottom of the screen is expanded. */
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   const items = data ?? [];
   // Gallery pattern: active vs done live in separate filter tabs, so a done
   // item never shows its reopen/delete actions next to an active one.
+  // Archived items live in their own section below — outside both filter tabs.
   const activeItems = items.filter((i) => i.status !== "done" && i.status !== "archived");
   const doneItems = items.filter((i) => i.status === "done");
+  const archivedItems = items.filter((i) => i.status === "archived");
   const shown = filter === "active" ? activeItems : doneItems;
   const atLimit = activeItems.length >= DEFAULT_LIMITS.wishlist;
 
@@ -200,6 +211,21 @@ export function Wishlist() {
     haptic("light");
     try {
       await endpoints.deleteWishlist(item.id);
+    } catch {
+      refetch();
+    }
+  }
+
+  /** Archive an item — the confirm modal is responsible for the
+   *  "yes, really archive" click; this is the optimistic write path.
+   *  Pending items never reach here (UI gates them); the backend also
+   *  rejects PENDING→ARCHIVED so a stale UI state still can't corrupt
+   *  the partner-consent flow. */
+  async function archive(item: WishlistItem) {
+    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "archived" } : w)));
+    haptic("light");
+    try {
+      await endpoints.setWishlistStatus(item.id, "archived");
     } catch {
       refetch();
     }
@@ -306,6 +332,16 @@ export function Wishlist() {
                       ↶ {COPY.wishlist.repeat}
                     </button>
                   )}
+                  {item.status !== "pending" ? (
+                    <button
+                      type="button"
+                      className="card-act ghost"
+                      aria-label={COPY.wishlist.archiveAction}
+                      onClick={() => setConfirmingArchive(item)}
+                    >
+                      📦 {COPY.wishlist.archiveAction}
+                    </button>
+                  ) : null}
                   <button type="button" className="card-act danger" aria-label="Удалить" onClick={() => setConfirmingDelete(item)}>
                     🗑
                   </button>
@@ -315,6 +351,53 @@ export function Wishlist() {
           ))}
         </ul>
         )}
+        {archivedItems.length > 0 ? (
+          <div style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              style={{
+                width: "100%",
+                textAlign: "left",
+                cursor: "pointer",
+                background: "none",
+                border: "none",
+                padding: "8px 0",
+                color: "var(--tg-hint)",
+                fontSize: 14,
+                fontWeight: 600,
+                letterSpacing: "0.02em",
+              }}
+              onClick={() => setArchiveOpen((v) => !v)}
+              aria-expanded={archiveOpen}
+            >
+              {archiveOpen
+                ? `${COPY.wishlist.archiveSectionOpen} ▾`
+                : `${COPY.wishlist.archiveSectionClosed(archivedItems.length)} ▸`}
+            </button>
+            {archiveOpen ? (
+              archivedItems.length === 0 ? (
+                <p className="card-sub">{COPY.wishlist.archiveEmpty}</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {archivedItems.map((item) => (
+                    <li key={item.id}>
+                      <div
+                        style={{
+                          ...warmWash,
+                          opacity: 0.5,
+                          padding: "12px 14px",
+                        }}
+                      >
+                        <div className="card-title">{item.title}</div>
+                        <div className="meta">{COPY.wishlist.archivedLabel}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
+          </div>
+        ) : null}
         </>
       )}
 
@@ -367,6 +450,24 @@ export function Wishlist() {
       >
         <p className="card-sub" style={{ marginTop: 0 }}>
           Без возможности восстановить.
+        </p>
+      </Modal>
+
+      <Modal
+        open={confirmingArchive !== null}
+        title={confirmingArchive ? COPY.wishlist.archiveConfirm(confirmingArchive.title) : ""}
+        submitLabel={COPY.wishlist.archiveSubmit}
+        onClose={() => setConfirmingArchive(null)}
+        onSubmit={() => {
+          if (confirmingArchive) {
+            const target = confirmingArchive;
+            setConfirmingArchive(null);
+            archive(target);
+          }
+        }}
+      >
+        <p className="text-sm" style={{ color: "var(--tg-hint)" }}>
+          {COPY.wishlist.archivedLabel}
         </p>
       </Modal>
     </div>

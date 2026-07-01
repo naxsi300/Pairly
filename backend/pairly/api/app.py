@@ -323,11 +323,14 @@ def create_app() -> FastAPI:
     # --- wishlist ---
     @app.get("/api/wishlist", response_model=list[WishlistItemOut])
     async def get_wishlist(
+        include_archived: bool = False,
         auth: AuthContext = Depends(current_auth),
         session: AsyncSession = Depends(get_session),
     ) -> list[WishlistItemOut]:
         pair_id = _require_pair(auth)
-        items = await wishlist.list_items(session, pair_id=pair_id, user_id=auth.user.id)
+        items = await wishlist.list_items(
+            session, pair_id=pair_id, user_id=auth.user.id, include_archived=include_archived
+        )
         out = []
         for i in items:
             o = WishlistItemOut.model_validate(i)

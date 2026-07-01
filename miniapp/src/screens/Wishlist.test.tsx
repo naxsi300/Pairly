@@ -14,6 +14,9 @@ vi.mock("../sdk/api", async () => {
       markDone: vi.fn().mockImplementation((id: string) =>
         Promise.resolve({ id, status: "done" }),
       ),
+      setWishlistStatus: vi.fn().mockImplementation((id: string, status: string) =>
+        Promise.resolve({ id, status }),
+      ),
     },
   };
 });
@@ -34,11 +37,13 @@ const addMock = endpoints.addWishlist as unknown as ReturnType<typeof vi.fn>;
 const deleteMock = endpoints.deleteWishlist as unknown as ReturnType<typeof vi.fn>;
 const markDoneMock = endpoints.markDone as unknown as ReturnType<typeof vi.fn>;
 const listMock = endpoints.listWishlist as unknown as ReturnType<typeof vi.fn>;
+const setStatusMock = endpoints.setWishlistStatus as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   addMock.mockReset();
   deleteMock.mockClear();
   markDoneMock.mockClear();
+  setStatusMock.mockClear();
   listMock.mockReset();
   listMock.mockResolvedValue([]);
 });
@@ -156,5 +161,106 @@ describe("Wishlist — markDone guard on pending items", () => {
     // correctness is covered by the absence of the UI affordance plus the
     // explicit early-return in the source.
     expect(markDoneMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Wishlist — archive action (Bundle A, Task 3)", () => {
+  it("pending items do NOT render the archive button (backend forbids PENDING→ARCHIVED)", async () => {
+    listMock.mockResolvedValue([
+      { id: "w-pend", title: "На согласовании", address: null, category: null, status: "pending", mine: false },
+    ]);
+    render(<Wishlist />);
+    await screen.findByText("На согласовании");
+    // The archive button is rendered next to each item title — its text is
+    // "В архив" (with an emoji prefix). Assert it isn't present.
+    expect(screen.queryByLabelText("В архив")).toBeNull();
+    expect(screen.queryByText(/📦\s*В архив/)).toBeNull();
+  });
+
+  it("tapping the archive action on an open item opens a confirm modal; cancel keeps the row", async () => {
+    listMock.mockResolvedValue([
+      { id: "w-arc1", title: "Пицца", address: null, category: "eat", status: "open", mine: true },
+    ]);
+    render(<Wishlist />);
+    // Click the per-item archive action (icon button labelled "В архив").
+    fireEvent.click(await screen.findByLabelText("В архив"));
+
+    // Confirm modal heading appears with the item title.
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: /Убрать «Пицца»/ })).toBeTruthy(),
+    );
+    // No network call yet — confirm must wait for user consent.
+    expect(setStatusMock).not.toHaveBeenCalled();
+
+    // Cancel closes the modal without invoking the endpoint.
+    fireEvent.click(screen.getByText("Отмена"));
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: /Убрать «Пицца»/ })).toBeNull(),
+    );
+    expect(screen.getByText("Пицца")).toBeTruthy();
+    expect(setStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("confirming the archive modal calls setWishlistStatus('archived') and removes the row from the active view", async () => {
+    listMock.mockResolvedValue([
+      { id: "w-arc2", title: "Кофе с собой", address: null, category: "eat", status: "open", mine: true },
+    ]);
+    render(<Wishlist />);
+    fireEvent.click(await screen.findByLabelText("В архив"));
+
+    const heading = await screen.findByRole("heading", { name: /Убрать «Кофе/ });
+    const modal = heading.closest("form")!;
+    fireEvent.submit(modal);
+
+    await waitFor(() => expect(setStatusMock).toHaveBeenCalledWith("w-arc2", "archived"));
+    // Optimistic update: the row disappears from the active filter
+    // (status 'archived' is excluded by activeItems).
+    await waitFor(() => expect(screen.queryByText("Кофе с собой")).toBeNull());
+  });
+
+  it("archive action is also available on a done item (backend allows DONE→ARCHIVED)", async () => {
+    listMock.mockResolvedValue([
+      { id: "w-done", title: "Уже сделано", address: null, category: null, status: "done", mine: true },
+    ]);
+    render(<Wishlist />);
+    // Switch to the done filter so a done row is visible. The chip text is
+    // split across nodes ("✓ Сделано (" + count + ")") so we match by role.
+    // The list is async, so we wait for the chip itself to render before
+    // clicking — `getByRole` is synchronous and would race the fetch.
+    fireEvent.click(await screen.findByRole("button", { name: /Сделано/ }));
+    expect(await screen.findByLabelText("В архив")).toBeTruthy();
+  });
+});
+
+describe("Wishlist — Архив section (Bundle A, Task 4)", () => {
+  it("shows the Архив header collapsed with count, expands on tap to reveal archived items", async () => {
+    listMock.mockResolvedValue([
+      { id: "w1", title: "Пицца", address: null, category: "eat", status: "open", mine: true },
+      { id: "w2", title: "Старое", address: null, category: null, status: "archived", mine: true },
+    ]);
+    render(<Wishlist />);
+    // Wait for the open row to render (proves the fetch resolved) — also
+    // proves the list call included archived items (otherwise the active
+    // filter would still show "Пицца" because it's the only "open" row,
+    // so this only validates wire-up once the header assertion below
+    // succeeds).
+    await screen.findByText("Пицца");
+
+    // Header text uses the closed format `Архив · N` — confirm N=1.
+    const header = await screen.findByText(/Архив · 1/);
+    // Archived item is present in the fetched data but hidden until expanded.
+    expect(screen.queryByText("Старое")).toBeNull();
+
+    fireEvent.click(header);
+    expect(await screen.findByText("Старое")).toBeTruthy();
+  });
+
+  it("does not render the Архив section when there are no archived items", async () => {
+    listMock.mockResolvedValue([
+      { id: "w-only", title: "Активное", address: null, category: null, status: "open", mine: true },
+    ]);
+    render(<Wishlist />);
+    await screen.findByText("Активное");
+    expect(screen.queryByText(/Архив/)).toBeNull();
   });
 });

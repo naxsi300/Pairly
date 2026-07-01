@@ -111,6 +111,13 @@ export const COPY = {
     markedDone: (title: string) => `Отметил «${title}» как сделанное 🙌`,
     deleted: (title: string) => `Удалил «${title}». Безвозвратно, как договаривались.`,
     repeat: "🔁 Хочу повторить",
+    archiveAction: "В архив",
+    archiveConfirm: (title: string) => `Убрать «${title}» в архив? Останется в архиве, но не будет мешаться.`,
+    archiveSubmit: "В архив",
+    archivedLabel: "в архиве",
+    archiveSectionClosed: (n: number) => `Архив · ${n}`,
+    archiveSectionOpen: "Архив",
+    archiveEmpty: "В архиве пусто.",
     limitHit:
       "Ой, в бесплатной версии максимум 10 хотелок, и список уже полон 😅 Что решим: оформить Pro и добавить без лимита, или убрать что-то из старого?",
   },
