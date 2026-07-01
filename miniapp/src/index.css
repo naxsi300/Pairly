@@ -119,6 +119,11 @@ body {
   0%, 100% { transform: scale(1);    opacity: 0.85; }
   50%      { transform: scale(1.25); opacity: 1;    }
 }
+/* MoodCard resonance: pulse the arc's central node when self+partner share a mood. */
+@keyframes resonance-pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.9; }
+  50%      { transform: scale(1.4); opacity: 1;   }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    R-warm component classes — namespaced rw- variants of the gallery classes.

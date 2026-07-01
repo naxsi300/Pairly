@@ -69,6 +69,16 @@ export function MoodCard({ mood, onClick }: MoodCardProps) {
   const self = resolveMood(selfMood);
   const partner = resolveMood(partnerMood);
 
+  // Resonance: only when both sides have a real mood AND they match.
+  // `missing` means the mood is unresolved (null mood or unknown value),
+  // so two "missing" entries don't count as resonance.
+  const inResonance =
+    !self.missing &&
+    !partner.missing &&
+    selfMood !== null &&
+    partnerMood !== null &&
+    selfMood.mood === partnerMood.mood;
+
   const a11y =
     !self.missing && !partner.missing
       ? STR.a11yWithPartner(self.label, partnerName)
@@ -116,7 +126,10 @@ export function MoodCard({ mood, onClick }: MoodCardProps) {
           </div>
 
           {/* the harmony connector */}
-          <div style={connectorStyle}>
+          <div
+            style={connectorStyle}
+            data-resonance={inResonance ? "on" : "off"}
+          >
             <svg
               width="44"
               height="22"
@@ -128,14 +141,35 @@ export function MoodCard({ mood, onClick }: MoodCardProps) {
               <path
                 d="M2 14 Q22 -2 42 14"
                 stroke="var(--tg-warm)"
-                strokeWidth={1.6}
+                strokeWidth={inResonance ? 2 : 1.6}
                 strokeLinecap="round"
-                strokeDasharray="2 3"
-                opacity={0.85}
+                strokeDasharray={inResonance ? undefined : "2 3"}
+                opacity={inResonance ? 1 : 0.85}
               />
-              <circle cx={22} cy={6} r={2.2} fill="var(--tg-warm)" />
+              <circle
+                cx={22}
+                cy={6}
+                r={2.2}
+                fill="var(--tg-warm)"
+                className={inResonance ? "resonance-node" : undefined}
+                style={
+                  inResonance
+                    ? {
+                        filter: "drop-shadow(0 0 6px var(--tg-warm))",
+                        animation: "resonance-pulse 1.6s ease-in-out infinite",
+                        transformOrigin: "22px 6px",
+                      }
+                    : undefined
+                }
+              />
             </svg>
-            <div style={harmonyLabelStyle}>{STR.harmony}</div>
+            <div
+              style={
+                inResonance ? harmonyLabelActiveStyle : harmonyLabelStyle
+              }
+            >
+              {STR.harmony}
+            </div>
           </div>
 
           {/* PARTNER orb */}
@@ -379,6 +413,17 @@ const harmonyLabelStyle: CSSProperties = {
   color: "var(--tg-warm)",
   letterSpacing: "0.05em",
   textTransform: "uppercase",
+};
+
+// When resonance is real, the label gets bolder + the warm color stays
+// saturated (no fade) so the on-state reads as a single visual beat.
+const harmonyLabelActiveStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  color: "var(--tg-warm)",
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
+  textShadow: "0 0 6px color-mix(in srgb, var(--tg-warm) 60%, transparent)",
 };
 
 const footerRowStyle: CSSProperties = {
