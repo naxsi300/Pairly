@@ -74,7 +74,11 @@ export function LoveNotes() {
       />
 
       {notes.length === 0 ? (
-        <EmptyState emoji="💌" text={COPY.notes.empty} />
+        <EmptyState
+          emoji="💌"
+          text={COPY.notes.empty}
+          action={{ label: COPY.notes.send, onClick: () => setComposing(true) }}
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {notes.map((n) => {

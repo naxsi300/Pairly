@@ -270,7 +270,11 @@ export function Wishlist() {
       ) : error ? (
         <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
-        <EmptyState emoji="🗒" text={COPY.wishlist.empty} />
+        <EmptyState
+          emoji="🗒"
+          text={COPY.wishlist.empty}
+          action={{ label: `+ ${COPY.common.add}`, onClick: () => setAdding(true) }}
+        />
       ) : (
         <>
         <div className="chip-row mb-1">
@@ -291,7 +295,15 @@ export function Wishlist() {
         </div>
 
         {shown.length === 0 ? (
-          <EmptyState emoji={filter === "done" ? "✅" : "🗒"} text={filter === "done" ? "Пока ничего не отмечено" : COPY.wishlist.empty} />
+          filter === "done" ? (
+            <EmptyState emoji="✅" text="Пока ничего не отмечено" />
+          ) : (
+            <EmptyState
+              emoji="🗒"
+              text={COPY.wishlist.empty}
+              action={{ label: `+ ${COPY.common.add}`, onClick: () => setAdding(true) }}
+            />
+          )
         ) : (
         <ul className="flex flex-col gap-2">
           {shown.map((item) => (

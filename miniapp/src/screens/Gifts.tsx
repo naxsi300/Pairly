@@ -192,7 +192,11 @@ export function Gifts() {
       ) : error ? (
         <p className="py-10 text-center text-[var(--tg-danger)]">{COPY.common.error}</p>
       ) : items.length === 0 ? (
-        <EmptyState emoji="🎁" text={COPY.gifts.empty} />
+        <EmptyState
+          emoji="🎁"
+          text={COPY.gifts.empty}
+          action={{ label: `🎁 ${COPY.common.add}`, onClick: () => setPicking(true) }}
+        />
       ) : (
         <>
           <ul className="flex flex-col gap-2">

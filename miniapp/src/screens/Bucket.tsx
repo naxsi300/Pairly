@@ -171,7 +171,12 @@ export function Bucket() {
       ) : error ? (
         <p className="meta" style={{ textAlign: "center", padding: "40px 0", color: "var(--tg-danger)" }}>{COPY.common.error}</p>
       ) : items.length === 0 ? (
-        <EmptyState emoji="🌌" text={COPY.bucket.empty} hint={COPY.bucket.hint} />
+        <EmptyState
+          emoji="🌌"
+          text={COPY.bucket.empty}
+          hint={COPY.bucket.hint}
+          action={{ label: `+ ${COPY.common.add}`, onClick: () => setAdding(true) }}
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {items.map((item) => {
