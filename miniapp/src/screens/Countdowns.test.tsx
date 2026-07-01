@@ -21,12 +21,13 @@ vi.mock("../sdk/twa", () => ({
 }));
 
 vi.mock("../lib/milestoneBus", () => ({
-  emitMilestone: () => {},
+  emitMilestone: vi.fn(),
 }));
 
 import { Countdowns } from "./Countdowns";
 import { endpoints } from "../sdk/api";
 import { COPY } from "../copy";
+import { emitMilestone } from "../lib/milestoneBus";
 
 const addMock = endpoints.addCountdown as unknown as ReturnType<typeof vi.fn>;
 const listMock = endpoints.listCountdowns as unknown as ReturnType<typeof vi.fn>;
@@ -40,6 +41,7 @@ beforeEach(() => {
   listMock.mockReset();
   listMock.mockResolvedValue([]);
   deleteMock.mockResolvedValue({ ok: true });
+  (emitMilestone as unknown as ReturnType<typeof vi.fn>).mockReset();
 });
 
 describe("Countdowns — cluster 7 emoji fallback (no Intl.Segmenter)", () => {
@@ -364,5 +366,29 @@ describe("Countdowns — milestone card label-based celebration (Task 5)", () =>
     const statBig = await screen.findByText(/\d+ дн(?:ей|я|ень) · День знакомства/);
     expect(statBig).toBeInTheDocument();
     expect(statBig.className).toContain("stat-big");
+  });
+});
+
+describe("Countdowns — day-of milestone toast (Task 6)", () => {
+  it("emits a milestone toast when a round date is reached today", async () => {
+    // Reference exactly 100 days ago → 100-day round is today (daysUntil === 0).
+    // Wall-clock-independent: we anchor against `now` at test time, so any TZ works.
+    const now = new Date();
+    const ref = new Date(now.getTime() - 100 * 86_400_000).toISOString();
+    const emitSpy = emitMilestone as unknown as ReturnType<typeof vi.fn>;
+    listMock.mockResolvedValue([
+      { id: "m1", label: "День знакомства", emoji: "💝", targetDate: ref, recurrence: "milestone" },
+    ]);
+    render(<Countdowns />);
+    // Use the stat-big line (which contains label + "100 дней · …") to disambiguate from
+    // the row title — both match /День знакомства/, only the stat-big scopes to the
+    // milestone celebration we care about.
+    await screen.findByText(/100 дней · День знакомства/);
+    expect(emitSpy).toHaveBeenCalled();
+    const calls = emitSpy.mock.calls as Array<[unknown]>;
+    const lastCall = calls[calls.length - 1]?.[0] as { kind: string; value: number };
+    expect(lastCall.kind).toBe("milestone");
+    // The round we landed on is 100 days from a 100-days-ago reference.
+    expect(lastCall.value).toBe(100);
   });
 });

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
@@ -137,6 +137,29 @@ export function Countdowns() {
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
   const isEditing = editingId !== null;
+
+  /** Day-of milestone toast. When the Countdowns list loads and any milestone
+   * countdown has reached its next round date (daysUntil === 0), fire one
+   * `emitMilestone` so the App-level toast pings the user. Guarded by a ref
+   * keyed on (countdown id + round value) so a re-fetch after the user has
+   * already seen the toast for THIS round doesn't re-fire.
+   *
+   * Note: the toast's KIND_LABEL map doesn't yet know "milestone"; the toast
+   * falls back to COPY.milestones.generic. Label-based copy (e.g. "100 дней
+   * вместе") is a possible follow-up if Toast.tsx grows a "milestone" branch. */
+  const lastEmittedMilestoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+    for (const c of items) {
+      if (c.recurrence !== "milestone") continue;
+      const ms = nextMilestone(c);
+      if (!ms || ms.daysUntil !== 0) continue;
+      const key = `${c.id}:${ms.value}:${ms.unit}`;
+      if (lastEmittedMilestoneRef.current === key) continue;
+      lastEmittedMilestoneRef.current = key;
+      emitMilestone({ kind: "milestone", value: ms.value });
+    }
+  }, [items]);
 
   /** Clear all modal fields — on close/cancel AND after a successful save —
    * so the next open starts fresh (no stale milestone toggle, title, or date error). */
