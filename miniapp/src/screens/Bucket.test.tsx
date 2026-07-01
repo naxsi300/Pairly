@@ -144,7 +144,7 @@ describe("Bucket — soft error on action failure", () => {
     setStatusMock.mockRejectedValueOnce(new Error("network"));
     render(<Bucket />);
 
-    fireEvent.click(await screen.findByText(/Сбылось/));
+    fireEvent.click(await screen.findByText(/Сбылось 🌌/));
 
     // Optimistic update flips the row to "done" (status label shows in meta).
     await waitFor(() =>
@@ -175,13 +175,89 @@ describe("Bucket — soft error on action failure", () => {
 
     // First attempt: fails -> alert appears. markDone rolls back (item stays
     // dreaming) so the "Сбылось" button is still the affordance.
-    fireEvent.click(await screen.findByText(/Сбылось/));
+    fireEvent.click(await screen.findByText(/Сбылось 🌌/));
     await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
 
     // Recovery: tap "Сбылось" again — this time setBucketStatus resolves, the
     // alert clears, and the item flips to done.
-    fireEvent.click(await screen.findByText(/Сбылось/));
+    fireEvent.click(await screen.findByText(/Сбылось 🌌/));
     await waitFor(() => expect(setStatusMock).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+});
+
+describe("Bucket — fulfilled-dreams gallery (Bundle D Task 1)", () => {
+  it("renders a segmented toggle below the header with both tabs", async () => {
+    listMock.mockResolvedValue([
+      { id: "b-1", title: "Увидеть северное сияние", note: null, category: null, status: "dreaming" },
+      { id: "b-2", title: "Съездить на океан", note: null, category: null, status: "done", completedAt: "2026-06-01T10:00:00.000Z" },
+    ]);
+    render(<Bucket />);
+    // Both tabs present, active tab carries .chip.active.
+    const dreamsTab = await screen.findByRole("button", { name: /^Мечты$/ });
+    const fulfilledTab = await screen.findByRole("button", { name: /Сбылось 🌠/ });
+    expect(dreamsTab.className).toContain("chip");
+    expect(dreamsTab.className).toContain("active");
+    expect(fulfilledTab.className).toContain("chip");
+    expect(fulfilledTab.className).not.toContain("active");
+  });
+
+  it("fulfilled tab shows done items newest-first with 'сбылось {date}' label", async () => {
+    listMock.mockResolvedValue([
+      { id: "b-1", title: "Полёт на воздушном шаре", note: null, category: null, status: "dreaming" },
+      {
+        id: "b-2",
+        title: "Увидеть северное сияние",
+        note: null,
+        category: null,
+        status: "done",
+        completedAt: "2026-03-15T10:00:00.000Z",
+      },
+      {
+        id: "b-3",
+        title: "Прыжок с парашютом",
+        note: null,
+        category: null,
+        status: "done",
+        completedAt: "2026-05-20T10:00:00.000Z",
+      },
+    ]);
+    render(<Bucket />);
+
+    // Dreams tab: dreaming item visible, no "сбылось {date}" labels yet.
+    await screen.findByText("Полёт на воздушном шаре");
+    expect(screen.queryByText(/^сбылось \d/)).toBeNull();
+
+    // Switch to fulfilled tab (shooting-star emoji distinguishes it from the
+    // per-row "Сбылось 🌌" action button).
+    const fulfilledTab = await screen.findByRole("button", { name: /Сбылось 🌠/ });
+    fireEvent.click(fulfilledTab);
+
+    // Dreaming item gone, done items rendered newest-first with label.
+    await waitFor(() => expect(screen.queryByText("Полёт на воздушном шаре")).toBeNull());
+    const labels = screen.getAllByText(/^сбылось /);
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    // Newest (May) should appear before older (March) in document order.
+    const all = document.body.textContent ?? "";
+    const mayIdx = all.indexOf("Прыжок с парашютом");
+    const marIdx = all.indexOf("Увидеть северное сияние");
+    expect(mayIdx).toBeGreaterThanOrEqual(0);
+    expect(marIdx).toBeGreaterThan(mayIdx);
+    // Active class swapped to fulfilled tab.
+    expect(screen.getByRole("button", { name: /Сбылось 🌠/ }).className).toContain("active");
+  });
+
+  it("fulfilled tab empty state shows the warm empty copy when no done items", async () => {
+    listMock.mockResolvedValue([
+      { id: "b-1", title: "Полёт на воздушном шаре", note: null, category: null, status: "dreaming" },
+    ]);
+    render(<Bucket />);
+    const fulfilledTab = await screen.findByRole("button", { name: /Сбылось 🌠/ });
+    fireEvent.click(fulfilledTab);
+    expect(
+      await screen.findByText(/Пока ничего не сбылось — но всё впереди/),
+    ).toBeTruthy();
+    // Dreaming item is hidden in the fulfilled view.
+    expect(screen.queryByText("Полёт на воздушном шаре")).toBeNull();
   });
 });

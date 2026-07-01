@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type BucketItem } from "../types";
-import { bucketStatusLabel } from "../lib/format";
+import { bucketStatusLabel, shortDate } from "../lib/format";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -52,6 +52,9 @@ export function Bucket() {
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.bucket;
+  /** Active top-level tab. "dreams" = open items (default), "fulfilled" = the
+   *  done-items timeline (Bundle D Task 1). */
+  const [tab, setTab] = useState<"dreams" | "fulfilled">("dreams");
 
   async function submit() {
     // Synchronous busy guard: button `disabled` doesn't cover programmatic
@@ -178,6 +181,78 @@ export function Bucket() {
           action={{ label: `+ ${COPY.common.add}`, onClick: () => setAdding(true) }}
         />
       ) : (
+        <>
+        <div className="chip-row mb-3" data-testid="bucket-tab-row">
+          <button
+            type="button"
+            className={`chip flex-1 text-center justify-center ${tab === "dreams" ? "active" : ""}`}
+            onClick={() => setTab("dreams")}
+            aria-pressed={tab === "dreams"}
+          >
+            {COPY.bucket.dreamsTab}
+          </button>
+          <button
+            type="button"
+            className={`chip flex-1 text-center justify-center ${tab === "fulfilled" ? "active" : ""}`}
+            onClick={() => setTab("fulfilled")}
+            aria-pressed={tab === "fulfilled"}
+          >
+            {COPY.bucket.fulfilledTab}
+          </button>
+        </div>
+
+        {tab === "fulfilled" ? (
+          (() => {
+            const doneItems = items
+              .filter((b) => b.status === "done")
+              .sort((a, b) => {
+                const ax = a.completedAt ? Date.parse(a.completedAt) : 0;
+                const bx = b.completedAt ? Date.parse(b.completedAt) : 0;
+                return bx - ax;
+              });
+            if (doneItems.length === 0) {
+              return (
+                <EmptyState
+                  emoji="🌠"
+                  text={COPY.bucket.fulfilledEmpty}
+                />
+              );
+            }
+            return (
+              <ul className="flex flex-col gap-2">
+                {doneItems.map((item) => {
+                  const date = shortDate(item.completedAt);
+                  return (
+                    <li key={item.id}>
+                      <div
+                        className="card done"
+                        style={{
+                          ...warmWashSurface,
+                          opacity: 0.85,
+                        }}
+                      >
+                        <div className="card-row" style={{ alignItems: "flex-start", gap: 12 }}>
+                          <span aria-hidden style={emojiTileStyle}>✨</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p className="card-title" style={{ textDecoration: "line-through" }}>
+                              {item.title}
+                            </p>
+                            {item.note ? <p className="card-sub">{item.note}</p> : null}
+                            {date ? (
+                              <p className="meta" style={{ marginTop: 2 }}>
+                                {COPY.bucket.fulfilledOn(date)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          })()
+        ) : (
         <ul className="flex flex-col gap-2">
           {items.map((item) => {
             const isDone = item.status === "done";
@@ -242,6 +317,8 @@ export function Bucket() {
             );
           })}
         </ul>
+        )}
+        </>
       )}
 
       <Modal
