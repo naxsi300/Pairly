@@ -68,4 +68,59 @@ describe("MoodCard", () => {
     fireEvent.click(btn);
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it("lights the connector when both partners share the same mood", () => {
+    const same: MoodResponse = {
+      self: { mood: "хорошо", note: null, setAt: "2026-06-21T10:00:00Z" },
+      partner: { mood: "хорошо", note: null, setAt: "2026-06-21T10:05:00Z" },
+      partnerName: "маша",
+    };
+    const { container } = render(
+      <MoodCard mood={same} onClick={() => {}} />,
+    );
+    const arc = container.querySelector("[data-resonance='on'] path");
+    expect(arc).toBeTruthy();
+    // when in resonance the dashed look goes away (no stroke-dasharray attr)
+    expect(arc?.getAttribute("stroke-dasharray")).toBeFalsy();
+    // the resonance-node circle carries the class
+    expect(
+      container.querySelector("[data-resonance='on'] circle.resonance-node"),
+    ).toBeTruthy();
+  });
+
+  it("keeps the dotted calm connector when moods differ", () => {
+    const different: MoodResponse = {
+      self: { mood: "хорошо", note: null, setAt: "2026-06-21T10:00:00Z" },
+      partner: { mood: "радостно", note: null, setAt: "2026-06-21T10:05:00Z" },
+      partnerName: "маша",
+    };
+    const { container } = render(
+      <MoodCard mood={different} onClick={() => {}} />,
+    );
+    const connector = container.querySelector("[data-resonance='off']");
+    expect(connector).toBeTruthy();
+    const arc = connector!.querySelector("path");
+    // dotted is preserved in non-resonance
+    expect(arc?.getAttribute("stroke-dasharray")).toBeTruthy();
+    // no pulse class in non-resonance
+    expect(connector!.querySelector("circle.resonance-node")).toBeFalsy();
+  });
+
+  it("treats resonance as off when either side has no mood", () => {
+    const missing: MoodResponse = {
+      self: null,
+      partner: { mood: "хорошо", note: null, setAt: "2026-06-21T10:05:00Z" },
+      partnerName: "маша",
+    };
+    const { container } = render(
+      <MoodCard mood={missing} onClick={() => {}} />,
+    );
+    // self is missing -> cannot be in resonance
+    expect(
+      container.querySelector("[data-resonance='off']"),
+    ).toBeTruthy();
+    expect(
+      container.querySelector("[data-resonance='on']"),
+    ).toBeFalsy();
+  });
 });

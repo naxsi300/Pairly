@@ -87,6 +87,9 @@ export function DateWheelScreen({
       spinTimerRef.current = window.setTimeout(() => {
         spinTimerRef.current = null;
         setPhase("result");
+        // Land thud: medium impact on the moment the card flips in. Combined
+        // with the .date-result-bounce keyframe in index.css for visual pop.
+        haptic("medium");
         haptic("success");
       }, 1100);
     } catch (e) {
@@ -204,7 +207,7 @@ export function DateWheelScreen({
         )}
 
         {phase === "result" && idea && (
-          <>
+          <div className="date-result-bounce">
             <div className="hero-warm" style={{ textAlign: "center", padding: "28px 20px", marginTop: 6 }}>
               <div style={{ fontSize: 56, marginBottom: 10 }}>{categoryEmoji(idea.category)}</div>
               <div style={{ fontSize: 22, fontWeight: 700 }}>{idea.title}</div>
@@ -226,7 +229,7 @@ export function DateWheelScreen({
               <button type="button" className="btn-ghost" style={{ flex: 1 }} onClick={spin}>🔄 Ещё</button>
               <button type="button" className="btn-warm" style={{ flex: 1 }} onClick={() => { setPhase("filters"); setIdea(null); setSpinError(null); }}>👍 Готово</button>
             </div>
-          </>
+          </div>
         )}
       </div>
 
