@@ -36,15 +36,10 @@ const KIND_LABEL: Record<string, (v: number) => string> = {
   mood_mutual_count: (v) =>
     v === 7 ? COPY.milestones.moodMutual7
     : COPY.milestones.moodMutualCustom(v),
-  together_days: (v) =>
-    v === 30 ? COPY.milestones.togetherDays30
-    : v === 100 ? COPY.milestones.togetherDays100
-    : v === 365 ? COPY.milestones.togetherDays365
-    : COPY.milestones.togetherDaysCustom(v),
 };
 
 /** Milestones that deserve a confetti burst (anniversaries + bigger achievements). */
-const CONFETTI_KINDS = new Set(["together_days", "gift_completed_count"]);
+const CONFETTI_KINDS = new Set(["gift_completed_count"]);
 
 export function MilestoneToast({
   events,
