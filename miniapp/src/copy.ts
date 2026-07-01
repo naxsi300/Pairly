@@ -78,6 +78,13 @@ export const COPY = {
     pairNotLinkedTitle: "Это ваш уголок, но пока только ваш",
     pairNotLinkedSub: "Пригласите партнёра: /pair в боте",
     pairNotLinkedCta: "Открыть бота",
+    recapTitle: "Ваш месяц вместе",
+    // Honest "short, warm" recap. Brief allows the simple "N вопросов / N добрых дел /
+    // N сбылось" form when uncertain about gender; we pick this on purpose so the
+    // string stays stable across locales and avoids Polish-style one/few/many forms
+    // that read awkwardly in Russian for 1, 21, 22…
+    recapBody: (qotd: number, deeds: number, dreams: number) =>
+      `${qotd} вопросов · ${deeds} добрых дел · ${dreams} мечт сбылось`,
   },
   notes: {
     heading: "Записки",
