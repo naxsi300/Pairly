@@ -325,3 +325,28 @@ describe("Countdowns — MED cluster (confirm-delete, cdBlocks, recurrence, aria
     expect(body.recurrence).toBe("annual");
   });
 });
+
+describe("Countdowns — milestone presets (Task 4)", () => {
+  it("shows preset chips only when the milestone toggle is on", async () => {
+    // listMock returns an empty list (per beforeEach).
+    render(<Countdowns />);
+    fireEvent.click(await screen.findByText(/\+ Добавить/));
+    // Before toggling milestone: no preset chip text yet.
+    expect(screen.queryByText(/День знакомства/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Своя дата/)).not.toBeInTheDocument();
+    // Toggle milestone on.
+    fireEvent.click(screen.getByRole("button", { name: /Считать круглые даты/ }));
+    expect(await screen.findByText(/День знакомства/)).toBeInTheDocument();
+    expect(screen.getByText(/Свадьба/)).toBeInTheDocument();
+    expect(screen.getByText(/Своя дата/)).toBeInTheDocument();
+  });
+
+  it("tapping a preset fills label + emoji", async () => {
+    render(<Countdowns />);
+    fireEvent.click(await screen.findByText(/\+ Добавить/));
+    fireEvent.click(screen.getByRole("button", { name: /Считать круглые даты/ }));
+    fireEvent.click(await screen.findByText(/День знакомства/));
+    const labelInput = (await screen.findByPlaceholderText(/Название, например/)) as HTMLInputElement;
+    expect(labelInput.value).toBe("День знакомства");
+  });
+});

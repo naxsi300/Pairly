@@ -129,6 +129,10 @@ export function Countdowns() {
   /** Item pending deletion — set on trash-click, consumed by a confirm Modal
    * before we actually call remove(). null = no dialog open. */
   const [confirmDelete, setConfirmDelete] = useState<Countdown | null>(null);
+  /** Currently selected milestone preset (or "custom" when the user wants a
+   * free-form label). null = nothing picked yet. Reset to null on every modal
+   * open (add + edit) so editing never resurrects the previous preset. */
+  const [presetId, setPresetId] = useState<string | null>(null);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
@@ -144,11 +148,19 @@ export function Countdowns() {
     setDateErr(false);
     setEditingId(null);
     setOriginalRecurrence(null);
+    setPresetId(null);
   }
   const closeModal = () => {
     resetForm();
     setAdding(false);
   };
+
+  /** Open the modal in "add new" mode — ensures the modal opens with a clean
+   * preset state (no stale preset from a prior edit session). */
+  function openAdd() {
+    setPresetId(null);
+    setAdding(true);
+  }
 
   /** Open the modal prefilled from an existing countdown (edit mode). */
   function openEdit(c: Countdown) {
@@ -159,6 +171,8 @@ export function Countdowns() {
     setMilestone(c.recurrence === "milestone");
     setOriginalRecurrence(c.recurrence);
     setDateErr(false);
+    // Editing never re-selects a preset — the user's existing label is the truth.
+    setPresetId(null);
   }
 
   /** Cap the emoji field at 4 grapheme clusters using Intl.Segmenter.
@@ -264,6 +278,20 @@ export function Countdowns() {
     void remove(item);
   }
 
+  /** Apply a milestone preset chip. A relationship preset ("День знакомства",
+   * "Свадьба", etc.) fills label + emoji so the user can tweak from there.
+   * «Своя дата» (id "custom") only marks "no preset" — it leaves whatever
+   * label the user already typed untouched. */
+  function applyPreset(p: { id: string; label: string; emoji: string }) {
+    if (p.id === "custom") {
+      setPresetId("custom");
+      return;
+    }
+    setPresetId(p.id);
+    setLabel(p.label);
+    setEmoji(p.emoji);
+  }
+
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
       <ScreenHeader
@@ -274,7 +302,7 @@ export function Countdowns() {
             type="button"
             className="btn-warm"
             style={{ width: "auto", padding: "10px 16px", fontSize: 14 }}
-            onClick={() => setAdding(true)}
+            onClick={openAdd}
             disabled={atLimit}
           >
             + {COPY.common.add}
@@ -403,9 +431,25 @@ export function Countdowns() {
           {milestone ? "✓ " : ""}🎯 Считать круглые даты от этой даты (точка отсчёта)
         </button>
         {milestone ? (
-          <p className="text-xs" style={{ color: "var(--tg-hint)" }}>
-            Например, укажите любую важную дату — и ближайший повод сам покажет круглую отметку: 100 дней, 1 год, 1000 дней.
-          </p>
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 6px" }}>
+              {COPY.countdowns.milestonePresets.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyPreset(p)}
+                  aria-pressed={presetId === p.id}
+                  className={`chip ${presetId === p.id ? "active" : ""}`}
+                  style={{ fontSize: 13 }}
+                >
+                  {p.emoji} {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs" style={{ color: "var(--tg-hint)" }}>
+              Например, укажите любую важную дату — и ближайший повод сам покажет круглую отметку: 100 дней, 1 год, 1000 дней.
+            </p>
+          </>
         ) : null}
       </Modal>
 
