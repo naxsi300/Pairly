@@ -142,12 +142,31 @@ export function countdownDays(c: Countdown, now: Date = new Date()): number {
 }
 
 /** Russian pluralization for years: 1 год / 2–4 года / 5+ лет. */
-function ruYears(n: number): string {
+export function ruYears(n: number): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${n} год`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return `${n} года`;
-  return `${n} лет`;
+  if (mod10 === 1 && mod100 !== 11) return "год";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "года";
+  return "лет";
+}
+
+/** Russian pluralization for whole days: 1 день / 2–4 дня / 5+ дней. Mirrors
+ * the rules used by `ruYears` so a milestone count reads correctly regardless
+ * of what the reference date anchors (relationship, sobriety, project start). */
+export function ruDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return "день";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
+  return "дней";
+}
+
+/** Format a reached round-date milestone, label-based + neutral:
+ *  «100 дней · День знакомства», «1 год · Свадьба». Uses the countdown's own
+ *  label, so it works for any reference event — no "вместе" assumption. */
+export function milestoneTitle(label: string, value: number, isYear?: boolean): string {
+  const unit = isYear ? ruYears(value) : ruDays(value);
+  return `${value} ${unit} · ${label}`;
 }
 
 /** Add N months to a date, clamping the day to month-end on overflow (e.g.
@@ -225,7 +244,7 @@ export function nextMilestone(
     candidates.push({
       date: addYears(ref, y),
       // Neutral: no "вместе" suffix on yearly milestones either.
-      label: `${ruYears(y)}`,
+      label: `${y} ${ruYears(y)}`,
     });
   }
   const first = candidates

@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
-import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
+import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence, ruDays } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -61,18 +61,6 @@ function isoToRuDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
-}
-
-/** Russian pluralization for whole days: 1 день / 2–4 дня / 5+ дней. Mirrors
- * the rules used by `ruYears` in lib/format.ts (mod10/mod100 bracket) so the
- * milestone count reads correctly regardless of what the reference date
- * anchors. */
-function ruDays(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "день";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
-  return "дней";
 }
 
 /** Surface style for an item card: warm-wash on --tg-sec. Soon items get the

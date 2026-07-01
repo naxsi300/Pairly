@@ -3,9 +3,12 @@ import {
   bucketStatusLabel,
   countdownDays,
   countdownDisplay,
+  milestoneTitle,
   nextMilestone,
   nextOccurrence,
   relativeTime,
+  ruDays,
+  ruYears,
 } from "./format";
 import type { Countdown } from "../types";
 
@@ -342,5 +345,49 @@ describe("bucketStatusLabel", () => {
     const out = bucketStatusLabel(unknown);
     expect(out).toBe("archived");
     expect(out).toBeDefined();
+  });
+});
+
+describe("ruDays", () => {
+  it.each([
+    [1, "день"],
+    [2, "дня"],
+    [5, "дней"],
+    [22, "дня"],
+    [100, "дней"],
+    [11, "дней"],
+    [21, "день"],
+  ])("%i → %s", (n, expected) => {
+    expect(ruDays(n)).toBe(expected);
+  });
+});
+
+describe("ruYears", () => {
+  it.each([
+    [1, "год"],
+    [2, "года"],
+    [5, "лет"],
+    [21, "год"],
+    [22, "года"],
+  ])("%i → %s", (n, expected) => {
+    expect(ruYears(n)).toBe(expected);
+  });
+});
+
+describe("milestoneTitle", () => {
+  it("formats a day milestone with the pair's label", () => {
+    expect(milestoneTitle("День знакомства", 100)).toBe("100 дней · День знакомства");
+  });
+  it("pluralizes 1 day", () => {
+    expect(milestoneTitle("Переезд", 1)).toBe("1 день · Переезд");
+  });
+  it("pluralizes 22 days", () => {
+    expect(milestoneTitle("Первое свидание", 22)).toBe("22 дня · Первое свидание");
+  });
+  it("formats a year milestone", () => {
+    expect(milestoneTitle("Свадьба", 1, true)).toBe("1 год · Свадьба");
+  });
+  it("pluralizes 2 years", () => {
+    expect(milestoneTitle("Свадьба", 2, true)).toBe("2 года · Свадьба");
   });
 });
