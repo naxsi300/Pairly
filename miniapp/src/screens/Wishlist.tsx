@@ -94,6 +94,10 @@ export function Wishlist() {
   const [busy, setBusy] = useState(false);
   /** Item awaiting delete confirmation; null = no confirm modal open. */
   const [confirmingDelete, setConfirmingDelete] = useState<WishlistItem | null>(null);
+  /** Item awaiting archive confirmation; null = no archive modal open.
+   *  Archive is a soft "hide" — the row stays in the DB (visible via the
+   *  `?include_archived=1` path) but drops out of the active feed. */
+  const [confirmingArchive, setConfirmingArchive] = useState<WishlistItem | null>(null);
 
   const items = data ?? [];
   // Gallery pattern: active vs done live in separate filter tabs, so a done
@@ -205,6 +209,21 @@ export function Wishlist() {
     }
   }
 
+  /** Archive an item — the confirm modal is responsible for the
+   *  "yes, really archive" click; this is the optimistic write path.
+   *  Pending items never reach here (UI gates them); the backend also
+   *  rejects PENDING→ARCHIVED so a stale UI state still can't corrupt
+   *  the partner-consent flow. */
+  async function archive(item: WishlistItem) {
+    setData((prev) => (prev ?? []).map((w) => (w.id === item.id ? { ...w, status: "archived" } : w)));
+    haptic("light");
+    try {
+      await endpoints.setWishlistStatus(item.id, "archived");
+    } catch {
+      refetch();
+    }
+  }
+
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
       <ScreenHeader
@@ -306,6 +325,16 @@ export function Wishlist() {
                       ↶ {COPY.wishlist.repeat}
                     </button>
                   )}
+                  {item.status !== "pending" ? (
+                    <button
+                      type="button"
+                      className="card-act ghost"
+                      aria-label={COPY.wishlist.archiveAction}
+                      onClick={() => setConfirmingArchive(item)}
+                    >
+                      📦 {COPY.wishlist.archiveAction}
+                    </button>
+                  ) : null}
                   <button type="button" className="card-act danger" aria-label="Удалить" onClick={() => setConfirmingDelete(item)}>
                     🗑
                   </button>
@@ -367,6 +396,24 @@ export function Wishlist() {
       >
         <p className="card-sub" style={{ marginTop: 0 }}>
           Без возможности восстановить.
+        </p>
+      </Modal>
+
+      <Modal
+        open={confirmingArchive !== null}
+        title={confirmingArchive ? COPY.wishlist.archiveConfirm(confirmingArchive.title) : ""}
+        submitLabel={COPY.wishlist.archiveSubmit}
+        onClose={() => setConfirmingArchive(null)}
+        onSubmit={() => {
+          if (confirmingArchive) {
+            const target = confirmingArchive;
+            setConfirmingArchive(null);
+            archive(target);
+          }
+        }}
+      >
+        <p className="text-sm" style={{ color: "var(--tg-hint)" }}>
+          {COPY.wishlist.archivedLabel}
         </p>
       </Modal>
     </div>
