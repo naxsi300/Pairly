@@ -3,6 +3,7 @@ import { endpoints, useApi } from "../sdk/api";
 import type { GiftsResponse, LoveNoteItem, MoodResponse, QOTDResponse } from "../sdk/api";
 import type { BucketItem, Countdown, WishlistItem } from "../types";
 import { countdownDisplay, countdownEmoji, localDayDelta, nextMilestone, nextOccurrence } from "../lib/format";
+import { usePairStatus } from "../lib/useIsPro";
 import type { Destination } from "../components/MoreSheet";
 import { Rituals } from "../components/Rituals";
 import { CountdownStrip } from "../components/CountdownStrip";
@@ -13,6 +14,7 @@ import { QotdCard } from "../components/home-cards/QotdCard";
 import { DreamsCard } from "../components/home-cards/DreamsCard";
 import { GiftsCard } from "../components/home-cards/GiftsCard";
 import { NotesCard } from "../components/home-cards/NotesCard";
+import { PairNotLinkedBanner } from "../components/PairNotLinkedBanner";
 import { WelcomeHero } from "../components/WelcomeHero";
 
 const WELCOMED_KEY = "pairly.welcomed";
@@ -28,6 +30,10 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const wishlist = useApi<WishlistItem[]>((signal) => endpoints.listWishlist(signal, false));
   const gifts = useApi<GiftsResponse>(endpoints.listGifts);
   const notes = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
+  // Pair-status: false while loading or after a 412 ("pair up first"). The
+  // banner only mounts once we know for sure the user is unpaired (loading
+  // finished + error), so it doesn't flash on first paint.
+  const { hasPair } = usePairStatus();
 
   // Aggregate loading/error across the data hooks so a single banner can
   // surface any problem without each card silently disappearing.
@@ -180,6 +186,8 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
           обновляем…
         </div>
       ) : null}
+
+      {hasPair === false ? <PairNotLinkedBanner /> : null}
 
       {showWelcome ? (
         <WelcomeHero

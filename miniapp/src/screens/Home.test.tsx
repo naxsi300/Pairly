@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { ApiError } from "../sdk/api";
 import { Home } from "./Home";
 
 // We vary the mock data per test, so expose the data-fetch mocks via
@@ -8,6 +9,13 @@ const mocks = vi.hoisted(() => ({
   wishlist: vi.fn(),
   bucket: vi.fn(),
   notes: vi.fn(),
+  // Default: paired. Each test that needs the unpaired state can call
+  // mocks.getPairStats.mockRejectedValueOnce(new ApiError(412, "pair up first")).
+  getPairStats: vi.fn().mockResolvedValue({
+    togetherDays: 42, totalWishlist: 3, wishlistDone: 1,
+    totalGifts: 0, giftsCompleted: 0, totalQotdAnswers: 0,
+    totalCountdowns: 0, createdAt: null,
+  }),
 }));
 
 vi.mock("../sdk/api", async () => {
@@ -15,11 +23,7 @@ vi.mock("../sdk/api", async () => {
   return {
     ...actual,
     endpoints: {
-      getPairStats: vi.fn().mockResolvedValue({
-        togetherDays: 42, totalWishlist: 3, wishlistDone: 1,
-        totalGifts: 0, giftsCompleted: 0, totalQotdAnswers: 0,
-        totalCountdowns: 0, createdAt: null,
-      }),
+      getPairStats: mocks.getPairStats,
       getMood: vi.fn().mockResolvedValue({ self: null, partner: null, partnerName: "Маша" }),
       getQotd: vi.fn().mockResolvedValue({
         question: { id: "q1", text: "О чём мечтаем?", category: "x" },
@@ -49,6 +53,13 @@ beforeEach(() => {
   mocks.wishlist.mockReset();
   mocks.bucket.mockReset();
   mocks.notes.mockReset();
+  // Re-apply the default paired getPairStats (mockReset clears the impl).
+  mocks.getPairStats.mockReset();
+  mocks.getPairStats.mockResolvedValue({
+    togetherDays: 42, totalWishlist: 3, wishlistDone: 1,
+    totalGifts: 0, giftsCompleted: 0, totalQotdAnswers: 0,
+    totalCountdowns: 0, createdAt: null,
+  });
 });
 
 describe("Home", () => {
@@ -194,5 +205,33 @@ describe("Home", () => {
       expect(screen.getByText("О чём мечтаем?")).toBeTruthy();
     });
     expect(screen.queryByRole("button", { name: "🎁 Отправить первый жест" })).toBeNull();
+  });
+
+  it("does not show PairNotLinkedBanner when getPairStats succeeds (paired user)", async () => {
+    mocks.bucket.mockResolvedValue([]);
+    mocks.wishlist.mockResolvedValue([]);
+    mocks.notes.mockResolvedValue([]);
+    render(<Home onOpen={() => {}} />);
+    await waitFor(() => {
+      expect(screen.getByText("О чём мечтаем?")).toBeTruthy();
+    });
+    expect(
+      screen.queryByText("Это ваш уголок, но пока только ваш"),
+    ).toBeNull();
+  });
+
+  it("shows PairNotLinkedBanner when getPairStats fails with 412 (unpaired user)", async () => {
+    // 412 = backend's "pair up first" — usePairStatus exposes hasPair=false.
+    mocks.getPairStats.mockRejectedValue(new ApiError(412, "pair up first"));
+    mocks.bucket.mockResolvedValue([]);
+    mocks.wishlist.mockResolvedValue([]);
+    mocks.notes.mockResolvedValue([]);
+    render(<Home onOpen={() => {}} />);
+    expect(
+      await screen.findByText("Это ваш уголок, но пока только ваш"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Открыть бота" }),
+    ).toBeInTheDocument();
   });
 });

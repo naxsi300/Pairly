@@ -75,6 +75,9 @@ export const COPY = {
     welcomeGift: "🎁 Отправить первый жест",
     welcomeForward: "🗒 Переслать пост боту",
     welcomeNote: "💌 Написать записку",
+    pairNotLinkedTitle: "Это ваш уголок, но пока только ваш",
+    pairNotLinkedSub: "Пригласите партнёра: /pair в боте",
+    pairNotLinkedCta: "Открыть бота",
   },
   notes: {
     heading: "Записки",
