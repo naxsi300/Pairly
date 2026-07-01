@@ -93,13 +93,15 @@ export function showBackButton(onClick: () => void): (() => void) {
 }
 
 /** Haptic feedback helper (no-op outside Telegram). */
-export function haptic(type: "light" | "success" | "error" = "light"): void {
+export function haptic(
+  type: "light" | "medium" | "heavy" | "rigid" | "soft" | "success" | "error" = "light",
+): void {
   if (!isTwa()) return;
   try {
     const h = WebApp.HapticFeedback;
     if (type === "success") h.notificationOccurred("success");
     else if (type === "error") h.notificationOccurred("error");
-    else h.impactOccurred("light");
+    else h.impactOccurred(type);
   } catch {
     /* ignore */
   }

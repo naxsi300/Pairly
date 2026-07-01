@@ -13,17 +13,22 @@ vi.mock("../sdk/api", async () => {
   };
 });
 
+// Replace the twa mock with a hoisted spy so individual tests can assert on
+// haptic("medium") / haptic("success") calls.
 vi.mock("../sdk/twa", () => ({
-  haptic: () => {},
+  haptic: vi.fn(),
 }));
 
 import { DateWheelScreen } from "./DateWheel";
 import { endpoints } from "../sdk/api";
+import { haptic as hapticMock } from "../sdk/twa";
 
 const getDateIdea = endpoints.getDateIdea as unknown as ReturnType<typeof vi.fn>;
+const haptic = hapticMock as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   getDateIdea.mockReset();
+  haptic.mockReset();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -261,5 +266,40 @@ describe("DateWheel — cluster 13 stale-idea timer fix", () => {
       screen.queryByText(/Не удалось получить идею — попробуйте ещё раз/),
     ).toBeNull();
     expect(screen.queryByText("Свежая")).not.toBeNull();
+  });
+});
+
+describe("DateWheel — result land-bounce + medium haptic", () => {
+  it("bounces the result card in and fires a medium haptic on land", async () => {
+    getDateIdea.mockResolvedValueOnce({
+      source: "wishlist",
+      title: "Уютный ужин",
+      category: "eat",
+      reason: "Потому что пятница",
+    });
+
+    vi.useFakeTimers();
+    render(<DateWheelScreen isPro={false} onOpenAdmin={() => {}} />);
+
+    fireEvent.click(screen.getByText(/Крутить/));
+    // Resolve the fetch, then advance past the 1100ms spin → result flip.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    // Result title is rendered (queryByText + act, since findByText deadlocks
+    // under fake timers).
+    const title = screen.queryByText("Уютный ужин");
+    expect(title).not.toBeNull();
+
+    // The title's outer ancestor must have the bounce class so the keyframe
+    // animation runs when the result phase flips in.
+    expect((title as HTMLElement).closest(".date-result-bounce")).not.toBeNull();
+
+    // A medium-impact haptic must fire on land — this is the "thud" feel.
+    expect(haptic).toHaveBeenCalledWith("medium");
   });
 });
