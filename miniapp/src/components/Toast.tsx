@@ -13,6 +13,14 @@ export interface MilestoneEvent {
   value: number;
 }
 
+// NOTE: `together_days` is intentionally absent here. The backend still EMITS
+// a `together_days` milestone (repositories/milestones.py check_together_days,
+// via GET /api/pair/stats → newMilestones), but the mini-app's getPairStats
+// consumer (useIsPro) only reads `isPro` and drops `newMilestones` — so the
+// event never reaches this toast bus today. If a future task wires
+// getPairStats.newMilestones into the bus, add a `together_days` branch here
+// (or, per the universal-milestone direction, retire check_together_days on
+// the backend and use the countdowns.milestonePresets flow instead).
 const KIND_LABEL: Record<string, (v: number) => string> = {
   wishlist_count: (v) =>
     v === 5 ? COPY.milestones.wishlist5
