@@ -188,6 +188,39 @@ describe("countdownDisplay sub-day past event", () => {
   });
 });
 
+describe("nextMilestone value+unit", () => {
+  it("returns value+unit for a day milestone", () => {
+    // Ref 100 days ago → next is the 200-day mark (100 days from now).
+    // NOW = 2026-06-22T12:00Z, ref = 2026-03-14T00:00Z (100 days earlier).
+    const m = nextMilestone(
+      cd("2026-03-14T00:00:00Z", "milestone"),
+      new Date("2026-06-22T12:00:00Z"),
+    );
+    expect(m).not.toBeNull();
+    if (!m) return;
+    expect(m.unit).toBe("days");
+    expect(typeof m.value).toBe("number");
+    expect(m.label).toBe(`${m.value} дней`); // label still the raw round
+  });
+
+  it("returns value+unit for a year milestone", () => {
+    // Ref ~3 years ago (but past 1000 days) so the next upcoming candidate is
+    // year-3 (not day-900). Brief originally had 2024-06-22, but with NOW at
+    // the exact 2-year mark the function treats year-2 as "today" (>= todayStart),
+    // so year-3 wouldn't be the next. Shifting ref back 10 months clears the
+    // day-1000 milestone into the past while keeping year-3 in the future.
+    const m = nextMilestone(
+      cd("2023-08-01T00:00:00Z", "milestone"),
+      new Date("2026-06-22T12:00:00Z"),
+    );
+    expect(m).not.toBeNull();
+    if (!m) return;
+    expect(m.unit).toBe("years");
+    expect(m.value).toBe(3);
+    expect(m.label).toBe("3 года");
+  });
+});
+
 describe("nextMilestone.daysUntil local-midnight anchoring", () => {
   const savedTz = process.env.TZ;
   afterEach(() => {

@@ -230,22 +230,16 @@ const DAY_MILESTONES = [
 export function nextMilestone(
   c: Countdown,
   now: Date = new Date(),
-): { date: Date; daysUntil: number; label: string } | null {
+): { date: Date; daysUntil: number; label: string; value: number; unit: "days" | "years" } | null {
   const ref = new Date(c.targetDate);
   if (Number.isNaN(ref.getTime())) return null;
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const candidates: { date: Date; label: string }[] = [];
+  const candidates: { date: Date; label: string; value: number; unit: "days" | "years" }[] = [];
   for (const d of DAY_MILESTONES) {
-    // Milestone copy is neutral — the reference date is not assumed to be a
-    // relationship start. Just the round day count, no "вместе".
-    candidates.push({ date: new Date(ref.getTime() + d * 86_400_000), label: `${d} дней` });
+    candidates.push({ date: new Date(ref.getTime() + d * 86_400_000), label: `${d} дней`, value: d, unit: "days" });
   }
   for (let y = 1; y <= 100; y++) {
-    candidates.push({
-      date: addYears(ref, y),
-      // Neutral: no "вместе" suffix on yearly milestones either.
-      label: `${y} ${ruYears(y)}`,
-    });
+    candidates.push({ date: addYears(ref, y), label: `${y} ${ruYears(y)}`, value: y, unit: "years" });
   }
   const first = candidates
     .filter((cand) => cand.date.getTime() >= todayStart.getTime())
@@ -258,6 +252,8 @@ export function nextMilestone(
     // candidate filter (>= todayStart) is also expressed in local terms.
     daysUntil: Math.max(0, localDayDelta(first.date, now)),
     label: first.label,
+    value: first.value,
+    unit: first.unit,
   };
 }
 
