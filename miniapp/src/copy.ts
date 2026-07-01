@@ -143,6 +143,13 @@ export const COPY = {
     deleted: (label: string) => `Удалил «${label}».`,
     limitHit:
       "В бесплатной версии максимум 10 отсчётов, и всё место занято 😊 Оформим Pro (без лимита) или уберём старый отсчёт?",
+    milestonePresets: [
+      { id: "met", label: "День знакомства", emoji: "💝" },
+      { id: "wedding", label: "Свадьба", emoji: "💍" },
+      { id: "moved", label: "Переезд", emoji: "📦" },
+      { id: "first-date", label: "Первое свидание", emoji: "☕" },
+      { id: "custom", label: "Своя дата", emoji: "✍️" },
+    ],
   },
   mood: {
     heading: "Настроение",
