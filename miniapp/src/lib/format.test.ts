@@ -3,9 +3,12 @@ import {
   bucketStatusLabel,
   countdownDays,
   countdownDisplay,
+  milestoneTitle,
   nextMilestone,
   nextOccurrence,
   relativeTime,
+  ruDays,
+  ruYears,
 } from "./format";
 import type { Countdown } from "../types";
 
@@ -185,6 +188,39 @@ describe("countdownDisplay sub-day past event", () => {
   });
 });
 
+describe("nextMilestone value+unit", () => {
+  it("returns value+unit for a day milestone", () => {
+    // Ref 100 days ago → next is the 200-day mark (100 days from now).
+    // NOW = 2026-06-22T12:00Z, ref = 2026-03-14T00:00Z (100 days earlier).
+    const m = nextMilestone(
+      cd("2026-03-14T00:00:00Z", "milestone"),
+      new Date("2026-06-22T12:00:00Z"),
+    );
+    expect(m).not.toBeNull();
+    if (!m) return;
+    expect(m.unit).toBe("days");
+    expect(typeof m.value).toBe("number");
+    expect(m.label).toBe(`${m.value} дней`); // label still the raw round
+  });
+
+  it("returns value+unit for a year milestone", () => {
+    // Ref ~3 years ago (but past 1000 days) so the next upcoming candidate is
+    // year-3 (not day-900). Brief originally had 2024-06-22, but with NOW at
+    // the exact 2-year mark the function treats year-2 as "today" (>= todayStart),
+    // so year-3 wouldn't be the next. Shifting ref back 10 months clears the
+    // day-1000 milestone into the past while keeping year-3 in the future.
+    const m = nextMilestone(
+      cd("2023-08-01T00:00:00Z", "milestone"),
+      new Date("2026-06-22T12:00:00Z"),
+    );
+    expect(m).not.toBeNull();
+    if (!m) return;
+    expect(m.unit).toBe("years");
+    expect(m.value).toBe(3);
+    expect(m.label).toBe("3 года");
+  });
+});
+
 describe("nextMilestone.daysUntil local-midnight anchoring", () => {
   const savedTz = process.env.TZ;
   afterEach(() => {
@@ -342,5 +378,49 @@ describe("bucketStatusLabel", () => {
     const out = bucketStatusLabel(unknown);
     expect(out).toBe("archived");
     expect(out).toBeDefined();
+  });
+});
+
+describe("ruDays", () => {
+  it.each([
+    [1, "день"],
+    [2, "дня"],
+    [5, "дней"],
+    [22, "дня"],
+    [100, "дней"],
+    [11, "дней"],
+    [21, "день"],
+  ])("%i → %s", (n, expected) => {
+    expect(ruDays(n)).toBe(expected);
+  });
+});
+
+describe("ruYears", () => {
+  it.each([
+    [1, "год"],
+    [2, "года"],
+    [5, "лет"],
+    [21, "год"],
+    [22, "года"],
+  ])("%i → %s", (n, expected) => {
+    expect(ruYears(n)).toBe(expected);
+  });
+});
+
+describe("milestoneTitle", () => {
+  it("formats a day milestone with the pair's label", () => {
+    expect(milestoneTitle("День знакомства", 100)).toBe("100 дней · День знакомства");
+  });
+  it("pluralizes 1 day", () => {
+    expect(milestoneTitle("Переезд", 1)).toBe("1 день · Переезд");
+  });
+  it("pluralizes 22 days", () => {
+    expect(milestoneTitle("Первое свидание", 22)).toBe("22 дня · Первое свидание");
+  });
+  it("formats a year milestone", () => {
+    expect(milestoneTitle("Свадьба", 1, true)).toBe("1 год · Свадьба");
+  });
+  it("pluralizes 2 years", () => {
+    expect(milestoneTitle("Свадьба", 2, true)).toBe("2 года · Свадьба");
   });
 });

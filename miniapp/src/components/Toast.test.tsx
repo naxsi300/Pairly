@@ -82,7 +82,7 @@ describe("MilestoneToast — cluster 5 (stable refs + confetti idempotency)", ()
     // The idempotency ref inside Toast.tsx means a parent re-render with
     // the same milestone must NOT add another <canvas>. We count canvases
     // in the DOM: exactly 1 throughout 3 re-renders.
-    const events = [{ kind: "together_days", value: 100 }];
+    const events = [{ kind: "gift_completed_count", value: 5 }];
     const { rerender } = render(<MilestoneToast events={events} onDismiss={() => {}} />);
     const initialCanvasCount = document.querySelectorAll("canvas").length;
     expect(initialCanvasCount).toBe(1);

@@ -21,12 +21,13 @@ vi.mock("../sdk/twa", () => ({
 }));
 
 vi.mock("../lib/milestoneBus", () => ({
-  emitMilestone: () => {},
+  emitMilestone: vi.fn(),
 }));
 
 import { Countdowns } from "./Countdowns";
 import { endpoints } from "../sdk/api";
 import { COPY } from "../copy";
+import { emitMilestone } from "../lib/milestoneBus";
 
 const addMock = endpoints.addCountdown as unknown as ReturnType<typeof vi.fn>;
 const listMock = endpoints.listCountdowns as unknown as ReturnType<typeof vi.fn>;
@@ -40,6 +41,7 @@ beforeEach(() => {
   listMock.mockReset();
   listMock.mockResolvedValue([]);
   deleteMock.mockResolvedValue({ ok: true });
+  (emitMilestone as unknown as ReturnType<typeof vi.fn>).mockReset();
 });
 
 describe("Countdowns — cluster 7 emoji fallback (no Intl.Segmenter)", () => {
@@ -323,5 +325,70 @@ describe("Countdowns — MED cluster (confirm-delete, cdBlocks, recurrence, aria
     const body = updateMock.mock.calls[0]?.[1] as { recurrence: string | null };
     // Pre-fix this would have been null; post-fix it stays "annual".
     expect(body.recurrence).toBe("annual");
+  });
+});
+
+describe("Countdowns — milestone presets (Task 4)", () => {
+  it("shows preset chips only when the milestone toggle is on", async () => {
+    // listMock returns an empty list (per beforeEach).
+    render(<Countdowns />);
+    fireEvent.click(await screen.findByText(/\+ Добавить/));
+    // Before toggling milestone: no preset chip text yet.
+    expect(screen.queryByText(/День знакомства/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Своя дата/)).not.toBeInTheDocument();
+    // Toggle milestone on.
+    fireEvent.click(screen.getByRole("button", { name: /Считать круглые даты/ }));
+    expect(await screen.findByText(/День знакомства/)).toBeInTheDocument();
+    expect(screen.getByText(/Свадьба/)).toBeInTheDocument();
+    expect(screen.getByText(/Своя дата/)).toBeInTheDocument();
+  });
+
+  it("tapping a preset fills label + emoji", async () => {
+    render(<Countdowns />);
+    fireEvent.click(await screen.findByText(/\+ Добавить/));
+    fireEvent.click(screen.getByRole("button", { name: /Считать круглые даты/ }));
+    fireEvent.click(await screen.findByText(/День знакомства/));
+    const labelInput = (await screen.findByPlaceholderText(/Название, например/)) as HTMLInputElement;
+    expect(labelInput.value).toBe("День знакомства");
+  });
+});
+
+describe("Countdowns — milestone card label-based celebration (Task 5)", () => {
+  it("shows the milestone celebration as «unit · label»", async () => {
+    // A milestone countdown with label "День знакомства" whose next round is ~100 days.
+    listMock.mockResolvedValue([
+      { id: "m1", label: "День знакомства", emoji: "💝", targetDate: "2026-03-14T00:00:00Z", recurrence: "milestone" },
+    ]);
+    render(<Countdowns />);
+    // The milestone card's stat-big line should read "100 дней · День знакомства"
+    // (or whatever the next round is — assert it contains the label + "дней").
+    // The label also appears in the row title; use the stat-big selector to disambiguate.
+    const statBig = await screen.findByText(/\d+ дн(?:ей|я|ень) · День знакомства/);
+    expect(statBig).toBeInTheDocument();
+    expect(statBig.className).toContain("stat-big");
+  });
+});
+
+describe("Countdowns — day-of milestone toast (Task 6)", () => {
+  it("emits a milestone toast when a round date is reached today", async () => {
+    // Reference exactly 100 days ago → 100-day round is today (daysUntil === 0).
+    // Wall-clock-independent: we anchor against `now` at test time, so any TZ works.
+    const now = new Date();
+    const ref = new Date(now.getTime() - 100 * 86_400_000).toISOString();
+    const emitSpy = emitMilestone as unknown as ReturnType<typeof vi.fn>;
+    listMock.mockResolvedValue([
+      { id: "m1", label: "День знакомства", emoji: "💝", targetDate: ref, recurrence: "milestone" },
+    ]);
+    render(<Countdowns />);
+    // Use the stat-big line (which contains label + "100 дней · …") to disambiguate from
+    // the row title — both match /День знакомства/, only the stat-big scopes to the
+    // milestone celebration we care about.
+    await screen.findByText(/100 дней · День знакомства/);
+    expect(emitSpy).toHaveBeenCalled();
+    const calls = emitSpy.mock.calls as Array<[unknown]>;
+    const lastCall = calls[calls.length - 1]?.[0] as { kind: string; value: number };
+    expect(lastCall.kind).toBe("milestone");
+    // The round we landed on is 100 days from a 100-days-ago reference.
+    expect(lastCall.value).toBe(100);
   });
 });

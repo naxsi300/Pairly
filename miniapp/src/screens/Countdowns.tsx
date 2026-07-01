@@ -1,9 +1,9 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
-import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence } from "../lib/format";
+import { countdownDisplay, countdownEmoji, milestoneTitle, nextMilestone, nextOccurrence } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -61,18 +61,6 @@ function isoToRuDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
-}
-
-/** Russian pluralization for whole days: 1 день / 2–4 дня / 5+ дней. Mirrors
- * the rules used by `ruYears` in lib/format.ts (mod10/mod100 bracket) so the
- * milestone count reads correctly regardless of what the reference date
- * anchors. */
-function ruDays(n: number): string {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return "день";
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "дня";
-  return "дней";
 }
 
 /** Surface style for an item card: warm-wash on --tg-sec. Soon items get the
@@ -141,10 +129,37 @@ export function Countdowns() {
   /** Item pending deletion — set on trash-click, consumed by a confirm Modal
    * before we actually call remove(). null = no dialog open. */
   const [confirmDelete, setConfirmDelete] = useState<Countdown | null>(null);
+  /** Currently selected milestone preset (or "custom" when the user wants a
+   * free-form label). null = nothing picked yet. Reset to null on every modal
+   * open (add + edit) so editing never resurrects the previous preset. */
+  const [presetId, setPresetId] = useState<string | null>(null);
 
   const items = data ?? [];
   const atLimit = items.length >= DEFAULT_LIMITS.countdown;
   const isEditing = editingId !== null;
+
+  /** Day-of milestone toast. When the Countdowns list loads and any milestone
+   * countdown has reached its next round date (daysUntil === 0), fire one
+   * `emitMilestone` so the App-level toast pings the user. Guarded by a ref
+   * keyed on (countdown id + round value) so a re-fetch after the user has
+   * already seen the toast for THIS round doesn't re-fire.
+   *
+   * Note: the toast's KIND_LABEL map doesn't yet know "milestone"; the toast
+   * falls back to COPY.milestones.generic. Label-based copy (e.g. "100 дней
+   * вместе") is a possible follow-up if Toast.tsx grows a "milestone" branch. */
+  const lastEmittedMilestoneRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+    for (const c of items) {
+      if (c.recurrence !== "milestone") continue;
+      const ms = nextMilestone(c);
+      if (!ms || ms.daysUntil !== 0) continue;
+      const key = `${c.id}:${ms.value}:${ms.unit}`;
+      if (lastEmittedMilestoneRef.current === key) continue;
+      lastEmittedMilestoneRef.current = key;
+      emitMilestone({ kind: "milestone", value: ms.value });
+    }
+  }, [items]);
 
   /** Clear all modal fields — on close/cancel AND after a successful save —
    * so the next open starts fresh (no stale milestone toggle, title, or date error). */
@@ -156,11 +171,19 @@ export function Countdowns() {
     setDateErr(false);
     setEditingId(null);
     setOriginalRecurrence(null);
+    setPresetId(null);
   }
   const closeModal = () => {
     resetForm();
     setAdding(false);
   };
+
+  /** Open the modal in "add new" mode — ensures the modal opens with a clean
+   * preset state (no stale preset from a prior edit session). */
+  function openAdd() {
+    setPresetId(null);
+    setAdding(true);
+  }
 
   /** Open the modal prefilled from an existing countdown (edit mode). */
   function openEdit(c: Countdown) {
@@ -171,6 +194,8 @@ export function Countdowns() {
     setMilestone(c.recurrence === "milestone");
     setOriginalRecurrence(c.recurrence);
     setDateErr(false);
+    // Editing never re-selects a preset — the user's existing label is the truth.
+    setPresetId(null);
   }
 
   /** Cap the emoji field at 4 grapheme clusters using Intl.Segmenter.
@@ -276,6 +301,20 @@ export function Countdowns() {
     void remove(item);
   }
 
+  /** Apply a milestone preset chip. A relationship preset ("День знакомства",
+   * "Свадьба", etc.) fills label + emoji so the user can tweak from there.
+   * «Своя дата» (id "custom") only marks "no preset" — it leaves whatever
+   * label the user already typed untouched. */
+  function applyPreset(p: { id: string; label: string; emoji: string }) {
+    if (p.id === "custom") {
+      setPresetId("custom");
+      return;
+    }
+    setPresetId(p.id);
+    setLabel(p.label);
+    setEmoji(p.emoji);
+  }
+
   return (
     <div className="app-scroll mx-auto max-w-md px-4 py-4">
       <ScreenHeader
@@ -286,7 +325,7 @@ export function Countdowns() {
             type="button"
             className="btn-warm"
             style={{ width: "auto", padding: "10px 16px", fontSize: 14 }}
-            onClick={() => setAdding(true)}
+            onClick={openAdd}
             disabled={atLimit}
           >
             + {COPY.common.add}
@@ -319,7 +358,6 @@ export function Countdowns() {
             const blocks = cdBlocks(c);
             const ms = isMilestone ? nextMilestone(c) : null;
             const soon = isSoon(c);
-            const milestoneDays = isMilestone ? Math.abs(countdownDays(c)) : 0;
             return (
               <li key={c.id}>
                 <div style={soon ? warmWashSurfaceSoon : warmWashSurface}>
@@ -329,14 +367,17 @@ export function Countdowns() {
                     </span>
                     <div className="card-title min-w-0 flex-1 truncate">{c.label}</div>
                   </div>
-                  {isMilestone ? (
-                    <div className="card-sub">{milestoneDays} {ruDays(milestoneDays)}</div>
-                  ) : c.recurrence ? (
+                  {/* Milestone rows: the next-round stat-big + "следующая круглая
+                      дата" line below carry the live info, so we skip the plain
+                      elapsed-days sub-line here (it duplicated the round count
+                      on the day a round lands). Recurring countdowns keep their
+                      "каждый год/месяц" cadence line. */}
+                  {c.recurrence && c.recurrence !== "milestone" ? (
                     <div className="card-sub">{c.recurrence === "annual" ? "каждый год" : "каждый месяц"}</div>
                   ) : null}
                   {isMilestone && ms ? (
                     <>
-                      <div className="stat-big mt-1" style={{ color: "var(--tg-warm)" }}>{ms.label}</div>
+                      <div className="stat-big mt-1" style={{ color: "var(--tg-warm)" }}>{milestoneTitle(c.label, ms.value, ms.unit === "years")}</div>
                       <div className="card-sub mt-0.5">следующая круглая дата · через {ms.daysUntil} дн.</div>
                     </>
                   ) : blocks ? (
@@ -415,9 +456,25 @@ export function Countdowns() {
           {milestone ? "✓ " : ""}🎯 Считать круглые даты от этой даты (точка отсчёта)
         </button>
         {milestone ? (
-          <p className="text-xs" style={{ color: "var(--tg-hint)" }}>
-            Например, укажите любую важную дату — и ближайший повод сам покажет круглую отметку: 100 дней, 1 год, 1000 дней.
-          </p>
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "8px 0 6px" }}>
+              {COPY.countdowns.milestonePresets.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyPreset(p)}
+                  aria-pressed={presetId === p.id}
+                  className={`chip ${presetId === p.id ? "active" : ""}`}
+                  style={{ fontSize: 13 }}
+                >
+                  {p.emoji} {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs" style={{ color: "var(--tg-hint)" }}>
+              Например, укажите любую важную дату — и ближайший повод сам покажет круглую отметку: 100 дней, 1 год, 1000 дней.
+            </p>
+          </>
         ) : null}
       </Modal>
 

@@ -143,6 +143,13 @@ export const COPY = {
     deleted: (label: string) => `Удалил «${label}».`,
     limitHit:
       "В бесплатной версии максимум 10 отсчётов, и всё место занято 😊 Оформим Pro (без лимита) или уберём старый отсчёт?",
+    milestonePresets: [
+      { id: "met", label: "День знакомства", emoji: "💝" },
+      { id: "wedding", label: "Свадьба", emoji: "💍" },
+      { id: "moved", label: "Переезд", emoji: "📦" },
+      { id: "first-date", label: "Первое свидание", emoji: "☕" },
+      { id: "custom", label: "Своя дата", emoji: "✍️" },
+    ],
   },
   mood: {
     heading: "Настроение",
@@ -230,10 +237,6 @@ export const COPY = {
     giftCompletedCustom: (v: number) => `${v} подарков-действий завершено. Вы держите слово.`,
     moodMutual7: "7 дней, когда оба делились настроением. Это больше чем просто смайлик 🌤",
     moodMutualCustom: (v: number) => `${v} дней, где оба открывали настроение.`,
-    togetherDays30: "30 дней вместе. Месяц маленьких историй 🗓",
-    togetherDays100: "100 дней вместе. Целая эпоха для двоих 💫",
-    togetherDays365: "Год вместе. Круг прочерчен — и дальше только интереснее 🌟",
-    togetherDaysCustom: (v: number) => `${v} дней вместе.`,
   },
   stats: {
     title: "Вы вместе",
