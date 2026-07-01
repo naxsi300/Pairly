@@ -350,3 +350,19 @@ describe("Countdowns — milestone presets (Task 4)", () => {
     expect(labelInput.value).toBe("День знакомства");
   });
 });
+
+describe("Countdowns — milestone card label-based celebration (Task 5)", () => {
+  it("shows the milestone celebration as «unit · label»", async () => {
+    // A milestone countdown with label "День знакомства" whose next round is ~100 days.
+    listMock.mockResolvedValue([
+      { id: "m1", label: "День знакомства", emoji: "💝", targetDate: "2026-03-14T00:00:00Z", recurrence: "milestone" },
+    ]);
+    render(<Countdowns />);
+    // The milestone card's stat-big line should read "100 дней · День знакомства"
+    // (or whatever the next round is — assert it contains the label + "дней").
+    // The label also appears in the row title; use the stat-big selector to disambiguate.
+    const statBig = await screen.findByText(/\d+ дн(?:ей|я|ень) · День знакомства/);
+    expect(statBig).toBeInTheDocument();
+    expect(statBig.className).toContain("stat-big");
+  });
+});

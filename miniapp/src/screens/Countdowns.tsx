@@ -3,7 +3,7 @@ import { COPY } from "../copy";
 import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type Countdown } from "../types";
-import { countdownDays, countdownDisplay, countdownEmoji, nextMilestone, nextOccurrence, ruDays } from "../lib/format";
+import { countdownDays, countdownDisplay, countdownEmoji, milestoneTitle, nextMilestone, nextOccurrence, ruDays } from "../lib/format";
 import { emitMilestone } from "../lib/milestoneBus";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -352,7 +352,7 @@ export function Countdowns() {
                   ) : null}
                   {isMilestone && ms ? (
                     <>
-                      <div className="stat-big mt-1" style={{ color: "var(--tg-warm)" }}>{ms.label}</div>
+                      <div className="stat-big mt-1" style={{ color: "var(--tg-warm)" }}>{milestoneTitle(c.label, ms.value, ms.unit === "years")}</div>
                       <div className="card-sub mt-0.5">следующая круглая дата · через {ms.daysUntil} дн.</div>
                     </>
                   ) : blocks ? (
