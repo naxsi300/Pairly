@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { COPY } from "../copy";
 import { endpoints, useApi, type QOTDResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
@@ -7,8 +7,38 @@ import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { TextArea } from "../components/Field";
 import { ScreenHeader } from "../components/ScreenHeader";
+import { Modal } from "../components/Modal";
 
 const MAX_ANSWER = 280;
+
+/** Bundle D Task 3 — one archive row returned by GET /api/qotd/archive. */
+type QOTDArchiveRow = {
+  date: string;
+  questionText: string;
+  myAnswer: string;
+  partnerAnswer: string;
+};
+
+/**
+ * Group archive rows by "YYYY-MM" (UTC). The server returns rows newest-first
+ * already; we just collapse the leading-month bucket per group.
+ */
+function groupArchiveByMonth(rows: QOTDArchiveRow[]): Array<{
+  month: string;
+  rows: QOTDArchiveRow[];
+}> {
+  const out: Array<{ month: string; rows: QOTDArchiveRow[] }> = [];
+  for (const row of rows) {
+    const ymd = row.date.slice(0, 7); // "YYYY-MM"
+    const last = out[out.length - 1];
+    if (last && last.month === ymd) {
+      last.rows.push(row);
+    } else {
+      out.push({ month: ymd, rows: [row] });
+    }
+  }
+  return out;
+}
 
 /**
  * Reveal gate (HARD invariant, docs/copy/question-of-the-day.md):
@@ -26,6 +56,32 @@ export function QuestionOfTheDay() {
   const [answering, setAnswering] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // Bundle D Task 3: history sheet state. We open the sheet lazily (only when
+  // the user taps the button) and fetch on open — so first-render of the
+  // screen doesn't carry an extra request. `archiveLoading` lets us show a
+  // tiny placeholder while the request is in flight (best-effort — the
+  // caller might not even notice on the 50ms local mock).
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [archiveRows, setArchiveRows] = useState<QOTDArchiveRow[] | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+
+  async function openHistory() {
+    setHistoryOpen(true);
+    // Re-fetch on every open so newly-answered Q&As land at the top.
+    setArchiveLoading(true);
+    try {
+      const rows = await endpoints.getQotdArchive();
+      setArchiveRows(rows);
+    } catch {
+      setArchiveRows([]);
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
+  const groupedArchive = useMemo(
+    () => (archiveRows ? groupArchiveByMonth(archiveRows) : []),
+    [archiveRows],
+  );
 
   async function submit() {
     if (!draft.trim()) return;
@@ -220,6 +276,58 @@ export function QuestionOfTheDay() {
           </div>
         </div>
       )}
+
+      {/* Bundle D Task 3 — history button + sheet. The button is a warm,
+          secondary action placed below the day's reveal-card: it shouldn't
+          compete with the answer action above; it's there for the days
+          when the couple's in a "remember when..." mood. */}
+      <div className="mt-3 flex justify-center">
+        <Button variant="ghost" onClick={openHistory} aria-label={COPY.qotd.historyButton}>
+          {COPY.qotd.historyButton}
+        </Button>
+      </div>
+
+      <Modal
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title={COPY.qotd.historyTitle}
+      >
+        {archiveLoading ? (
+          <p className="py-4 text-center text-tg-hint">{COPY.common.loading}</p>
+        ) : groupedArchive.length === 0 ? (
+          <EmptyState emoji="📜" text={COPY.qotd.historyEmpty} />
+        ) : (
+          <div className="flex flex-col gap-4">
+            {groupedArchive.map((group) => (
+              <section key={group.month}>
+                <h3 className="section-label mb-2">{group.month}</h3>
+                <ul className="flex flex-col gap-2">
+                  {group.rows.map((row, i) => (
+                    <li
+                      key={`${group.month}-${i}`}
+                      style={{
+                        background: "color-mix(in srgb, var(--tg-warm) 8%, var(--tg-sec))",
+                        borderRadius: 14,
+                        padding: "10px 12px",
+                      }}
+                    >
+                      <p className="card-title" style={{ margin: 0 }}>
+                        «{row.questionText}»
+                      </p>
+                      <p className="meta mt-1" style={{ margin: "6px 0 0" }}>
+                        {COPY.qotd.myAnswerLabel}: «{row.myAnswer}»
+                      </p>
+                      <p className="meta" style={{ margin: "4px 0 0" }}>
+                        {COPY.qotd.partnerAnswerLabel(partnerName)}: «{row.partnerAnswer}»
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

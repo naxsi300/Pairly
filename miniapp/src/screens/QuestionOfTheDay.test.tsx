@@ -16,6 +16,20 @@ vi.mock("../sdk/api", async () => {
         partnerName: "Маша",
       }),
       answerQotd: vi.fn(),
+      getQotdArchive: vi.fn().mockResolvedValue([
+        {
+          date: "2026-05-12T00:00:00Z",
+          questionText: "Что тебя радует?",
+          myAnswer: "весна",
+          partnerAnswer: "твоя улыбка",
+        },
+        {
+          date: "2026-04-30T00:00:00Z",
+          questionText: "Мечта на год?",
+          myAnswer: "море",
+          partnerAnswer: "горы",
+        },
+      ]),
     },
   };
 });
@@ -70,5 +84,39 @@ describe("QuestionOfTheDay — cluster 13 answerQotd return type", () => {
     // doesn't clobber the question) AND my answer must be shown.
     await waitFor(() => expect(screen.queryByText(/«Мой ответ»/)).not.toBeNull());
     expect(screen.queryByText(/Вопрос дня\?/)).not.toBeNull();
+  });
+});
+
+describe("QuestionOfTheDay — Bundle D history sheet", () => {
+  it("renders the 'История' button and opens the sheet with grouped past Q&As", async () => {
+    render(<QuestionOfTheDay />);
+    // Question is up; the history button must be visible on the screen.
+    await screen.findByText(/Вопрос дня\?/);
+    const historyButton = screen.getByRole("button", { name: /История/ });
+    fireEvent.click(historyButton);
+
+    // The sheet opens with the title; both rows render, grouped by month.
+    expect(await screen.findByText("История вопросов")).not.toBeNull();
+    // The mock returned two rows from different months (May + April) — both
+    // month headers must appear; both questions too.
+    await waitFor(() => {
+      expect(screen.queryByText(/^2026-05$/)).not.toBeNull();
+      expect(screen.queryByText(/^2026-04$/)).not.toBeNull();
+      expect(screen.queryByText(/Что тебя радует\?/)).not.toBeNull();
+      expect(screen.queryByText(/Мечта на год\?/)).not.toBeNull();
+      // Both myAnswer and partnerAnswer bodies surface — the archive is a
+      // history view (reveal gate does NOT apply).
+      expect(screen.queryByText(/«весна»/)).not.toBeNull();
+      expect(screen.queryByText(/«твоя улыбка»/)).not.toBeNull();
+    });
+  });
+
+  it("shows 'Пока нет истории' when the archive is empty", async () => {
+    const archiveMock = endpoints.getQotdArchive as unknown as ReturnType<typeof vi.fn>;
+    archiveMock.mockResolvedValueOnce([]);
+    render(<QuestionOfTheDay />);
+    await screen.findByText(/Вопрос дня\?/);
+    fireEvent.click(screen.getByRole("button", { name: /История/ }));
+    expect(await screen.findByText("Пока нет истории")).not.toBeNull();
   });
 });

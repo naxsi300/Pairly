@@ -300,6 +300,19 @@ export const endpoints = {
   clearMood: (signal?: AbortSignal) => request<{ ok: boolean }>("/api/mood", { method: "DELETE", signal }),
 
   getQotd: (signal?: AbortSignal) => request<QOTDResponse>("/api/qotd", { signal }),
+  /**
+   * Bundle D Task 3: read-only history of past Q&As where BOTH partners
+   * answered. The FE history sheet renders rows newest-first, grouped by
+   * month. `limit` defaults to 50 on the server; pass a smaller cap to
+   * avoid pulling the entire archive on first open.
+   */
+  getQotdArchive: (signal?: AbortSignal, limit = 50) =>
+    request<{
+      date: string;
+      questionText: string;
+      myAnswer: string;
+      partnerAnswer: string;
+    }[]>(`/api/qotd/archive?limit=${limit}`, { signal }),
   /** Narrower shape: backend's POST /api/qotd/answer returns ONLY
    *  { myAnswer, partnerAnswered, partnerAnswer, newMilestones } — no
    *  `question` field. The caller spreads this into its QOTDResponse. */

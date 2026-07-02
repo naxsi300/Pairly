@@ -220,6 +220,10 @@ export const COPY = {
       `Записал твой ответ 💭 Ответ ${partner} откроется, как только он(а) тоже ответит.`,
     myAnswerLabel: "🧑 Твой ответ",
     partnerAnswerLabel: (partner: string) => `💛 ${partner}`,
+    // Bundle D Task 3: read-only history sheet (Q&As where both answered).
+    historyButton: "📜 История",
+    historyTitle: "История вопросов",
+    historyEmpty: "Пока нет истории",
   },
   gifts: {
     heading: "Подарки",
