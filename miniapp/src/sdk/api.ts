@@ -194,6 +194,19 @@ export interface LoveNoteItem {
   createdAt: string;
 }
 
+/**
+ * Settings screen payload — caller's profile + pair info.
+ * Same shape for GET and PATCH /api/me. pairCreatedAt and partnerDisplayName
+ * are null for unpaired callers (the endpoint does NOT 412 on /api/me).
+ */
+export interface MeResponse {
+  id: string;
+  displayName: string | null;
+  tgUsername: string | null;
+  pairCreatedAt: string | null;
+  partnerDisplayName: string | null;
+}
+
 export const endpoints = {
   listWishlist: (signal?: AbortSignal, includeArchived?: boolean) =>
     request<WishlistItem[]>(
@@ -348,6 +361,13 @@ export const endpoints = {
       isPro: boolean;
       newMilestones?: { kind: string; value: number }[];
     }>("/api/pair/stats", { signal }),
+
+  // --- Bundle F Task 2: Settings screen (profile + pair info + edit) ---
+  /** GET /api/me — caller's profile + pair info. Never 412s (works for unpaired). */
+  getMe: (signal?: AbortSignal) => request<MeResponse>("/api/me", { signal }),
+  /** PATCH /api/me — edit display_name (only field currently mutable). */
+  patchMe: (body: { displayName?: string }, signal?: AbortSignal) =>
+    request<MeResponse>("/api/me", { method: "PATCH", body, signal }),
 
   // --- admin (hidden) — 404 unless your TG id is in PAIRLY_ADMIN_TG_IDS ---
   getAdminStatus: (signal?: AbortSignal) =>

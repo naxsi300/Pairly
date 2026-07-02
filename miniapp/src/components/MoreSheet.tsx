@@ -1,7 +1,7 @@
 import { COPY } from "../copy";
 import { Modal } from "./Modal";
 
-export type Destination = "bucket" | "countdowns" | "gifts" | "mood" | "qotd" | "notes" | "wishlist";
+export type Destination = "bucket" | "countdowns" | "gifts" | "mood" | "qotd" | "notes" | "wishlist" | "settings";
 
 /** Bottom-sheet listing the non-tab destination screens. */
 export function MoreSheet({
@@ -20,6 +20,7 @@ export function MoreSheet({
     { id: "gifts", label: COPY.nav.gifts },
     { id: "mood", label: COPY.nav.mood },
     { id: "qotd", label: COPY.home.moreQotd },
+    { id: "settings", label: "⚙️ Настройки" },
   ];
   return (
     <Modal open={open} onClose={onClose} title={COPY.home.more}>
