@@ -248,6 +248,12 @@ export const COPY = {
     completeButton: "Записать в добрые дела",
     completed: (gesture: string) => `Готово! «${gesture}» записано в добрые дела 💛`,
   },
+  dateWheel: {
+    // Bundle E Task 3: send a spun idea to the shared wishlist instead of
+    // letting it dead-end on the result card.
+    saveToWishlist: "Сохранить в вишлист",
+    savedToWishlist: "Добавлено в вишлист",
+  },
   limitNote: {
     count: (n: number, max: number) => `${n} из ${max} в бесплатной версии`,
   },

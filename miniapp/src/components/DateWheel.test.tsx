@@ -9,6 +9,7 @@ vi.mock("../sdk/api", async () => {
     endpoints: {
       ...actual.endpoints,
       getDateIdea: vi.fn(),
+      addWishlist: vi.fn(),
     },
   };
 });
@@ -24,10 +25,12 @@ import { endpoints } from "../sdk/api";
 import { haptic as hapticMock } from "../sdk/twa";
 
 const getDateIdea = endpoints.getDateIdea as unknown as ReturnType<typeof vi.fn>;
+const addWishlist = endpoints.addWishlist as unknown as ReturnType<typeof vi.fn>;
 const haptic = hapticMock as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   getDateIdea.mockReset();
+  addWishlist.mockReset();
   haptic.mockReset();
 });
 afterEach(() => {
@@ -301,5 +304,57 @@ describe("DateWheel — result land-bounce + medium haptic", () => {
 
     // A medium-impact haptic must fire on land — this is the "thud" feel.
     expect(haptic).toHaveBeenCalledWith("medium");
+  });
+});
+
+describe("DateWheel — Bundle E save-to-wishlist", () => {
+  it("shows a 'Сохранить в вишлист' button on the result card and pushes the idea into the wishlist on click", async () => {
+    addWishlist.mockResolvedValueOnce({
+      id: "w1",
+      title: "Пицца на Маросейке",
+      address: null,
+      category: "eat",
+      status: "open",
+      createdBy: "self",
+      mine: true,
+      archived: false,
+      createdAt: "2026-06-21T00:00:00",
+    });
+    getDateIdea.mockResolvedValueOnce({
+      source: "default",
+      title: "Пицца на Маросейке",
+      category: "eat",
+      reason: "Без повода — просто вкусно",
+    });
+
+    vi.useFakeTimers();
+    render(<DateWheelScreen isPro={false} onOpenAdmin={() => {}} />);
+
+    // Spin → result phase.
+    fireEvent.click(screen.getByText(/Крутить/));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    // The save-to-wishlist button is on the result card.
+    const saveBtn = screen.getByRole("button", { name: /Сохранить в вишлист/ });
+    expect(saveBtn).toBeInTheDocument();
+
+    fireEvent.click(saveBtn);
+    // addWishlist resolves with a pending microtask; flush with act.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(addWishlist).toHaveBeenCalledTimes(1);
+    const sent = addWishlist.mock.calls[0][0] as { title: string };
+    expect(sent.title).toBe("Пицца на Маросейке");
+
+    // Confirmation copy shows up after the await resolves.
+    expect(screen.queryByText(/Добавлено в вишлист/)).not.toBeNull();
   });
 });
