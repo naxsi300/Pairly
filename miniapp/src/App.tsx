@@ -9,6 +9,7 @@ import { QuestionOfTheDay } from "./screens/QuestionOfTheDay";
 import { Gifts } from "./screens/Gifts";
 import { Home } from "./screens/Home";
 import { LoveNotes } from "./screens/LoveNotes";
+import { Settings } from "./screens/Settings";
 import { MilestoneToast, type MilestoneEvent } from "./components/Toast";
 import { useMilestoneToast } from "./lib/milestoneBus";
 import { NavBar, type Tab } from "./components/NavBar";
@@ -89,6 +90,7 @@ function DestinationView({ dest, onBack }: { dest: Destination; onBack: () => vo
       {dest === "qotd" ? <QuestionOfTheDay /> : null}
       {dest === "notes" ? <LoveNotes /> : null}
       {dest === "wishlist" ? <Wishlist /> : null}
+      {dest === "settings" ? <Settings /> : null}
     </div>
   );
 }

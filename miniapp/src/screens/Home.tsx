@@ -147,6 +147,24 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
 
   return (
     <div className="app-scroll mx-auto flex max-w-md flex-col gap-3 px-4 py-4">
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onClick={() => onOpen("settings")}
+          aria-label="Настройки"
+          style={{
+            background: "none",
+            border: "none",
+            padding: "4px 8px",
+            fontSize: 20,
+            cursor: "pointer",
+            color: "var(--tg-hint)",
+            lineHeight: 1,
+          }}
+        >
+          ⚙️
+        </button>
+      </div>
       <CountdownStrip items={cds.data ?? []} />
 
       {anyError ? (

@@ -254,6 +254,24 @@ export const COPY = {
     saveToWishlist: "Сохранить в вишлист",
     savedToWishlist: "Добавлено в вишлист",
   },
+  settings: {
+    // Bundle F Task 2: Settings screen — display-name edit + pair info + unpair.
+    heading: "Настройки",
+    youSection: "Вы",
+    displayNameLabel: "Как вас видеть",
+    displayNamePlaceholder: "Ваше имя",
+    save: "Сохранить",
+    saved: "Сохранено",
+    pairSection: "Пара",
+    togetherSince: (date: string) => `Вместе с ${date}`,
+    unpairSection: "Опасная зона",
+    unpairButton: "Расстворить пару",
+    unpairConfirm: (name: string) =>
+      `Точно расстворить пару с ${name}? Это нельзя отменить.`,
+    unpairSubmit: "Расстворить",
+    unpairViaBot: "Через бота: отправьте /unpair нашему боту.",
+    copyCommand: "Скопировать",
+  },
   limitNote: {
     count: (n: number, max: number) => `${n} из ${max} в бесплатной версии`,
   },
