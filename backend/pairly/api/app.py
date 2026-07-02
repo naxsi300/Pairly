@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import defaultdict, deque
+from datetime import datetime
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +37,8 @@ from pairly.api.schemas import (
     GiftTransition,
     LoveNoteCreate,
     LoveNoteOut,
+    MeOut,
+    MePatch,
     MilestoneOut,
     MoodEntryOut,
     MoodResponse,
@@ -262,6 +265,81 @@ def create_app() -> FastAPI:
     @app.get("/api/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    # --- profile / settings ---
+    # /api/me is read/write for the CALLER alone. It deliberately does NOT
+    # _require_pair — unpaired users must still see and edit their own
+    # display_name. The pair fields (pairCreatedAt, partnerDisplayName) are
+    # simply null when the caller is unpaired.
+    @app.get("/api/me", response_model=MeOut)
+    async def get_me(
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> MeOut:
+        from pairly.db.models import Pair
+
+        pair_created_at: datetime | None = None
+        partner_name: str | None = None
+        if auth.user.pair_id is not None:
+            pair_obj = await session.get(Pair, auth.user.pair_id)
+            if pair_obj is not None:
+                pair_created_at = pair_obj.created_at
+            partner_name = await _partner_display_name(
+                session, pair_id=auth.user.pair_id, viewer_id=auth.user.id
+            )
+        return MeOut(
+            id=auth.user.id,
+            display_name=auth.user.display_name,
+            tg_username=auth.user.tg_username,
+            pair_created_at=pair_created_at,
+            partner_display_name=partner_name,
+        )
+
+    @app.patch("/api/me", response_model=MeOut)
+    async def patch_me(
+        payload: MePatch,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> MeOut:
+        """Update the caller's profile. Only ``displayName`` is editable today.
+
+        Validation:
+          * empty / whitespace-only -> 400 (don't persist empty).
+          * over-length (>128 graphemes) -> truncated via ``truncate_graphemes``
+            so the DB column (String(128)) cannot overflow. Truncation is
+            silent — the returned value reflects the actual stored value.
+        """
+        from pairly.bot.text import truncate_graphemes
+        from pairly.db.models import Pair
+
+        raw_name = payload.display_name
+        if raw_name is not None:
+            name = raw_name.strip()
+            if not name:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST, detail="displayName must not be empty"
+                )
+            # truncate_graphemes with code_point_cap=128 mirrors the DB column
+            # width (User.display_name is String(128) → 128 code points).
+            auth.user.display_name = truncate_graphemes(name, 128, code_point_cap=128)
+            await session.commit()
+
+        pair_created_at: datetime | None = None
+        partner_name: str | None = None
+        if auth.user.pair_id is not None:
+            pair_obj = await session.get(Pair, auth.user.pair_id)
+            if pair_obj is not None:
+                pair_created_at = pair_obj.created_at
+            partner_name = await _partner_display_name(
+                session, pair_id=auth.user.pair_id, viewer_id=auth.user.id
+            )
+        return MeOut(
+            id=auth.user.id,
+            display_name=auth.user.display_name,
+            tg_username=auth.user.tg_username,
+            pair_created_at=pair_created_at,
+            partner_display_name=partner_name,
+        )
 
     # --- pair stats (ambient shared-counters, not goals/streaks) ---
     @app.get("/api/pair/stats")

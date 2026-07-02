@@ -341,3 +341,32 @@ class PairStats(_CamelModel):
 class GiftsResponse(_CamelModel):
     items: list[GiftItemOut] = []
     partner_name: str | None = None
+
+
+# --- Profile / settings ---
+
+class MeOut(_CamelModel):
+    """The caller's own profile + pair info.
+
+    Used by GET /api/me and PATCH /api/me (same shape). pairCreatedAt and
+    partnerDisplayName are null for unpaired callers — the endpoint does NOT
+    412 on /api/me (unlike shared-feature endpoints); profile is always
+    readable.
+    """
+
+    id: str
+    display_name: str | None = None
+    tg_username: str | None = None
+    pair_created_at: datetime | None = None
+    partner_display_name: str | None = None
+
+
+class MePatch(_CamelModel):
+    """PATCH /api/me body — only fields the client actually wants to update.
+
+    All fields are optional; omitting a field leaves it untouched on the server.
+    Truncation / non-empty checks live in the route, not the schema (so the
+    test can read the raw value pre-trim).
+    """
+
+    display_name: str | None = None
