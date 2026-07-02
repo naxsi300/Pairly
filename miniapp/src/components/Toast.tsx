@@ -44,10 +44,13 @@ const KIND_LABEL: Record<string, (v: number) => string> = {
   mood_mutual_count: (v) =>
     v === 7 ? COPY.milestones.moodMutual7
     : COPY.milestones.moodMutualCustom(v),
+  bucket_done_count: (v) =>
+    v === 1 ? COPY.milestones.bucketDoneFirst
+    : COPY.milestones.bucketDoneCustom(v),
 };
 
 /** Milestones that deserve a confetti burst (anniversaries + bigger achievements). */
-const CONFETTI_KINDS = new Set(["gift_completed_count"]);
+const CONFETTI_KINDS = new Set(["gift_completed_count", "bucket_done_count"]);
 
 export function MilestoneToast({
   events,

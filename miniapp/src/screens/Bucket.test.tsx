@@ -20,13 +20,19 @@ vi.mock("../sdk/twa", () => ({
   haptic: () => {},
 }));
 
+vi.mock("../lib/milestoneBus", () => ({
+  emitMilestone: vi.fn(),
+}));
+
 import { Bucket } from "./Bucket";
 import { endpoints } from "../sdk/api";
+import { emitMilestone } from "../lib/milestoneBus";
 
 const addMock = endpoints.addBucket as unknown as ReturnType<typeof vi.fn>;
 const deleteMock = endpoints.deleteBucket as unknown as ReturnType<typeof vi.fn>;
 const listMock = endpoints.listBucket as unknown as ReturnType<typeof vi.fn>;
 const setStatusMock = endpoints.setBucketStatus as unknown as ReturnType<typeof vi.fn>;
+const emitMock = emitMilestone as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   addMock.mockReset();
@@ -35,6 +41,7 @@ beforeEach(() => {
   listMock.mockResolvedValue([]);
   setStatusMock.mockReset();
   setStatusMock.mockResolvedValue({ ok: true });
+  emitMock.mockReset();
 });
 
 describe("Bucket — cluster 13 double-submit guard", () => {
@@ -259,5 +266,69 @@ describe("Bucket — fulfilled-dreams gallery (Bundle D Task 1)", () => {
     ).toBeTruthy();
     // Dreaming item is hidden in the fulfilled view.
     expect(screen.queryByText("Полёт на воздушном шаре")).toBeNull();
+  });
+});
+
+describe("Bucket — dream-fulfilled ceremony (Bundle E Task 1)", () => {
+  it("emits bucket_done_count=1 after the first dream is marked done", async () => {
+    listMock.mockResolvedValue([
+      {
+        id: "b-1",
+        title: "Увидеть северное сияние",
+        note: null,
+        category: null,
+        status: "dreaming",
+      },
+    ]);
+    render(<Bucket />);
+    fireEvent.click(await screen.findByText(/Сбылось 🌌/));
+
+    await waitFor(() =>
+      expect(emitMock).toHaveBeenCalledWith({ kind: "bucket_done_count", value: 1 }),
+    );
+    // Exactly one emit per successful markDone.
+    const calls = emitMock.mock.calls.filter(
+      ([arg]) => (arg as { kind: string }).kind === "bucket_done_count",
+    );
+    expect(calls.length).toBe(1);
+  });
+
+  it("emits bucket_done_count=N where N reflects the post-flip done count", async () => {
+    // Two already done + one dreaming → mark the third done → doneCount=3.
+    listMock.mockResolvedValue([
+      { id: "b-1", title: "Готово 1", note: null, category: null, status: "done", completedAt: "2026-01-01T00:00:00.000Z" },
+      { id: "b-2", title: "Готово 2", note: null, category: null, status: "done", completedAt: "2026-02-01T00:00:00.000Z" },
+      { id: "b-3", title: "Полёт на воздушном шаре", note: null, category: null, status: "dreaming" },
+    ]);
+    render(<Bucket />);
+    fireEvent.click(await screen.findByText(/Сбылось 🌌/));
+
+    await waitFor(() =>
+      expect(emitMock).toHaveBeenCalledWith({ kind: "bucket_done_count", value: 3 }),
+    );
+  });
+
+  it("does NOT emit a milestone when markDone() PATCH fails", async () => {
+    listMock.mockResolvedValue([
+      {
+        id: "b-1",
+        title: "Прыжок с парашютом",
+        note: null,
+        category: null,
+        status: "dreaming",
+      },
+    ]);
+    setStatusMock.mockRejectedValueOnce(new Error("network"));
+    render(<Bucket />);
+
+    fireEvent.click(await screen.findByText(/Сбылось 🌌/));
+    // Wait for the inline error to appear so we know the catch path ran.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/Не отправилось|Попробуйте/i),
+    );
+    const bucketCalls = emitMock.mock.calls.filter(
+      ([arg]) => (arg as { kind: string }).kind === "bucket_done_count",
+    );
+    expect(bucketCalls.length).toBe(0);
   });
 });

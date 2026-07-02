@@ -269,6 +269,8 @@ export const COPY = {
     giftCompletedCustom: (v: number) => `${v} подарков-действий завершено. Вы держите слово.`,
     moodMutual7: "7 дней, когда оба делились настроением. Это больше чем просто смайлик 🌤",
     moodMutualCustom: (v: number) => `${v} дней, где оба открывали настроение.`,
+    bucketDoneFirst: "Первая сбылась! ✨",
+    bucketDoneCustom: (n: number) => `${n} мечт сбылось`,
   },
   stats: {
     title: "Вы вместе",
