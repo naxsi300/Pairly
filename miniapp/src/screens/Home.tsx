@@ -16,6 +16,7 @@ import { GiftsCard } from "../components/home-cards/GiftsCard";
 import { NotesCard } from "../components/home-cards/NotesCard";
 import { PairNotLinkedBanner } from "../components/PairNotLinkedBanner";
 import { WelcomeHero } from "../components/WelcomeHero";
+import { MonthlyRecap } from "../components/MonthlyRecap";
 
 const WELCOMED_KEY = "pairly.welcomed";
 
@@ -32,8 +33,10 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
   const notes = useApi<LoveNoteItem[]>(endpoints.listLoveNotes);
   // Pair-status: false while loading or after a 412 ("pair up first"). The
   // banner only mounts once we know for sure the user is unpaired (loading
-  // finished + error), so it doesn't flash on first paint.
-  const { hasPair } = usePairStatus();
+  // finished + error), so it doesn't flash on first paint. We also surface
+  // the headline counters (`togetherDays`, `totalQotdAnswers`) here so the
+  // monthly recap card reads them off the same hook — no second network call.
+  const { hasPair, togetherDays, totalQotdAnswers } = usePairStatus();
 
   // Aggregate loading/error across the data hooks so a single banner can
   // surface any problem without each card silently disappearing.
@@ -188,6 +191,15 @@ export function Home({ onOpen }: { onOpen: (d: Destination) => void }) {
       ) : null}
 
       {hasPair === false ? <PairNotLinkedBanner /> : null}
+
+      {/* Monthly recap — ambient, no CTA. Hidden under 7 days together so
+          brand-new pairs don't see "0 of everything" right after linking. */}
+      <MonthlyRecap
+        togetherDays={togetherDays}
+        qotd={totalQotdAnswers}
+        deeds={goodDeeds}
+        dreams={doneCount}
+      />
 
       {showWelcome ? (
         <WelcomeHero

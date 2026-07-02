@@ -264,6 +264,21 @@ class QOTDAnswerIn(_CamelModel):
     question_id: str | None = None
 
 
+class QOTDArchiveOut(_CamelModel):
+    """One row in the answered-Q&A archive (history sheet).
+
+    `date` is the UTC-day bucket — same-day re-answers collapse into a single
+    row. `my_answer` is the viewer's body and `partner_answer` is the partner's
+    body for that (pair, question, day). Both bodies are unconditionally visible
+    here (no reveal gate — this is the read-only history).
+    """
+
+    date: datetime
+    question_text: str
+    my_answer: str
+    partner_answer: str
+
+
 # --- Gifts ---
 
 class GiftCreate(_CamelModel):

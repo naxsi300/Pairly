@@ -43,6 +43,7 @@ from pairly.api.schemas import (
     PairStats,
     QOTDAnswerIn,
     QOTDAnswerOut,
+    QOTDArchiveOut,
     QOTDQuestionOut,
     QOTDResponse,
     WishlistCreate,
@@ -865,6 +866,36 @@ def create_app() -> FastAPI:
                 session, pair_id=pair_id, viewer_id=auth.user.id
             ),
         )
+
+    @app.get("/api/qotd/archive", response_model=list[QOTDArchiveOut])
+    async def get_qotd_archive(
+        limit: int = 50,
+        auth: AuthContext = Depends(current_auth),
+        session: AsyncSession = Depends(get_session),
+    ) -> list[QOTDArchiveOut]:
+        """Read-only archive: past Q&As where BOTH partners in the pair answered.
+
+        The FE history sheet consumes this. Membership-enforced (412 if
+        unpaired, 403 if somehow not in the pair). The reveal-gate does NOT
+        apply here: by definition, "both answered" means the gate is already
+        cleared for any later look-up — and this is a history view, not a
+        live reveal surface.
+
+        Rows are newest-first; `limit` caps the tail (default 50).
+        """
+        pair_id = _require_pair(auth)
+        rows = await qotd.list_answered_qotd(
+            session, pair_id=pair_id, user_id=auth.user.id, limit=limit
+        )
+        return [
+            QOTDArchiveOut(
+                date=r["date"],
+                question_text=r["question_text"],
+                my_answer=r["my_answer"],
+                partner_answer=r["partner_answer"],
+            )
+            for r in rows
+        ]
 
     @app.post("/api/qotd/answer")
     async def post_qotd(

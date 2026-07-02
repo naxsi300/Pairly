@@ -78,6 +78,13 @@ export const COPY = {
     pairNotLinkedTitle: "Это ваш уголок, но пока только ваш",
     pairNotLinkedSub: "Пригласите партнёра: /pair в боте",
     pairNotLinkedCta: "Открыть бота",
+    recapTitle: "Ваш месяц вместе",
+    // Honest "short, warm" recap. Brief allows the simple "N вопросов / N добрых дел /
+    // N сбылось" form when uncertain about gender; we pick this on purpose so the
+    // string stays stable across locales and avoids Polish-style one/few/many forms
+    // that read awkwardly in Russian for 1, 21, 22…
+    recapBody: (qotd: number, deeds: number, dreams: number) =>
+      `${qotd} вопросов · ${deeds} добрых дел · ${dreams} мечт сбылось`,
   },
   notes: {
     heading: "Записки",
@@ -146,6 +153,10 @@ export const COPY = {
       "«Сделаем в этом месяце?» → вишлист. «Может, в этом году, а может никогда» → сюда, в мечты.",
     limitHit:
       "В бесплатной версии максимум 5 мечтаний, и список полон ✨ Оформим Pro (без лимита) или отпустим какую-то из старых?",
+    dreamsTab: "Мечты",
+    fulfilledTab: "Сбылось 🌠",
+    fulfilledEmpty: "Пока ничего не сбылось — но всё впереди ✨",
+    fulfilledOn: (date: string) => `сбылось ${date}`,
   },
   countdowns: {
     heading: "Отсчёты",
@@ -209,6 +220,10 @@ export const COPY = {
       `Записал твой ответ 💭 Ответ ${partner} откроется, как только он(а) тоже ответит.`,
     myAnswerLabel: "🧑 Твой ответ",
     partnerAnswerLabel: (partner: string) => `💛 ${partner}`,
+    // Bundle D Task 3: read-only history sheet (Q&As where both answered).
+    historyButton: "📜 История",
+    historyTitle: "История вопросов",
+    historyEmpty: "Пока нет истории",
   },
   gifts: {
     heading: "Подарки",
