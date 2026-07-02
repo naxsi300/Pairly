@@ -137,6 +137,12 @@ export function Gifts() {
       ),
     }));
     haptic(action === "decline" ? "light" : "success");
+    // Bundle E: warm toast on every gift acceptance (decline/redeem/complete
+    // intentionally do not emit — gifts are frequent and we don't want a
+    // toast when declining or marking the giver-side states).
+    if (action === "accept") {
+      emitMilestone({ kind: "gift_received", value: 1 });
+    }
     try {
       await endpoints.actOnGift(item.id, targetStatus);
     } catch {

@@ -22,6 +22,7 @@ vi.mock("../sdk/api", async () => {
         partnerName: "Маша",
       }),
       sendGift: vi.fn(),
+      actOnGift: vi.fn().mockResolvedValue({ ok: true }),
     },
   };
 });
@@ -31,16 +32,22 @@ vi.mock("../sdk/twa", () => ({
 }));
 
 vi.mock("../lib/milestoneBus", () => ({
-  emitMilestone: () => {},
+  emitMilestone: vi.fn(),
 }));
 
 import { Gifts } from "./Gifts";
 import { endpoints } from "../sdk/api";
+import { emitMilestone } from "../lib/milestoneBus";
 
 const sendMock = endpoints.sendGift as unknown as ReturnType<typeof vi.fn>;
+const actMock = endpoints.actOnGift as unknown as ReturnType<typeof vi.fn>;
+const emitMock = emitMilestone as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   sendMock.mockReset();
+  actMock.mockReset();
+  actMock.mockResolvedValue({ ok: true });
+  emitMock.mockReset();
 });
 
 /** In the picker, the catalog gesture is rendered as a `<button>` element
@@ -108,5 +115,41 @@ describe("Gifts — action-first hero", () => {
       .getAllByRole("button", { name: /Принять/ })
       .find((b) => b.closest('[data-testid="gifts-waiting-hero"]'));
     expect(heroAccept).toBeTruthy();
+  });
+});
+
+describe("Gifts — Bundle E: accepted-gift toast (gift_received)", () => {
+  it("emits gift_received milestone when accept succeeds", async () => {
+    render(<Gifts />);
+    await screen.findByTestId("gifts-waiting-hero");
+    const heroAccept = screen
+      .getAllByRole("button", { name: /Принять/ })
+      .find((b) => b.closest('[data-testid="gifts-waiting-hero"]'));
+    expect(heroAccept).toBeTruthy();
+    fireEvent.click(heroAccept!);
+
+    await waitFor(() => expect(actMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(emitMock).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "gift_received", value: 1 }),
+      ),
+    );
+  });
+
+  it("does NOT emit gift_received milestone on decline", async () => {
+    render(<Gifts />);
+    await screen.findByTestId("gifts-waiting-hero");
+    const heroDecline = screen
+      .getAllByRole("button", { name: /Вежливо отказаться/ })
+      .find((b) => b.closest('[data-testid="gifts-waiting-hero"]'));
+    expect(heroDecline).toBeTruthy();
+    fireEvent.click(heroDecline!);
+
+    await waitFor(() => expect(actMock).toHaveBeenCalledTimes(1));
+    // Decline path must not emit the gift_received milestone.
+    const giftReceivedCalls = emitMock.mock.calls.filter(
+      (c) => (c[0] as { kind?: string }).kind === "gift_received",
+    );
+    expect(giftReceivedCalls).toHaveLength(0);
   });
 });

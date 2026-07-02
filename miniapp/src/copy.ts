@@ -271,6 +271,7 @@ export const COPY = {
     moodMutualCustom: (v: number) => `${v} дней, где оба открывали настроение.`,
     bucketDoneFirst: "Первая сбылась! ✨",
     bucketDoneCustom: (n: number) => `${n} мечт сбылось`,
+    giftAccepted: "Жест принят 🤍",
   },
   stats: {
     title: "Вы вместе",

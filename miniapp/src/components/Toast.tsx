@@ -47,6 +47,9 @@ const KIND_LABEL: Record<string, (v: number) => string> = {
   bucket_done_count: (v) =>
     v === 1 ? COPY.milestones.bucketDoneFirst
     : COPY.milestones.bucketDoneCustom(v),
+  // Bundle E: warm toast on every gift acceptance. Value is ignored — the
+  // copy is always "Жест принят 🤍" so the partner never sees a counter.
+  gift_received: () => COPY.milestones.giftAccepted,
 };
 
 /** Milestones that deserve a confetti burst (anniversaries + bigger achievements). */
