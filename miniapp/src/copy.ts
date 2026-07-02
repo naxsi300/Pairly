@@ -248,6 +248,12 @@ export const COPY = {
     completeButton: "Записать в добрые дела",
     completed: (gesture: string) => `Готово! «${gesture}» записано в добрые дела 💛`,
   },
+  dateWheel: {
+    // Bundle E Task 3: send a spun idea to the shared wishlist instead of
+    // letting it dead-end on the result card.
+    saveToWishlist: "Сохранить в вишлист",
+    savedToWishlist: "Добавлено в вишлист",
+  },
   limitNote: {
     count: (n: number, max: number) => `${n} из ${max} в бесплатной версии`,
   },
@@ -269,6 +275,9 @@ export const COPY = {
     giftCompletedCustom: (v: number) => `${v} подарков-действий завершено. Вы держите слово.`,
     moodMutual7: "7 дней, когда оба делились настроением. Это больше чем просто смайлик 🌤",
     moodMutualCustom: (v: number) => `${v} дней, где оба открывали настроение.`,
+    bucketDoneFirst: "Первая сбылась! ✨",
+    bucketDoneCustom: (n: number) => `${n} мечт сбылось`,
+    giftAccepted: "Жест принят 🤍",
   },
   stats: {
     title: "Вы вместе",

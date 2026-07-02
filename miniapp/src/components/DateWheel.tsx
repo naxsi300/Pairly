@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { endpoints, type DateIdeaResponse } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { CATEGORIES, categoryEmoji } from "../lib/categories";
+import { COPY } from "../copy";
 import { Paywall } from "./Paywall";
 
 type Phase = "filters" | "spinning" | "result";
@@ -46,6 +47,15 @@ export function DateWheelScreen({
    * this, a slow response can call setState after the user navigated away or
    * after a fresh spin already started — both race the new request. */
   const spinAbortRef = useRef<AbortController | null>(null);
+  /** Bundle E: saving the spun idea to the shared wishlist. `saving` covers
+   * the brief "disable while awaiting" window; `saved` flips the button
+   * label to a confirmation line for a couple seconds. */
+  const [savingToWishlist, setSavingToWishlist] = useState(false);
+  const [savedToWishlist, setSavedToWishlist] = useState(false);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  /** Auto-hide the "Добавлено в вишлист" confirmation after a few seconds.
+   * Stored so a re-click (or unmount) can clear the pending timer. */
+  const savedTimerRef = useRef<number | null>(null);
 
   function pickMode(m: Mode) {
     if (m === mode) return;
@@ -76,6 +86,18 @@ export function DateWheelScreen({
     }
     setPhase("spinning");
     setSpinError(null);
+    // Reset the save state so a fresh result starts from a clean slate — the
+    // previous idea's "Добавлено в вишлист" line is no longer relevant.
+    setSavedToWishlist(false);
+    if (savedTimerRef.current !== null) {
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = null;
+    }
+    if (saveAbortRef.current) {
+      saveAbortRef.current.abort();
+      saveAbortRef.current = null;
+    }
+    setSavingToWishlist(false);
     haptic("light");
     const ctrl = new AbortController();
     spinAbortRef.current = ctrl;
@@ -101,6 +123,45 @@ export function DateWheelScreen({
     }
   }
 
+  /**
+   * Bundle E: send the currently-spun idea into the shared wishlist. Called
+   * from the "Сохранить в вишлист" button on the result card. Best-effort —
+   * network errors are swallowed (no refetch); the user can always re-spin
+   * or add manually from the wishlist tab.
+   */
+  async function saveIdeaToWishlist() {
+    if (!idea || savingToWishlist) return;
+    setSavingToWishlist(true);
+    // Cancel any previous confirmation timer so rapid clicks keep the line
+    // visible for a fresh full window instead of getting yanked early.
+    if (savedTimerRef.current !== null) {
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = null;
+    }
+    const ctrl = new AbortController();
+    saveAbortRef.current = ctrl;
+    try {
+      await endpoints.addWishlist({ title: idea.title }, ctrl.signal);
+      if (ctrl.signal.aborted) return;
+      setSavedToWishlist(true);
+      haptic("light");
+      savedTimerRef.current = window.setTimeout(() => {
+        savedTimerRef.current = null;
+        setSavedToWishlist(false);
+      }, 2500);
+    } catch {
+      // AbortError (component unmount) is expected; anything else is best-
+      // effort — we don't surface it. The user can re-spin or open the
+      // wishlist tab to retry.
+      if (ctrl.signal.aborted) return;
+    } finally {
+      if (saveAbortRef.current === ctrl) {
+        saveAbortRef.current = null;
+      }
+      setSavingToWishlist(false);
+    }
+  }
+
   // Clear any pending spin timer on unmount so we don't setState on a dead
   // component if the user navigates away during the 1100ms window.
   useEffect(() => {
@@ -112,6 +173,14 @@ export function DateWheelScreen({
       if (spinAbortRef.current) {
         spinAbortRef.current.abort();
         spinAbortRef.current = null;
+      }
+      if (saveAbortRef.current) {
+        saveAbortRef.current.abort();
+        saveAbortRef.current = null;
+      }
+      if (savedTimerRef.current !== null) {
+        clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = null;
       }
     };
   }, []);
@@ -223,6 +292,31 @@ export function DateWheelScreen({
               <div className="card" style={{ marginTop: 4 }}>
                 <div className="card-title">✨ Почему это для вас</div>
                 <div className="card-sub">{idea.reason}</div>
+              </div>
+            ) : null}
+            {/* Bundle E: send the spun idea to the shared wishlist. Hidden
+                when the idea is already FROM the wishlist (a wishlist-source
+                idea is by definition already in the list). */}
+            {idea.source !== "wishlist" ? (
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ marginTop: 8, width: "100%" }}
+                onClick={saveIdeaToWishlist}
+                disabled={savingToWishlist}
+                aria-busy={savingToWishlist}
+              >
+                {savingToWishlist ? "…" : `📌 ${COPY.dateWheel.saveToWishlist}`}
+              </button>
+            ) : null}
+            {savedToWishlist ? (
+              <div
+                className="card-sub"
+                role="status"
+                aria-live="polite"
+                style={{ textAlign: "center", marginTop: 6, color: "var(--tg-hint)" }}
+              >
+                ✓ {COPY.dateWheel.savedToWishlist}
               </div>
             ) : null}
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>

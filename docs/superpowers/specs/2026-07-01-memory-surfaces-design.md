@@ -52,3 +52,6 @@ The pair accumulates rich history but the app only shows "now." Four memory surf
 - After a week together, Home shows a warm recap card.
 - Past QOTD Q&As are browsable.
 - Mood screen shows a 7-day "both marked" ribbon (ambient, private).
+
+## Update (2026-07-01, during implementation)
+**Mood pulse DROPPED.** The MoodEntry model is "Latest-only. No history graph, no streak, no score (privacy-by-design)" — it overwrites on each set, so there's no per-day history to compute a 7-day "both marked" ribbon from. Implementing it would require keeping mood history, which violates the mood-sync privacy contract. Removed from scope. The other three surfaces (gallery, recap, QOTD archive) remain.

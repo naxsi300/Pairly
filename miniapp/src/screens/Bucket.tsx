@@ -4,6 +4,7 @@ import { endpoints, useApi } from "../sdk/api";
 import { haptic } from "../sdk/twa";
 import { DEFAULT_LIMITS, type BucketItem } from "../types";
 import { bucketStatusLabel, shortDate } from "../lib/format";
+import { emitMilestone } from "../lib/milestoneBus";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { LimitBanner } from "../components/LimitBanner";
@@ -94,6 +95,13 @@ export function Bucket() {
     try {
       await endpoints.setBucketStatus(item.id, "done");
       haptic("success");
+      // Dream-fulfilled ceremony (Bundle E Task 1): the FIRST fulfilled dream
+      // gets a confetti burst; subsequent ones toast the running count.
+      // We derive the post-flip done count from the current `data` snapshot
+      // (this item isn't flipped yet here, so we add 1).
+      const nextDone =
+        (data ?? []).filter((b) => b.status === "done").length + 1;
+      emitMilestone({ kind: "bucket_done_count", value: nextDone });
     } catch {
       setActionError(COPY.common.sendFailed);
       refetch();
